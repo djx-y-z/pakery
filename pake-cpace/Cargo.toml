@@ -1,0 +1,25 @@
+[package]
+name = "pake-cpace"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "CPace balanced PAKE protocol (draft-irtf-cfrg-cpace)"
+
+[features]
+default = ["std", "ristretto255"]
+std = ["alloc", "pake-core/std"]
+alloc = ["pake-core/alloc"]
+ristretto255 = ["dep:curve25519-dalek", "dep:sha2"]
+
+[dependencies]
+pake-core = { path = "../pake-core", default-features = false, features = ["alloc"] }
+group = { workspace = true }
+ff = { workspace = true }
+digest = { workspace = true }
+rand_core = { workspace = true }
+zeroize = { workspace = true }
+subtle = { workspace = true }
+curve25519-dalek = { workspace = true, optional = true }
+sha2 = { workspace = true, optional = true }
