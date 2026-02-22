@@ -1,11 +1,11 @@
 //! SPAKE2+ tests for P-256 + SHA-256.
 //!
-//! RFC 9383 has no P-256 test vectors, so we test round-trip consistency.
+//! Includes RFC 9383 Appendix C.1 test vectors (SPAKE2+-P256-SHA256-HKDF-SHA256-HMAC-SHA256).
 #![cfg(feature = "p256")]
 
 use pake_core::crypto::{CpaceGroup, Hash};
 use pake_crypto::{
-    HkdfSha256, HmacSha256, P256Group, Sha512Hash, SPAKE2_P256_M_COMPRESSED,
+    HkdfSha256, HmacSha256, P256Group, Sha256Hash, Sha512Hash, SPAKE2_P256_M_COMPRESSED,
     SPAKE2_P256_N_COMPRESSED,
 };
 use pake_spake2plus::registration::compute_verifier;
@@ -25,11 +25,20 @@ impl Spake2PlusCiphersuite for Spake2PlusP256Sha256 {
     const N_BYTES: &'static [u8] = &SPAKE2_P256_N_COMPRESSED;
 }
 
-// Need Sha256Hash for the ciphersuite
-use pake_crypto::Sha256Hash;
-
 type P = Prover<Spake2PlusP256Sha256>;
 type V = Verifier<Spake2PlusP256Sha256>;
+
+fn h(hex_str: &str) -> Vec<u8> {
+    hex::decode(hex_str).expect("valid hex")
+}
+
+/// Construct a P-256 scalar from a 32-byte big-endian hex string.
+fn scalar_from_hex(hex_str: &str) -> <P256Group as CpaceGroup>::Scalar {
+    use p256::elliptic_curve::ff::PrimeField;
+    let bytes = h(hex_str);
+    let arr: [u8; 32] = bytes.try_into().expect("32 bytes");
+    p256::Scalar::from_repr(arr.into()).unwrap()
+}
 
 /// Derive two password scalars (w0, w1) from a password string.
 fn password_to_scalars(
@@ -53,7 +62,216 @@ fn password_to_scalars(
     (w0, w1)
 }
 
-// --- Registration round-trip ---
+// ============================================================================
+// RFC 9383 Appendix C.1 — SPAKE2+-P256-SHA256-HKDF-SHA256-HMAC-SHA256
+// ============================================================================
+
+const RFC_CONTEXT: &[u8] = b"SPAKE2+-P256-SHA256-HKDF-SHA256-HMAC-SHA256 Test Vectors";
+const RFC_ID_PROVER: &[u8] = b"client";
+const RFC_ID_VERIFIER: &[u8] = b"server";
+
+const RFC_W0: &str = "bb8e1bbcf3c48f62c08db243652ae55d3e5586053fca77102994f23ad95491b3";
+const RFC_W1: &str = "7e945f34d78785b8a3ef44d0df5a1a97d6b3b460409a345ca7830387a74b1dba";
+const RFC_L: &str = "04eb7c9db3d9a9eb1f8adab81b5794c1f13ae3e225efbe91ea487425854c7fc00f00bfedcbd09b2400142d40a14f2064ef31dfaa903b91d1faea7093d835966efd";
+const RFC_X: &str = "d1232c8e8693d02368976c174e2088851b8365d0d79a9eee709c6a05a2fad539";
+const RFC_Y: &str = "717a72348a182085109c8d3917d6c43d59b224dc6a7fc4f0483232fa6516d8b3";
+
+const RFC_SHARE_P: &str = "04ef3bd051bf78a2234ec0df197f7828060fe9856503579bb1733009042c15c0c1de127727f418b5966afadfdd95a6e4591d171056b333dab97a79c7193e341727";
+const RFC_SHARE_V: &str = "04c0f65da0d11927bdf5d560c69e1d7d939a05b0e88291887d679fcadea75810fb5cc1ca7494db39e82ff2f50665255d76173e09986ab46742c798a9a68437b048";
+const RFC_Z: &str = "04bbfce7dd7f277819c8da21544afb7964705569bdf12fb92aa388059408d50091a0c5f1d3127f56813b5337f9e4e67e2ca633117a4fbd559946ab474356c41839";
+const RFC_V: &str = "0458bf27c6bca011c9ce1930e8984a797a3419797b936629a5a937cf2f11c8b9514b82b993da8a46e664f23db7c01edc87faa530db01c2ee405230b18997f16b68";
+
+const RFC_K_MAIN: &str = "4c59e1ccf2cfb961aa31bd9434478a1089b56cd11542f53d3576fb6c2a438a29";
+const RFC_K_CONFIRM_P: &str = "871ae3f7b78445e34438fb284504240239031c39d80ac23eb5ab9be5ad6db58a";
+const RFC_K_CONFIRM_V: &str = "ccd53c7c1fa37b64a462b40db8be101cedcf838950162902054e644b400f1680";
+const RFC_CONFIRM_V: &str = "9747bcc4f8fe9f63defee53ac9b07876d907d55047e6ff2def2e7529089d3e68";
+const RFC_CONFIRM_P: &str = "926cc713504b9b4d76c9162ded04b5493e89109f6d89462cd33adc46fda27527";
+const RFC_K_SHARED: &str = "0c5f8ccd1413423a54f6c1fb26ff01534a87f893779c6e68666d772bfd91f3e7";
+
+#[test]
+fn test_rfc9383_vector_share_p() {
+    // shareP = x*G + w0*M
+    let x = scalar_from_hex(RFC_X);
+    let w0 = scalar_from_hex(RFC_W0);
+    let m = P256Group::from_bytes(&SPAKE2_P256_M_COMPRESSED).unwrap();
+
+    let x_g = P256Group::basepoint_mul(&x);
+    let w0_m = m.scalar_mul(&w0);
+    let share_p = x_g.add(&w0_m);
+
+    assert_eq!(
+        hex::encode(share_p.to_bytes()),
+        RFC_SHARE_P,
+        "shareP must match RFC 9383 vector"
+    );
+}
+
+#[test]
+fn test_rfc9383_vector_share_v() {
+    // shareV = y*G + w0*N
+    let y = scalar_from_hex(RFC_Y);
+    let w0 = scalar_from_hex(RFC_W0);
+    let n = P256Group::from_bytes(&SPAKE2_P256_N_COMPRESSED).unwrap();
+
+    let y_g = P256Group::basepoint_mul(&y);
+    let w0_n = n.scalar_mul(&w0);
+    let share_v = y_g.add(&w0_n);
+
+    assert_eq!(
+        hex::encode(share_v.to_bytes()),
+        RFC_SHARE_V,
+        "shareV must match RFC 9383 vector"
+    );
+}
+
+#[test]
+fn test_rfc9383_vector_transcript() {
+    use pake_spake2plus::encoding::build_transcript;
+
+    // M and N use canonical group encoding (uncompressed for P-256),
+    // matching the protocol's transcript construction.
+    let m = P256Group::from_bytes(&SPAKE2_P256_M_COMPRESSED).unwrap();
+    let n = P256Group::from_bytes(&SPAKE2_P256_N_COMPRESSED).unwrap();
+
+    let tt = build_transcript(
+        RFC_CONTEXT,
+        RFC_ID_PROVER,
+        RFC_ID_VERIFIER,
+        &m.to_bytes(),
+        &n.to_bytes(),
+        &h(RFC_SHARE_P),
+        &h(RFC_SHARE_V),
+        &h(RFC_Z),
+        &h(RFC_V),
+        &h(RFC_W0),
+    );
+
+    let k_main = Sha256Hash::digest(&tt);
+    assert_eq!(
+        hex::encode(&k_main),
+        RFC_K_MAIN,
+        "K_main = SHA-256(TT) must match RFC 9383 vector"
+    );
+}
+
+#[test]
+fn test_rfc9383_vector_key_schedule() {
+    use pake_core::crypto::{Kdf, Mac};
+
+    let k_main = h(RFC_K_MAIN);
+
+    // PRK = HKDF-Extract(salt=[], ikm=K_main)
+    let prk = HkdfSha256::extract(&[], &k_main);
+
+    // K_confirmP || K_confirmV = HKDF-Expand(PRK, "ConfirmationKeys", 64)
+    let kc = HkdfSha256::expand(&prk, b"ConfirmationKeys", 64).unwrap();
+    let k_confirm_p = &kc[..32];
+    let k_confirm_v = &kc[32..64];
+
+    assert_eq!(
+        hex::encode(k_confirm_p),
+        RFC_K_CONFIRM_P,
+        "K_confirmP must match RFC 9383 vector"
+    );
+    assert_eq!(
+        hex::encode(k_confirm_v),
+        RFC_K_CONFIRM_V,
+        "K_confirmV must match RFC 9383 vector"
+    );
+
+    // K_shared = HKDF-Expand(PRK, "SharedKey", 32)
+    let k_shared = HkdfSha256::expand(&prk, b"SharedKey", 32).unwrap();
+    assert_eq!(
+        hex::encode(&k_shared),
+        RFC_K_SHARED,
+        "K_shared must match RFC 9383 vector"
+    );
+
+    // confirmV = HMAC(K_confirmV, shareP)
+    let confirm_v = HmacSha256::mac(k_confirm_v, &h(RFC_SHARE_P)).unwrap();
+    assert_eq!(
+        hex::encode(&confirm_v),
+        RFC_CONFIRM_V,
+        "confirmV must match RFC 9383 vector"
+    );
+
+    // confirmP = HMAC(K_confirmP, shareV)
+    let confirm_p = HmacSha256::mac(k_confirm_p, &h(RFC_SHARE_V)).unwrap();
+    assert_eq!(
+        hex::encode(&confirm_p),
+        RFC_CONFIRM_P,
+        "confirmP must match RFC 9383 vector"
+    );
+}
+
+#[test]
+fn test_rfc9383_vector_full_protocol() {
+    let w0 = scalar_from_hex(RFC_W0);
+    let w1 = scalar_from_hex(RFC_W1);
+    let x = scalar_from_hex(RFC_X);
+    let y = scalar_from_hex(RFC_Y);
+    let l_bytes = h(RFC_L);
+
+    let (share_p_bytes, prover_state) =
+        P::start_with_scalar(&w0, &w1, &x, RFC_CONTEXT, RFC_ID_PROVER, RFC_ID_VERIFIER).unwrap();
+
+    assert_eq!(
+        hex::encode(&share_p_bytes),
+        RFC_SHARE_P,
+        "shareP must match RFC 9383 vector"
+    );
+
+    let (share_v_bytes, confirm_v, verifier_state) = V::start_with_scalar(
+        &share_p_bytes,
+        &w0,
+        &l_bytes,
+        &y,
+        RFC_CONTEXT,
+        RFC_ID_PROVER,
+        RFC_ID_VERIFIER,
+    )
+    .unwrap();
+
+    assert_eq!(
+        hex::encode(&share_v_bytes),
+        RFC_SHARE_V,
+        "shareV must match RFC 9383 vector"
+    );
+    assert_eq!(
+        hex::encode(&confirm_v),
+        RFC_CONFIRM_V,
+        "confirmV must match RFC 9383 vector"
+    );
+
+    let prover_output = prover_state
+        .finish(&share_v_bytes, &confirm_v)
+        .expect("Prover should accept Verifier's confirmation");
+
+    assert_eq!(
+        hex::encode(&prover_output.confirm_p),
+        RFC_CONFIRM_P,
+        "confirmP must match RFC 9383 vector"
+    );
+    assert_eq!(
+        hex::encode(prover_output.session_key.as_bytes()),
+        RFC_K_SHARED,
+        "Prover K_shared must match RFC 9383 vector"
+    );
+
+    let verifier_output = verifier_state
+        .finish(&prover_output.confirm_p)
+        .expect("Verifier should accept Prover's confirmation");
+
+    assert_eq!(
+        hex::encode(verifier_output.session_key.as_bytes()),
+        RFC_K_SHARED,
+        "Verifier K_shared must match RFC 9383 vector"
+    );
+}
+
+// ============================================================================
+// Non-vector tests
+// ============================================================================
 
 #[test]
 fn test_registration_round_trip() {
@@ -66,8 +284,6 @@ fn test_registration_round_trip() {
     let expected_l = P256Group::basepoint_mul(&w1);
     assert_eq!(l_bytes, expected_l.to_bytes(), "L must equal w1*G");
 }
-
-// --- Full round-trip ---
 
 #[test]
 fn test_full_round_trip() {
@@ -109,8 +325,6 @@ fn test_full_round_trip() {
     );
 }
 
-// --- Wrong password ---
-
 #[test]
 fn test_wrong_password_confirmation_fails() {
     let (w0_correct, w1_correct) = password_to_scalars(b"correct_password");
@@ -150,8 +364,6 @@ fn test_wrong_password_confirmation_fails() {
         "Prover should reject Verifier's confirmation when using wrong password"
     );
 }
-
-// --- Deterministic replay ---
 
 #[test]
 fn test_deterministic_replay() {

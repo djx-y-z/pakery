@@ -140,13 +140,18 @@ impl<C: Spake2PlusCiphersuite> Verifier<C> {
         let v_bytes = v.to_bytes();
         let w0_bytes = C::Group::scalar_to_bytes(w0);
 
+        // Use canonical group element encoding for M and N in the transcript
+        // (same encoding as all other group elements, e.g. uncompressed for P-256).
+        let m_bytes = m.to_bytes();
+        let n_bytes = n.to_bytes();
+
         // Build transcript TT (10 fields)
         let tt = build_transcript(
             context,
             id_prover,
             id_verifier,
-            C::M_BYTES,
-            C::N_BYTES,
+            &m_bytes,
+            &n_bytes,
             share_p_bytes,
             &share_v_bytes,
             &z_bytes,

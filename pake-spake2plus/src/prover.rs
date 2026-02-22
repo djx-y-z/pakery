@@ -145,13 +145,22 @@ impl<C: Spake2PlusCiphersuite> ProverState<C> {
         let v_bytes = v.to_bytes();
         let w0_bytes = C::Group::scalar_to_bytes(&self.w0);
 
+        // Decode M and N to get canonical group element encoding for transcript.
+        // This ensures M/N use the same encoding as other group elements (e.g.
+        // uncompressed SEC1 for P-256), regardless of how they are stored in the
+        // ciphersuite constants.
+        let m = C::Group::from_bytes(C::M_BYTES)?;
+        let n_point = C::Group::from_bytes(C::N_BYTES)?;
+        let m_bytes = m.to_bytes();
+        let n_bytes = n_point.to_bytes();
+
         // Build transcript TT (10 fields)
         let tt = build_transcript(
             &self.context,
             &self.id_prover,
             &self.id_verifier,
-            C::M_BYTES,
-            C::N_BYTES,
+            &m_bytes,
+            &n_bytes,
             &self.share_p_bytes,
             share_v_bytes,
             &z_bytes,
