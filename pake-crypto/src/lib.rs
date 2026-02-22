@@ -18,6 +18,8 @@ pub mod mac;
 pub mod oprf_ristretto;
 #[cfg(feature = "ristretto255")]
 pub mod ristretto255;
+#[cfg(feature = "ristretto255")]
+pub mod spake2_constants;
 
 #[cfg(feature = "ristretto255")]
 pub use hash::Sha512Hash;
@@ -31,3 +33,5 @@ pub use mac::HmacSha512;
 pub use oprf_ristretto::Ristretto255Oprf;
 #[cfg(feature = "ristretto255")]
 pub use ristretto255::{Ristretto255Dh, Ristretto255Group};
+#[cfg(feature = "ristretto255")]
+pub use spake2_constants::{SPAKE2_M_COMPRESSED, SPAKE2_N_COMPRESSED, SPAKE2_S_COMPRESSED};

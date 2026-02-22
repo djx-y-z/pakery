@@ -29,4 +29,19 @@ pub trait CpaceGroup: Clone + PartialEq {
 
     /// Sample a random scalar.
     fn random_scalar(rng: &mut impl CryptoRngCore) -> Self::Scalar;
+
+    /// Point addition: `self + other`.
+    fn add(&self, other: &Self) -> Self;
+
+    /// Point negation: `-self`.
+    fn negate(&self) -> Self;
+
+    /// Basepoint (generator) multiplication: `scalar * G`.
+    fn basepoint_mul(scalar: &Self::Scalar) -> Self;
+
+    /// Deserialize a scalar from 64 wide bytes (reduced mod group order).
+    fn scalar_from_wide_bytes(bytes: &[u8]) -> Result<Self::Scalar, PakeError>;
+
+    /// Serialize a scalar to bytes.
+    fn scalar_to_bytes(scalar: &Self::Scalar) -> Vec<u8>;
 }

@@ -52,6 +52,33 @@ impl CpaceGroup for Ristretto255Group {
     fn random_scalar(rng: &mut impl CryptoRngCore) -> Scalar {
         Scalar::random(rng)
     }
+
+    fn add(&self, other: &Self) -> Self {
+        Self {
+            point: self.point + other.point,
+        }
+    }
+
+    fn negate(&self) -> Self {
+        Self { point: -self.point }
+    }
+
+    fn basepoint_mul(scalar: &Scalar) -> Self {
+        Self {
+            point: scalar * RISTRETTO_BASEPOINT_POINT,
+        }
+    }
+
+    fn scalar_from_wide_bytes(bytes: &[u8]) -> Result<Scalar, PakeError> {
+        let arr: [u8; 64] = bytes
+            .try_into()
+            .map_err(|_| PakeError::InvalidInput("scalar_from_wide_bytes requires 64 bytes"))?;
+        Ok(Scalar::from_bytes_mod_order_wide(&arr))
+    }
+
+    fn scalar_to_bytes(scalar: &Scalar) -> Vec<u8> {
+        scalar.to_bytes().to_vec()
+    }
 }
 
 /// Ristretto255 Diffie-Hellman group (byte-level operations).

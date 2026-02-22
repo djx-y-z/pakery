@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["pake-core", "pake-cpace", "pake-crypto", "pake-opaque", "pake-tests"]
+members = ["pake-core", "pake-cpace", "pake-crypto", "pake-opaque", "pake-spake2", "pake-tests"]
 
 [workspace.package]
 version = "0.1.0"

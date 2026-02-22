@@ -1,0 +1,19 @@
+[package]
+name = "pake-spake2"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "SPAKE2 balanced PAKE protocol (RFC 9382)"
+
+[features]
+default = ["std"]
+std = ["alloc", "pake-core/std"]
+alloc = ["pake-core/alloc"]
+
+[dependencies]
+pake-core = { path = "../pake-core", default-features = false, features = ["alloc"] }
+rand_core = { workspace = true }
+zeroize = { workspace = true }
+subtle = { workspace = true }
