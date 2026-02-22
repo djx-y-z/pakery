@@ -15,7 +15,7 @@ use crate::error::Spake2Error;
 /// Contains the session key and confirmation MACs.
 #[derive(Zeroize, ZeroizeOnDrop)]
 pub struct Spake2Output {
-    /// The session key (Ke, second half of the hash).
+    /// The session key (Ke, first half of the hash).
     #[zeroize(skip)]
     pub session_key: SharedSecret,
     /// This party's confirmation MAC to send to the peer.
@@ -38,7 +38,7 @@ impl Spake2Output {
 /// Derive the key schedule from transcript TT.
 ///
 /// Per RFC 9382 §4:
-/// 1. `Ka || Ke = Hash(TT)` (first NH/2 = Ka, second NH/2 = Ke)
+/// 1. `Ke || Ka = Hash(TT)` (first NH/2 = Ke, second NH/2 = Ka)
 /// 2. `PRK = KDF.extract(salt=[], ikm=Ka)`
 /// 3. `KcA || KcB = KDF.expand(PRK, "ConfirmationKeys" || AAD, NH)`
 /// 4. `cA = MAC(KcA, TT)`, `cB = MAC(KcB, TT)`
@@ -47,14 +47,14 @@ pub fn derive_key_schedule<C: Spake2Ciphersuite>(
     aad: &[u8],
     is_party_a: bool,
 ) -> Result<Spake2Output, Spake2Error> {
-    // Step 1: Hash(TT) → Ka || Ke
+    // Step 1: Hash(TT) → Ke || Ka
     let hash_tt = C::Hash::digest(tt);
     let half = C::NH / 2;
     if hash_tt.len() < C::NH {
         return Err(Spake2Error::InternalError("hash output too short"));
     }
-    let ka = &hash_tt[..half];
-    let ke = &hash_tt[half..C::NH];
+    let ke = &hash_tt[..half];
+    let ka = &hash_tt[half..C::NH];
 
     // Step 2: PRK = KDF.extract(salt=[], ikm=Ka)
     let prk = C::Kdf::extract(&[], ka);

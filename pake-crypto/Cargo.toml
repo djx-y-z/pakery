@@ -10,6 +10,7 @@ description = "Concrete cryptographic implementations for PAKE protocols"
 [features]
 default = ["ristretto255"]
 ristretto255 = ["dep:curve25519-dalek", "dep:sha2", "dep:hkdf", "dep:hmac", "dep:voprf"]
+p256 = ["dep:p256", "dep:sha2", "dep:hkdf", "dep:hmac"]
 argon2 = ["dep:argon2"]
 
 [dependencies]
@@ -21,4 +22,5 @@ sha2 = { workspace = true, optional = true }
 hkdf = { workspace = true, optional = true }
 hmac = { workspace = true, optional = true }
 voprf = { workspace = true, optional = true }
+p256 = { workspace = true, optional = true }
 argon2 = { workspace = true, optional = true }
