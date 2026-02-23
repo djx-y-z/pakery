@@ -2,7 +2,7 @@
 
 use alloc::vec::Vec;
 use rand_core::CryptoRngCore;
-use zeroize::{Zeroize, ZeroizeOnDrop};
+use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
 use pake_core::crypto::CpaceGroup;
 
@@ -108,8 +108,8 @@ impl<C: Spake2Ciphersuite> PartyAState<C> {
             return Err(Spake2Error::IdentityPoint);
         }
 
-        let k_bytes = k.to_bytes();
-        let w_bytes = C::Group::scalar_to_bytes(&self.w);
+        let k_bytes = Zeroizing::new(k.to_bytes());
+        let w_bytes = Zeroizing::new(C::Group::scalar_to_bytes(&self.w));
 
         // Build transcript
         let tt = build_transcript(

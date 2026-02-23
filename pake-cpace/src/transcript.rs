@@ -69,7 +69,7 @@ pub fn derive_isk<C: CpaceCiphersuite>(
 /// Derive the optional session ID output.
 ///
 /// ```text
-/// sid_output = H.hash(b"CPaceSidOut" || transcript)
+/// sid_output = H.hash(b"CPaceSidOutput" || transcript)
 /// ```
 pub fn derive_session_id<C: CpaceCiphersuite>(
     ya: &[u8],

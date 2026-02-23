@@ -2,7 +2,7 @@
 
 use alloc::vec::Vec;
 use subtle::ConstantTimeEq;
-use zeroize::{Zeroize, ZeroizeOnDrop};
+use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
 use pake_core::crypto::{Hash, Kdf, Mac};
 use pake_core::SharedSecret;
@@ -57,13 +57,15 @@ pub fn derive_key_schedule<C: Spake2Ciphersuite>(
     let ka = &hash_tt[half..C::NH];
 
     // Step 2: PRK = KDF.extract(salt=[], ikm=Ka)
-    let prk = C::Kdf::extract(&[], ka);
+    let prk = Zeroizing::new(C::Kdf::extract(&[], ka));
 
     // Step 3: KcA || KcB = KDF.expand(PRK, "ConfirmationKeys" || AAD, NH)
     let mut info = Vec::from(b"ConfirmationKeys" as &[u8]);
     info.extend_from_slice(aad);
-    let kc = C::Kdf::expand(&prk, &info, C::NH)
-        .map_err(|_| Spake2Error::InternalError("KDF expand failed"))?;
+    let kc = Zeroizing::new(
+        C::Kdf::expand(&prk, &info, C::NH)
+            .map_err(|_| Spake2Error::InternalError("KDF expand failed"))?,
+    );
     let kc_a = &kc[..half];
     let kc_b = &kc[half..C::NH];
 

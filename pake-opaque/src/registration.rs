@@ -51,7 +51,7 @@ impl<C: OpaqueCiphersuite> ClientRegistrationState<C> {
         server_identity: &[u8],
         client_identity: &[u8],
         rng: &mut impl CryptoRngCore,
-    ) -> Result<(RegistrationRecord, Vec<u8>), OpaqueError> {
+    ) -> Result<(RegistrationRecord, Zeroizing<Vec<u8>>), OpaqueError> {
         // Finalize OPRF
         let oprf_output = Zeroizing::new(oprf::oprf_client_finalize::<C>(
             &self.oprf_state,
@@ -91,7 +91,7 @@ impl<C: OpaqueCiphersuite> ClientRegistrationState<C> {
         server_identity: &[u8],
         client_identity: &[u8],
         nonce: &[u8],
-    ) -> Result<(RegistrationRecord, Vec<u8>), OpaqueError> {
+    ) -> Result<(RegistrationRecord, Zeroizing<Vec<u8>>), OpaqueError> {
         let oprf_output = Zeroizing::new(oprf::oprf_client_finalize::<C>(
             &self.oprf_state,
             &self.password,

@@ -26,7 +26,8 @@ impl CpaceGroup for Ristretto255Group {
 
     fn is_identity(&self) -> bool {
         use curve25519_dalek::traits::Identity;
-        self.point == RistrettoPoint::identity()
+        use subtle::ConstantTimeEq;
+        self.point.ct_eq(&RistrettoPoint::identity()).into()
     }
 
     fn to_bytes(&self) -> Vec<u8> {
@@ -88,6 +89,7 @@ pub struct Ristretto255Dh;
 impl DhGroup for Ristretto255Dh {
     fn diffie_hellman(sk: &[u8], pk: &[u8]) -> Result<Vec<u8>, PakeError> {
         use curve25519_dalek::traits::Identity;
+        use subtle::ConstantTimeEq;
         let sk_bytes: [u8; 32] = sk
             .try_into()
             .map_err(|_| PakeError::InvalidInput("invalid secret key length"))?;
@@ -103,7 +105,7 @@ impl DhGroup for Ristretto255Dh {
             .ok_or(PakeError::InvalidInput("invalid public key point"))?;
 
         let result = scalar * pk_point;
-        if result == RistrettoPoint::identity() {
+        if bool::from(result.ct_eq(&RistrettoPoint::identity())) {
             return Err(PakeError::IdentityPoint);
         }
         Ok(result.compress().to_bytes().to_vec())

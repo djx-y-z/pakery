@@ -52,7 +52,7 @@ pub fn store<C: OpaqueCiphersuite>(
     server_identity: &[u8],
     client_identity: &[u8],
     nonce: &[u8],
-) -> Result<(Envelope, Vec<u8>, Vec<u8>, Vec<u8>), OpaqueError> {
+) -> Result<(Envelope, Vec<u8>, Vec<u8>, Zeroizing<Vec<u8>>), OpaqueError> {
     // masking_key = Expand(randomized_pwd, "MaskingKey", Nh)
     let masking_key = C::Kdf::expand(randomized_pwd, b"MaskingKey", C::NH)?;
 
@@ -64,7 +64,11 @@ pub fn store<C: OpaqueCiphersuite>(
     )?);
 
     // export_key = Expand(randomized_pwd, concat(nonce, "ExportKey"), Nh)
-    let export_key = C::Kdf::expand(randomized_pwd, &envelope_info(nonce, b"ExportKey"), C::NH)?;
+    let export_key = Zeroizing::new(C::Kdf::expand(
+        randomized_pwd,
+        &envelope_info(nonce, b"ExportKey"),
+        C::NH,
+    )?);
 
     // seed = Expand(randomized_pwd, concat(nonce, "PrivateKey"), Nseed)
     let seed = Zeroizing::new(C::Kdf::expand(
@@ -114,7 +118,7 @@ pub fn recover<C: OpaqueCiphersuite>(
     server_identity: &[u8],
     client_identity: &[u8],
     envelope: &Envelope,
-) -> Result<(Vec<u8>, Vec<u8>, Vec<u8>), OpaqueError> {
+) -> Result<(Vec<u8>, Vec<u8>, Zeroizing<Vec<u8>>), OpaqueError> {
     let nonce = &envelope.nonce;
 
     // auth_key = Expand(randomized_pwd, concat(nonce, "AuthKey"), Nh)
@@ -125,7 +129,11 @@ pub fn recover<C: OpaqueCiphersuite>(
     )?);
 
     // export_key = Expand(randomized_pwd, concat(nonce, "ExportKey"), Nh)
-    let export_key = C::Kdf::expand(randomized_pwd, &envelope_info(nonce, b"ExportKey"), C::NH)?;
+    let export_key = Zeroizing::new(C::Kdf::expand(
+        randomized_pwd,
+        &envelope_info(nonce, b"ExportKey"),
+        C::NH,
+    )?);
 
     // seed = Expand(randomized_pwd, concat(nonce, "PrivateKey"), Nseed)
     let seed = Zeroizing::new(C::Kdf::expand(

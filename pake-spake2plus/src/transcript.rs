@@ -1,7 +1,7 @@
 //! Key schedule and output per RFC 9383 section 3.4.
 
 use alloc::vec::Vec;
-use zeroize::{Zeroize, ZeroizeOnDrop};
+use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
 use pake_core::crypto::{Hash, Kdf, Mac};
 use pake_core::SharedSecret;
@@ -40,17 +40,19 @@ pub(crate) fn derive_key_schedule<C: Spake2PlusCiphersuite>(
     share_v: &[u8],
 ) -> Result<KeySchedule, Spake2PlusError> {
     // Step 1: K_main = Hash(TT)
-    let k_main = C::Hash::digest(tt);
+    let k_main = Zeroizing::new(C::Hash::digest(tt));
     if k_main.len() < C::NH {
         return Err(Spake2PlusError::InternalError("hash output too short"));
     }
 
     // Step 2: PRK = KDF.extract(salt=[], ikm=K_main)
-    let prk = C::Kdf::extract(&[], &k_main[..C::NH]);
+    let prk = Zeroizing::new(C::Kdf::extract(&[], &k_main[..C::NH]));
 
     // Step 3: K_confirmP || K_confirmV = KDF.expand(PRK, "ConfirmationKeys", 2*NH)
-    let kc = C::Kdf::expand(&prk, b"ConfirmationKeys", 2 * C::NH)
-        .map_err(|_| Spake2PlusError::InternalError("KDF expand failed for ConfirmationKeys"))?;
+    let kc = Zeroizing::new(
+        C::Kdf::expand(&prk, b"ConfirmationKeys", 2 * C::NH)
+            .map_err(|_| Spake2PlusError::InternalError("KDF expand failed for ConfirmationKeys"))?,
+    );
     let k_confirm_p = &kc[..C::NH];
     let k_confirm_v = &kc[C::NH..2 * C::NH];
 

@@ -106,7 +106,7 @@ impl<C: OpaqueCiphersuite> ClientLoginState<C> {
         context: &[u8],
         server_identity: &[u8],
         client_identity: &[u8],
-    ) -> Result<(KE3, SharedSecret, Vec<u8>), OpaqueError> {
+    ) -> Result<(KE3, SharedSecret, Zeroizing<Vec<u8>>), OpaqueError> {
         // 1. Finalize OPRF
         let oprf_output = Zeroizing::new(oprf::oprf_client_finalize::<C>(
             &self.oprf_state,

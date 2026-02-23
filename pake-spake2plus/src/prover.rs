@@ -5,7 +5,7 @@
 use alloc::vec::Vec;
 use rand_core::CryptoRngCore;
 use subtle::ConstantTimeEq;
-use zeroize::{Zeroize, ZeroizeOnDrop};
+use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
 use pake_core::crypto::CpaceGroup;
 use pake_core::SharedSecret;
@@ -141,9 +141,9 @@ impl<C: Spake2PlusCiphersuite> ProverState<C> {
             return Err(Spake2PlusError::IdentityPoint);
         }
 
-        let z_bytes = z.to_bytes();
-        let v_bytes = v.to_bytes();
-        let w0_bytes = C::Group::scalar_to_bytes(&self.w0);
+        let z_bytes = Zeroizing::new(z.to_bytes());
+        let v_bytes = Zeroizing::new(v.to_bytes());
+        let w0_bytes = Zeroizing::new(C::Group::scalar_to_bytes(&self.w0));
 
         // Decode M and N to get canonical group element encoding for transcript.
         // This ensures M/N use the same encoding as other group elements (e.g.

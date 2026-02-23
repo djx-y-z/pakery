@@ -2,6 +2,7 @@
 
 use alloc::vec::Vec;
 use rand_core::CryptoRngCore;
+use zeroize::Zeroize;
 
 use crate::ciphersuite::CpaceCiphersuite;
 use crate::error::CpaceError;
@@ -40,12 +41,13 @@ impl<C: CpaceCiphersuite> CpaceResponder<C> {
         let g = calculate_generator::<C>(password, ci, sid)?;
 
         // Sample yb, compute Yb = yb * g
-        let yb_scalar = C::Group::random_scalar(rng);
+        let mut yb_scalar = C::Group::random_scalar(rng);
         let yb_point = g.scalar_mul(&yb_scalar);
         let yb_bytes = yb_point.to_bytes();
 
         // K = yb * Ya
         let k = ya.scalar_mul(&yb_scalar);
+        yb_scalar.zeroize();
 
         // Check K != identity
         if k.is_identity() {
