@@ -10,6 +10,7 @@ description = "OPAQUE augmented PAKE protocol (RFC 9807)"
 [features]
 default = ["std"]
 std = ["pake-core/std"]
+getrandom = ["rand_core/getrandom"]
 test-utils = []
 
 [dependencies]

@@ -1,5 +1,6 @@
 //! HMAC-SHA512 implementation of the Mac trait.
 
+use alloc::vec::Vec;
 use hmac::Hmac;
 use pake_core::crypto::Mac;
 use pake_core::PakeError;

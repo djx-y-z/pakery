@@ -10,6 +10,7 @@ description = "SPAKE2 balanced PAKE protocol (RFC 9382)"
 [features]
 default = ["std"]
 std = ["pake-core/std"]
+getrandom = ["rand_core/getrandom"]
 test-utils = []
 
 [dependencies]

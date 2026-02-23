@@ -1,5 +1,7 @@
 //! Wire-format message types for the OPAQUE protocol.
 
+use alloc::vec::Vec;
+
 use crate::ciphersuite::OpaqueCiphersuite;
 use crate::OpaqueError;
 use zeroize::{Zeroize, ZeroizeOnDrop};

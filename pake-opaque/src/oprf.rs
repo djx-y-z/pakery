@@ -1,5 +1,7 @@
 //! OPRF operations for OPAQUE, delegating to the ciphersuite's Oprf trait.
 
+use alloc::vec::Vec;
+
 use crate::ciphersuite::OpaqueCiphersuite;
 use crate::OpaqueError;
 use pake_core::crypto::{Kdf, Oprf as OprfTrait, OprfClientState as OprfClientStateTrait};

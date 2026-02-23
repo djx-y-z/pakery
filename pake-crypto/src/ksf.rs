@@ -1,5 +1,7 @@
 //! Argon2id implementation of the Ksf trait.
 
+use alloc::vec;
+use alloc::vec::Vec;
 use pake_core::crypto::Ksf;
 use pake_core::PakeError;
 

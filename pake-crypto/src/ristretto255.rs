@@ -1,5 +1,6 @@
 //! Ristretto255 implementations of CpaceGroup and DhGroup traits.
 
+use alloc::vec::Vec;
 use curve25519_dalek::constants::RISTRETTO_BASEPOINT_POINT;
 use curve25519_dalek::ristretto::CompressedRistretto;
 use curve25519_dalek::{RistrettoPoint, Scalar};

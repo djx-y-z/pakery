@@ -1,5 +1,8 @@
 //! Server long-term setup for OPAQUE.
 
+use alloc::vec;
+use alloc::vec::Vec;
+
 use crate::ciphersuite::OpaqueCiphersuite;
 use pake_core::crypto::DhGroup;
 use rand_core::CryptoRngCore;

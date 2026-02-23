@@ -3,8 +3,11 @@
 //! Provides implementations of the traits defined in `pake-core::crypto`
 //! backed by well-known cryptographic crates.
 
+#![cfg_attr(not(feature = "std"), no_std)]
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
+
+extern crate alloc;
 
 // SHA-512 primitives: shared by ristretto255 and p256 (CPace P-256 needs SHA-512)
 #[cfg(any(feature = "ristretto255", feature = "p256"))]

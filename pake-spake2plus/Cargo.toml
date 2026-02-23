@@ -10,6 +10,7 @@ description = "SPAKE2+ augmented PAKE protocol (RFC 9383)"
 [features]
 default = ["std"]
 std = ["pake-core/std"]
+getrandom = ["rand_core/getrandom"]
 test-utils = []
 
 [dependencies]

@@ -10,6 +10,7 @@ description = "Shared utilities for PAKE protocol implementations"
 [features]
 default = ["std"]
 std = []
+getrandom = ["rand_core/getrandom"]
 
 [dependencies]
 zeroize = { workspace = true }

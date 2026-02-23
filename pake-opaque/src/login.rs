@@ -1,5 +1,8 @@
 //! Login (AKE) protocol for OPAQUE (RFC 9807 Section 6).
 
+use alloc::vec;
+use alloc::vec::Vec;
+
 use crate::ciphersuite::OpaqueCiphersuite;
 use crate::envelope;
 use crate::key_derivation::{

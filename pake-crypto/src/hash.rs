@@ -1,5 +1,6 @@
 //! SHA-512 implementation of the Hash trait.
 
+use alloc::vec::Vec;
 use pake_core::crypto::Hash;
 use sha2::Digest;
 

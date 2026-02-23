@@ -1,5 +1,7 @@
 //! HKDF-SHA256 implementation of the Kdf trait.
 
+use alloc::vec;
+use alloc::vec::Vec;
 use hkdf::Hkdf;
 use pake_core::crypto::Kdf;
 use pake_core::PakeError;

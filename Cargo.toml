@@ -13,7 +13,7 @@ repository = "https://github.com/user/pake"
 group = "0.13"
 ff = "0.13"
 digest = "0.10"
-rand_core = { version = "0.6", features = ["getrandom"] }
+rand_core = { version = "0.6" }
 zeroize = { version = "1.8", features = ["derive"] }
 subtle = "2.6"
 sha2 = "0.10"

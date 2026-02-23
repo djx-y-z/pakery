@@ -8,7 +8,9 @@ repository.workspace = true
 description = "Concrete cryptographic implementations for PAKE protocols"
 
 [features]
-default = ["ristretto255"]
+default = ["std", "ristretto255"]
+std = ["pake-core/std"]
+getrandom = ["rand_core/getrandom"]
 ristretto255 = ["dep:curve25519-dalek", "dep:sha2", "dep:hkdf", "dep:hmac", "dep:voprf"]
 p256 = ["dep:p256", "dep:sha2", "dep:hkdf", "dep:hmac"]
 argon2 = ["dep:argon2"]

@@ -1,5 +1,6 @@
 //! Ristretto255 OPRF implementation.
 
+use alloc::vec::Vec;
 use pake_core::crypto::oprf::{Oprf, OprfClientState};
 use pake_core::PakeError;
 use rand_core::CryptoRngCore;

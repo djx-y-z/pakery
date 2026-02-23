@@ -1,5 +1,6 @@
 //! P-256 (NIST P-256 / secp256r1) implementation of the CpaceGroup trait.
 
+use alloc::vec::Vec;
 use p256::elliptic_curve::hash2curve::{ExpandMsgXmd, GroupDigest};
 use p256::elliptic_curve::ops::Reduce;
 use p256::elliptic_curve::sec1::{FromEncodedPoint, ToEncodedPoint};

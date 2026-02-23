@@ -1,5 +1,8 @@
 //! Registration protocol for OPAQUE (RFC 9807 Section 5).
 
+use alloc::vec;
+use alloc::vec::Vec;
+
 use crate::ciphersuite::OpaqueCiphersuite;
 use crate::envelope;
 use crate::key_derivation::derive_randomized_password;

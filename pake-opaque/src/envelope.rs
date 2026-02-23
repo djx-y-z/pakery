@@ -1,5 +1,7 @@
 //! Envelope operations for OPAQUE (RFC 9807 Section 6.3).
 
+use alloc::vec::Vec;
+
 use crate::ciphersuite::OpaqueCiphersuite;
 use crate::messages::Envelope;
 use crate::OpaqueError;

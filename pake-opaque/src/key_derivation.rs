@@ -1,5 +1,8 @@
 //! Key derivation functions for the OPAQUE protocol (RFC 9807 Section 6.4).
 
+use alloc::vec;
+use alloc::vec::Vec;
+
 use crate::ciphersuite::OpaqueCiphersuite;
 use crate::OpaqueError;
 use pake_core::crypto::{DhGroup, Hash, Kdf, Ksf};
