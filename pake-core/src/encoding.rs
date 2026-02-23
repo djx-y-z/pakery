@@ -43,6 +43,13 @@ pub fn lv_cat(args: &[&[u8]]) -> Vec<u8> {
 ///
 /// If `a > b` lexicographically: returns `b"oc" || a || b`
 /// Otherwise: returns `b"oc" || b || a`
+///
+/// # Security
+///
+/// The lexicographic comparison (`a > b`) is **not** constant-time. This is
+/// intentional: the inputs are public protocol messages (party identifiers or
+/// key shares) that are already visible to any network observer, so the
+/// comparison does not leak secret information.
 pub fn o_cat(a: &[u8], b: &[u8]) -> Vec<u8> {
     let mut result = Vec::with_capacity(2 + a.len() + b.len());
     result.extend_from_slice(b"oc");

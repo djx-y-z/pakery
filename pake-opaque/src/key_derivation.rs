@@ -9,14 +9,26 @@ use pake_core::crypto::{DhGroup, Hash, Kdf, Ksf};
 use zeroize::Zeroizing;
 
 /// I2OSP: Integer to Octet String Primitive (big-endian encoding).
-fn i2osp(value: usize, length: usize) -> Vec<u8> {
+///
+/// Returns an error if `value` cannot be represented in `length` bytes.
+fn i2osp(value: usize, length: usize) -> Result<Vec<u8>, OpaqueError> {
+    let max: usize = match length {
+        1 => 0xFF,
+        2 => 0xFFFF,
+        _ => usize::MAX,
+    };
+    if value > max {
+        return Err(OpaqueError::InvalidInput(
+            "I2OSP: integer too large for encoding length",
+        ));
+    }
     let mut out = vec![0u8; length];
     let mut v = value;
     for i in (0..length).rev() {
         out[i] = (v & 0xff) as u8;
         v >>= 8;
     }
-    out
+    Ok(out)
 }
 
 /// Expand-Label per RFC 9807 Section 6.4:
@@ -37,10 +49,10 @@ pub fn expand_label<C: OpaqueCiphersuite>(
     let opaque_label = [b"OPAQUE-" as &[u8], label].concat();
 
     let mut custom_label = Vec::new();
-    custom_label.extend_from_slice(&i2osp(length, 2));
-    custom_label.extend_from_slice(&i2osp(opaque_label.len(), 1));
+    custom_label.extend_from_slice(&i2osp(length, 2)?);
+    custom_label.extend_from_slice(&i2osp(opaque_label.len(), 1)?);
     custom_label.extend_from_slice(&opaque_label);
-    custom_label.extend_from_slice(&i2osp(context.len(), 1));
+    custom_label.extend_from_slice(&i2osp(context.len(), 1)?);
     custom_label.extend_from_slice(context);
 
     Ok(C::Kdf::expand(secret, &custom_label, length)?)
@@ -106,18 +118,18 @@ pub fn build_preamble(
     preamble.extend_from_slice(b"OPAQUEv1-");
 
     // context with 2-byte length prefix
-    preamble.extend_from_slice(&i2osp(context.len(), 2));
+    preamble.extend_from_slice(&i2osp(context.len(), 2)?);
     preamble.extend_from_slice(context);
 
     // client_identity with 2-byte length prefix
-    preamble.extend_from_slice(&i2osp(client_identity.len(), 2));
+    preamble.extend_from_slice(&i2osp(client_identity.len(), 2)?);
     preamble.extend_from_slice(client_identity);
 
     // KE1 (no length prefix — fixed size)
     preamble.extend_from_slice(ke1_bytes);
 
     // server_identity with 2-byte length prefix
-    preamble.extend_from_slice(&i2osp(server_identity.len(), 2));
+    preamble.extend_from_slice(&i2osp(server_identity.len(), 2)?);
     preamble.extend_from_slice(server_identity);
 
     // inner_ke2 (no length prefix — fixed size)

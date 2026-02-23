@@ -387,12 +387,22 @@ impl<C: OpaqueCiphersuite> ServerLogin<C> {
             &inner_ke2,
         )?;
 
-        let (km2, _, _) = derive_keys::<C>(&ikm, &preamble)?;
+        let (km2, km3, _) = derive_keys::<C>(&ikm, &preamble)?;
         let km2 = Zeroizing::new(km2);
+        let km3 = Zeroizing::new(km3);
 
         // 9. Compute server MAC
         let preamble_hash = C::Hash::digest(&preamble);
         let server_mac = C::Mac::mac(&km2, &preamble_hash)?;
+
+        // 10. Compute dummy expected_client_mac to equalize timing with start_inner.
+        // Without this, start_fake is 1 Hash + 1 MAC cheaper, enabling user
+        // enumeration via response-time analysis.
+        let mut transcript2_input = Zeroizing::new(Vec::with_capacity(preamble.len() + server_mac.len()));
+        transcript2_input.extend_from_slice(&preamble);
+        transcript2_input.extend_from_slice(&server_mac);
+        let transcript2_hash = C::Hash::digest(&transcript2_input);
+        let _ = C::Mac::mac(&km3, &transcript2_hash)?;
 
         Ok(KE2 {
             evaluated_message,

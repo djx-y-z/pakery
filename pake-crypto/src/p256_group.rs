@@ -4,7 +4,7 @@ use alloc::vec::Vec;
 use p256::elliptic_curve::hash2curve::{ExpandMsgXmd, GroupDigest};
 use p256::elliptic_curve::ops::Reduce;
 use p256::elliptic_curve::sec1::{FromEncodedPoint, ToEncodedPoint};
-use p256::elliptic_curve::{ff::Field, ff::PrimeField, Group};
+use p256::elliptic_curve::{ff::Field, ff::PrimeField};
 use p256::{AffinePoint, EncodedPoint, NistP256, ProjectivePoint, Scalar};
 use pake_core::crypto::group::CpaceGroup;
 use pake_core::PakeError;
@@ -29,7 +29,8 @@ impl CpaceGroup for P256Group {
     }
 
     fn is_identity(&self) -> bool {
-        bool::from(self.point.is_identity())
+        use subtle::ConstantTimeEq;
+        bool::from(self.point.ct_eq(&ProjectivePoint::IDENTITY))
     }
 
     fn to_bytes(&self) -> Vec<u8> {
