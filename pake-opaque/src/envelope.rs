@@ -17,7 +17,15 @@ pub fn build_cleartext_credentials(
     server_public_key: &[u8],
     server_identity: &[u8],
     client_identity: &[u8],
-) -> Vec<u8> {
+) -> Result<Vec<u8>, OpaqueError> {
+    // Guard against I2OSP(len, 2) overflow: identities must fit in u16.
+    if server_identity.len() > u16::MAX as usize {
+        return Err(OpaqueError::InvalidInput("server_identity exceeds u16 length"));
+    }
+    if client_identity.len() > u16::MAX as usize {
+        return Err(OpaqueError::InvalidInput("client_identity exceeds u16 length"));
+    }
+
     let mut creds = Vec::with_capacity(
         server_public_key.len() + 2 + server_identity.len() + 2 + client_identity.len(),
     );
@@ -31,7 +39,7 @@ pub fn build_cleartext_credentials(
     creds.extend_from_slice(&(client_identity.len() as u16).to_be_bytes());
     creds.extend_from_slice(client_identity);
 
-    creds
+    Ok(creds)
 }
 
 /// Helper to build info = concat(nonce, label) for envelope key derivation.
@@ -92,7 +100,7 @@ pub fn store<C: OpaqueCiphersuite>(
         server_identity
     };
 
-    let cleartext_creds = build_cleartext_credentials(server_public_key, server_id, client_id);
+    let cleartext_creds = build_cleartext_credentials(server_public_key, server_id, client_id)?;
 
     // auth_tag = MAC(auth_key, concat(nonce, cleartext_creds))
     let mut mac_input = Vec::with_capacity(nonce.len() + cleartext_creds.len());
@@ -157,7 +165,7 @@ pub fn recover<C: OpaqueCiphersuite>(
         server_identity
     };
 
-    let cleartext_creds = build_cleartext_credentials(server_public_key, server_id, client_id);
+    let cleartext_creds = build_cleartext_credentials(server_public_key, server_id, client_id)?;
 
     // Verify auth_tag
     let mut mac_input = Vec::with_capacity(nonce.len() + cleartext_creds.len());

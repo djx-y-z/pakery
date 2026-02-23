@@ -8,6 +8,13 @@ use zeroize::{Zeroize, ZeroizeOnDrop};
 /// A shared secret that is automatically zeroized on drop.
 ///
 /// Comparisons use constant-time equality to prevent timing side-channels.
+///
+/// # Cloning
+///
+/// This type implements [`Clone`].  Each clone is independently zeroized on
+/// drop, but callers should be mindful that every clone creates an additional
+/// copy of the secret material in memory.  Prefer moving over cloning where
+/// possible.
 #[derive(Clone, Zeroize, ZeroizeOnDrop)]
 pub struct SharedSecret {
     bytes: Vec<u8>,

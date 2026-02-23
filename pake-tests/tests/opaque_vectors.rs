@@ -239,7 +239,8 @@ fn test_triple_dh_and_key_derivation() {
         &ke1_bytes,
         &server_pub,
         inner_ke2,
-    );
+    )
+    .unwrap();
 
     // Derive keys
     let (km2, km3, session_key) =
@@ -822,6 +823,8 @@ fn test_fake_credential_response() {
         &ke1,
         b"nonexistent_user",
         b"test-context",
+        b"",
+        b"",
         &mut rng,
     )
     .unwrap();
@@ -850,6 +853,8 @@ fn test_fake_credential_client_fails() {
         &ke1,
         b"nonexistent_user",
         b"test-context",
+        b"",
+        b"",
         &mut rng,
     )
     .unwrap();
@@ -1008,6 +1013,8 @@ fn test_start_fake_ke2_size_matches_real() {
         &ke1,
         b"nonexistent_user",
         b"test-context",
+        b"",
+        b"",
         &mut rng,
     )
     .unwrap();

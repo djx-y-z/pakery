@@ -17,6 +17,8 @@ use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 /// Client-side login state held between start and finish.
 #[derive(Zeroize, ZeroizeOnDrop)]
 pub struct ClientLoginState<C: OpaqueCiphersuite> {
+    // SECURITY: voprf::OprfClient does not implement Zeroize, so the OPRF
+    // blinding scalar is not explicitly zeroed on drop. See OprfClientState docs.
     #[zeroize(skip)]
     oprf_state: OprfClientState<C>,
     password: Vec<u8>,
@@ -66,6 +68,12 @@ impl<C: OpaqueCiphersuite> ClientLogin<C> {
     }
 
     /// Start login with pre-determined randomness (for test vectors).
+    ///
+    /// # Security
+    ///
+    /// Using non-random values completely breaks security.
+    /// This method is gated behind the `test-utils` feature.
+    #[cfg(feature = "test-utils")]
     pub fn start_with_blind_and_nonce_and_seed(
         password: &[u8],
         blind_rng: &mut impl CryptoRngCore,
@@ -174,18 +182,20 @@ impl<C: OpaqueCiphersuite> ClientLoginState<C> {
             &self.ke1_bytes,
             server_id_for_preamble,
             &inner_ke2,
-        );
+        )?;
 
         let (km2, km3, session_key) = derive_keys::<C>(&ikm, &preamble)?;
         let km2 = Zeroizing::new(km2);
         let km3 = Zeroizing::new(km3);
 
-        // 7. Verify server MAC
+        // 7. Verify server MAC (compute once, verify via constant-time comparison)
         let preamble_hash = C::Hash::digest(&preamble);
         let expected_server_mac = C::Mac::mac(&km2, &preamble_hash)?;
 
-        C::Mac::verify(&km2, &preamble_hash, &ke2.server_mac)
-            .map_err(|_| OpaqueError::ServerAuthenticationError)?;
+        use subtle::ConstantTimeEq;
+        if !bool::from(expected_server_mac.ct_eq(&ke2.server_mac)) {
+            return Err(OpaqueError::ServerAuthenticationError);
+        }
 
         // 8. Compute client MAC: MAC(km3, Hash(preamble || server_mac))
         let mut transcript2_input = Zeroizing::new(Vec::with_capacity(preamble.len() + expected_server_mac.len()));
@@ -249,6 +259,12 @@ impl<C: OpaqueCiphersuite> ServerLogin<C> {
     }
 
     /// Start login with pre-determined randomness (for test vectors).
+    ///
+    /// # Security
+    ///
+    /// Using non-random values completely breaks security.
+    /// This method is gated behind the `test-utils` feature.
+    #[cfg(feature = "test-utils")]
     #[allow(clippy::too_many_arguments)]
     pub fn start_with_nonce_and_seed(
         setup: &ServerSetup<C>,
@@ -281,11 +297,18 @@ impl<C: OpaqueCiphersuite> ServerLogin<C> {
     /// Prevents user enumeration by making the server's response
     /// indistinguishable from a real login (RFC 9807 Section 6.3.2.2).
     /// The client will always fail at envelope recovery.
+    ///
+    /// `server_identity` and `client_identity` should match those used in
+    /// [`start`](Self::start) so that the preamble structure is identical.
+    /// Pass empty slices to use the default identity (the public key).
+    #[allow(clippy::too_many_arguments)]
     pub fn start_fake(
         setup: &ServerSetup<C>,
         ke1: &KE1,
         credential_id: &[u8],
         context: &[u8],
+        server_identity: &[u8],
+        client_identity: &[u8],
         rng: &mut impl CryptoRngCore,
     ) -> Result<KE2, OpaqueError> {
         // 1. OPRF evaluate (deterministic from oprf_seed + credential_id)
@@ -315,8 +338,17 @@ impl<C: OpaqueCiphersuite> ServerLogin<C> {
         // 5. Generate a fake client public key (random valid point)
         let (_, fake_client_pk) = C::Dh::generate_keypair(rng)?;
 
-        // 6. Resolve identities for preamble
-        let server_id_for_preamble: &[u8] = setup.public_key();
+        // 6. Resolve identities for preamble (same logic as start_inner)
+        let client_id_for_preamble: &[u8] = if client_identity.is_empty() {
+            &fake_client_pk
+        } else {
+            client_identity
+        };
+        let server_id_for_preamble: &[u8] = if server_identity.is_empty() {
+            setup.public_key()
+        } else {
+            server_identity
+        };
 
         // 7. TripleDH from server perspective (using fake client key for dh3)
         let ikm = Zeroizing::new(triple_dh_ikm::<C>(
@@ -342,11 +374,11 @@ impl<C: OpaqueCiphersuite> ServerLogin<C> {
         let ke1_bytes = ke1.serialize();
         let preamble = build_preamble(
             context,
-            &fake_client_pk,
+            client_id_for_preamble,
             &ke1_bytes,
             server_id_for_preamble,
             &inner_ke2,
-        );
+        )?;
 
         let (km2, _, _) = derive_keys::<C>(&ikm, &preamble)?;
         let km2 = Zeroizing::new(km2);
@@ -449,7 +481,7 @@ impl<C: OpaqueCiphersuite> ServerLogin<C> {
             &ke1_bytes,
             server_id_for_preamble,
             &inner_ke2,
-        );
+        )?;
 
         let (km2, km3, session_key) = derive_keys::<C>(&ikm, &preamble)?;
         let km2 = Zeroizing::new(km2);

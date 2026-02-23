@@ -3,6 +3,20 @@
 use core::fmt;
 
 /// Errors that can occur during the OPAQUE protocol.
+///
+/// # Security
+///
+/// The distinct error variants are useful for server-side logging and
+/// debugging, but they **must not** be exposed verbatim to remote clients.
+/// Returning different error messages for [`ServerAuthenticationError`],
+/// [`EnvelopeRecoveryError`], and [`InvalidMac`] can serve as an oracle,
+/// allowing an attacker to distinguish "wrong password" from "server MAC
+/// failure" from other conditions.  Always map all authentication-related
+/// errors to a single opaque response before sending over the wire.
+///
+/// [`ServerAuthenticationError`]: OpaqueError::ServerAuthenticationError
+/// [`EnvelopeRecoveryError`]: OpaqueError::EnvelopeRecoveryError
+/// [`InvalidMac`]: OpaqueError::InvalidMac
 #[derive(Debug)]
 pub enum OpaqueError {
     /// The server's MAC did not verify during login.

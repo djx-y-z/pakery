@@ -70,6 +70,13 @@ impl<C: Spake2PlusCiphersuite> Verifier<C> {
     }
 
     /// Start with a deterministic scalar (for testing).
+    ///
+    /// # Security
+    ///
+    /// Using a non-random scalar completely breaks security.
+    /// This method is gated behind the `test-utils` feature and must
+    /// only be used for RFC test vector validation.
+    #[cfg(feature = "test-utils")]
     pub fn start_with_scalar(
         share_p_bytes: &[u8],
         w0: &<C::Group as CpaceGroup>::Scalar,

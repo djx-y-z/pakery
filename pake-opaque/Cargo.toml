@@ -11,6 +11,7 @@ description = "OPAQUE augmented PAKE protocol (RFC 9807)"
 default = ["std"]
 std = ["alloc", "pake-core/std"]
 alloc = ["pake-core/alloc"]
+test-utils = []
 
 [dependencies]
 pake-core = { path = "../pake-core", default-features = false, features = ["alloc"] }

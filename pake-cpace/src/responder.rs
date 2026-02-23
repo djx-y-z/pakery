@@ -2,7 +2,7 @@
 
 use alloc::vec::Vec;
 use rand_core::CryptoRngCore;
-use zeroize::Zeroize;
+use zeroize::{Zeroize, Zeroizing};
 
 use crate::ciphersuite::CpaceCiphersuite;
 use crate::error::CpaceError;
@@ -54,7 +54,7 @@ impl<C: CpaceCiphersuite> CpaceResponder<C> {
             return Err(CpaceError::IdentityPoint);
         }
 
-        let k_bytes = k.to_bytes();
+        let k_bytes = Zeroizing::new(k.to_bytes());
 
         // Derive ISK
         let isk = derive_isk::<C>(

@@ -2,6 +2,7 @@
 
 use crate::ciphersuite::OpaqueCiphersuite;
 use crate::OpaqueError;
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 /// Client's first registration message containing the blinded password.
 #[derive(Debug, Clone)]
@@ -60,7 +61,7 @@ impl RegistrationResponse {
 }
 
 /// Encrypted envelope containing a nonce and auth tag.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Zeroize)]
 pub struct Envelope {
     /// Random nonce (Nn bytes).
     pub nonce: Vec<u8>,
@@ -96,7 +97,10 @@ impl Envelope {
 }
 
 /// The registration record stored by the server.
-#[derive(Debug, Clone)]
+///
+/// Contains `masking_key` which is a password-derived key.
+/// Zeroized on drop to prevent key material from lingering in memory.
+#[derive(Debug, Clone, Zeroize, ZeroizeOnDrop)]
 pub struct RegistrationRecord {
     /// Client's public key (Npk bytes).
     pub client_public_key: Vec<u8>,

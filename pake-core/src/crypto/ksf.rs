@@ -11,7 +11,10 @@ pub trait Ksf {
 
 /// Identity key stretching function (pass-through).
 ///
-/// Used in test vectors; not suitable for production.
+/// **WARNING: Not suitable for production.**  This KSF applies no work factor
+/// and returns the input unchanged.  It exists solely for RFC test vectors
+/// that specify no password hardening.  In production, use a proper KSF such
+/// as Argon2id (see `pake-crypto::Argon2idKsf`).
 pub struct IdentityKsf;
 
 impl Ksf for IdentityKsf {

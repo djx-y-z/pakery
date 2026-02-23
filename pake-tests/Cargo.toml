@@ -15,9 +15,9 @@ argon2 = ["pake-crypto/argon2"]
 [dependencies]
 pake-core = { path = "../pake-core" }
 pake-cpace = { path = "../pake-cpace" }
-pake-opaque = { path = "../pake-opaque" }
-pake-spake2 = { path = "../pake-spake2" }
-pake-spake2plus = { path = "../pake-spake2plus" }
+pake-opaque = { path = "../pake-opaque", features = ["test-utils"] }
+pake-spake2 = { path = "../pake-spake2", features = ["test-utils"] }
+pake-spake2plus = { path = "../pake-spake2plus", features = ["test-utils"] }
 pake-crypto = { path = "../pake-crypto" }
 hex = "0.4"
 serde = { version = "1", features = ["derive"] }

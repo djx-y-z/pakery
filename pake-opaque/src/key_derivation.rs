@@ -87,7 +87,18 @@ pub fn build_preamble(
     ke1_bytes: &[u8],
     server_identity: &[u8],
     inner_ke2: &[u8],
-) -> Vec<u8> {
+) -> Result<Vec<u8>, OpaqueError> {
+    // I2OSP(len, 2) requires values to fit in u16.
+    if context.len() > u16::MAX as usize {
+        return Err(OpaqueError::InvalidInput("context exceeds u16 length"));
+    }
+    if client_identity.len() > u16::MAX as usize {
+        return Err(OpaqueError::InvalidInput("client_identity exceeds u16 length"));
+    }
+    if server_identity.len() > u16::MAX as usize {
+        return Err(OpaqueError::InvalidInput("server_identity exceeds u16 length"));
+    }
+
     let mut preamble = Vec::new();
     preamble.extend_from_slice(b"OPAQUEv1-");
 
@@ -109,7 +120,7 @@ pub fn build_preamble(
     // inner_ke2 (no length prefix — fixed size)
     preamble.extend_from_slice(inner_ke2);
 
-    preamble
+    Ok(preamble)
 }
 
 /// Derive the handshake keys (km2, km3, session_key) from the TripleDH ikm.
