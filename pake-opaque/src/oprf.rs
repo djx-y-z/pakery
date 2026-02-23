@@ -4,6 +4,7 @@ use crate::ciphersuite::OpaqueCiphersuite;
 use crate::OpaqueError;
 use pake_core::crypto::{Kdf, Oprf as OprfTrait, OprfClientState as OprfClientStateTrait};
 use rand_core::CryptoRngCore;
+use zeroize::Zeroizing;
 
 /// State held by the client between blind and finalize.
 pub struct OprfClientState<C: OpaqueCiphersuite> {
@@ -54,7 +55,7 @@ pub fn derive_oprf_key<C: OpaqueCiphersuite>(
     info.extend_from_slice(b"OprfKey");
 
     // oprf_seed is used directly as the PRK for KDF-Expand
-    let seed = C::Kdf::expand(oprf_seed, &info, C::NSEED)?;
+    let seed = Zeroizing::new(C::Kdf::expand(oprf_seed, &info, C::NSEED)?);
 
     // Use OPRF DeriveKeyPair to get the actual scalar key
     Ok(C::Oprf::derive_key(&seed, b"OPAQUE-DeriveKeyPair")?)

@@ -171,3 +171,83 @@ fn test_invalid_point_rejection() {
         "Garbage compressed point must be rejected"
     );
 }
+
+// --- Empty password round-trip ---
+
+#[test]
+fn test_empty_password_round_trip() {
+    let prs = b"";
+    let ci = b"channel_info";
+    let sid = b"session-id-12345";
+    let ad_a = b"ad_a";
+    let ad_b = b"ad_b";
+
+    let mut rng = rand_core::OsRng;
+
+    let (ya_bytes, state) =
+        CpaceInitiator::<CpaceP256Sha512>::start(prs, ci, sid, ad_a, &mut rng).unwrap();
+
+    let (yb_bytes, resp_output) = CpaceResponder::<CpaceP256Sha512>::respond(
+        &ya_bytes,
+        prs,
+        ci,
+        sid,
+        ad_a,
+        ad_b,
+        CpaceMode::InitiatorResponder,
+        &mut rng,
+    )
+    .unwrap();
+
+    let init_output = state
+        .finish(&yb_bytes, ad_b, CpaceMode::InitiatorResponder)
+        .unwrap();
+
+    assert_eq!(
+        init_output.isk.as_bytes(),
+        resp_output.isk.as_bytes(),
+        "Empty password must produce matching ISKs"
+    );
+    assert_eq!(
+        init_output.session_id, resp_output.session_id,
+        "Session IDs must match with empty password"
+    );
+}
+
+// --- Empty context and identities ---
+
+#[test]
+fn test_empty_context_and_identities() {
+    let prs = b"password";
+    let ci = b"";
+    let sid = b"";
+    let ad_a = b"";
+    let ad_b = b"";
+
+    let mut rng = rand_core::OsRng;
+
+    let (ya_bytes, state) =
+        CpaceInitiator::<CpaceP256Sha512>::start(prs, ci, sid, ad_a, &mut rng).unwrap();
+
+    let (yb_bytes, resp_output) = CpaceResponder::<CpaceP256Sha512>::respond(
+        &ya_bytes,
+        prs,
+        ci,
+        sid,
+        ad_a,
+        ad_b,
+        CpaceMode::InitiatorResponder,
+        &mut rng,
+    )
+    .unwrap();
+
+    let init_output = state
+        .finish(&yb_bytes, ad_b, CpaceMode::InitiatorResponder)
+        .unwrap();
+
+    assert_eq!(
+        init_output.isk.as_bytes(),
+        resp_output.isk.as_bytes(),
+        "Empty context/identities must produce matching ISKs"
+    );
+}

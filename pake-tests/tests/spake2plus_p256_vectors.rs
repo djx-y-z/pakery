@@ -409,3 +409,199 @@ fn test_deterministic_replay() {
         "Verifier session keys must be deterministic"
     );
 }
+
+// --- Invalid point rejection (Prover receives garbage shareV) ---
+
+#[test]
+fn test_invalid_point_rejection_prover() {
+    let (w0, w1) = password_to_scalars(b"password");
+    let context = b"test";
+    let id_prover = b"client";
+    let id_verifier = b"server";
+
+    let (x, _) = password_to_scalars(b"fixed scalar x");
+    let (_, prover_state) =
+        P::start_with_scalar(&w0, &w1, &x, context, id_prover, id_verifier).unwrap();
+
+    // Garbage bytes (invalid SEC1 point)
+    let mut garbage = [0xffu8; 33];
+    garbage[0] = 0x02;
+    let dummy_mac = [0u8; 32];
+    assert!(
+        prover_state.finish(&garbage, &dummy_mac).is_err(),
+        "Garbage bytes must be rejected as shareV"
+    );
+}
+
+// --- Invalid point rejection (Verifier receives garbage shareP) ---
+
+#[test]
+fn test_invalid_point_rejection_verifier() {
+    let (w0, w1) = password_to_scalars(b"password");
+    let l_bytes = compute_verifier::<Spake2PlusP256Sha256>(&w1);
+
+    let context = b"test";
+    let id_prover = b"client";
+    let id_verifier = b"server";
+    let mut rng = rand_core::OsRng;
+
+    // Garbage shareP
+    let mut garbage = [0xffu8; 33];
+    garbage[0] = 0x02;
+    let result = V::start(
+        &garbage,
+        &w0,
+        &l_bytes,
+        context,
+        id_prover,
+        id_verifier,
+        &mut rng,
+    );
+    assert!(result.is_err(), "Garbage bytes must be rejected as shareP");
+}
+
+// --- Identity Z rejection ---
+
+#[test]
+fn test_identity_z_rejection() {
+    // If a malicious Verifier sends shareV = w0*N, then tmp = shareV - w0*N = identity,
+    // so Z = x * identity = identity. The protocol should reject this.
+    let (w0, w1) = password_to_scalars(b"password");
+    let context = b"test";
+    let id_prover = b"client";
+    let id_verifier = b"server";
+
+    let (x, _) = password_to_scalars(b"fixed scalar x");
+    let (_, prover_state) =
+        P::start_with_scalar(&w0, &w1, &x, context, id_prover, id_verifier).unwrap();
+
+    // Construct shareV = w0*N (makes tmp = identity, Z = identity)
+    let n = P256Group::from_bytes(&SPAKE2_P256_N_COMPRESSED).unwrap();
+    let crafted_share_v = n.scalar_mul(&w0);
+    let crafted_sv_bytes = crafted_share_v.to_bytes();
+    let dummy_mac = [0u8; 32];
+
+    let result = prover_state.finish(&crafted_sv_bytes, &dummy_mac);
+    assert!(result.is_err(), "Identity Z must be rejected");
+}
+
+// --- Verifier-first confirmation order ---
+
+#[test]
+fn test_verifier_first_confirmation_order() {
+    let (w0, w1) = password_to_scalars(b"password");
+    let l_bytes = compute_verifier::<Spake2PlusP256Sha256>(&w1);
+
+    let context = b"order test";
+    let id_prover = b"client";
+    let id_verifier = b"server";
+    let mut rng = rand_core::OsRng;
+
+    let (share_p_bytes, prover_state) =
+        P::start(&w0, &w1, context, id_prover, id_verifier, &mut rng).unwrap();
+
+    let (share_v_bytes, confirm_v, verifier_state) = V::start(
+        &share_p_bytes,
+        &w0,
+        &l_bytes,
+        context,
+        id_prover,
+        id_verifier,
+        &mut rng,
+    )
+    .unwrap();
+
+    // Tamper with confirmV — prover should reject before producing confirmP
+    let mut bad_confirm_v = confirm_v.clone();
+    bad_confirm_v[0] ^= 0xff;
+
+    let result = prover_state.finish(&share_v_bytes, &bad_confirm_v);
+    assert!(result.is_err(), "Prover must reject tampered confirmV");
+
+    // Verifier never gets confirmP — ordering enforced
+    drop(verifier_state);
+}
+
+// --- Empty password round-trip ---
+
+#[test]
+fn test_empty_password_round_trip() {
+    let (w0, w1) = password_to_scalars(b"");
+    let l_bytes = compute_verifier::<Spake2PlusP256Sha256>(&w1);
+
+    let context = b"SPAKE2+ empty password test";
+    let id_prover = b"client";
+    let id_verifier = b"server";
+
+    let mut rng = rand_core::OsRng;
+
+    let (share_p_bytes, prover_state) =
+        P::start(&w0, &w1, context, id_prover, id_verifier, &mut rng).unwrap();
+
+    let (share_v_bytes, confirm_v, verifier_state) = V::start(
+        &share_p_bytes,
+        &w0,
+        &l_bytes,
+        context,
+        id_prover,
+        id_verifier,
+        &mut rng,
+    )
+    .unwrap();
+
+    let prover_output = prover_state
+        .finish(&share_v_bytes, &confirm_v)
+        .expect("Should succeed with empty password");
+
+    let verifier_output = verifier_state
+        .finish(&prover_output.confirm_p)
+        .expect("Should succeed with empty password");
+
+    assert_eq!(
+        prover_output.session_key.as_bytes(),
+        verifier_output.session_key.as_bytes(),
+        "Empty password must produce matching session keys"
+    );
+}
+
+// --- Empty context and identities ---
+
+#[test]
+fn test_empty_context_and_identities() {
+    let (w0, w1) = password_to_scalars(b"password");
+    let l_bytes = compute_verifier::<Spake2PlusP256Sha256>(&w1);
+
+    let context = b"";
+    let id_prover = b"";
+    let id_verifier = b"";
+
+    let mut rng = rand_core::OsRng;
+
+    let (share_p_bytes, prover_state) =
+        P::start(&w0, &w1, context, id_prover, id_verifier, &mut rng).unwrap();
+
+    let (share_v_bytes, confirm_v, verifier_state) = V::start(
+        &share_p_bytes,
+        &w0,
+        &l_bytes,
+        context,
+        id_prover,
+        id_verifier,
+        &mut rng,
+    )
+    .unwrap();
+
+    let prover_output = prover_state
+        .finish(&share_v_bytes, &confirm_v)
+        .expect("Should succeed with empty identities");
+
+    let verifier_output = verifier_state
+        .finish(&prover_output.confirm_p)
+        .expect("Should succeed with empty identities");
+
+    assert_eq!(
+        prover_output.session_key.as_bytes(),
+        verifier_output.session_key.as_bytes(),
+        "Empty identities should still produce matching keys"
+    );
+}

@@ -1054,3 +1054,182 @@ fn test_start_fake_ke2_size_matches_real() {
         "server_mac size mismatch"
     );
 }
+
+// ==========================================================================
+// Empty password edge case
+// ==========================================================================
+
+#[test]
+fn test_empty_password_roundtrip() {
+    let mut rng = rand_core::OsRng;
+    let password = b"";
+
+    let setup = ServerSetup::<OpaqueRistretto255Sha512>::new(&mut rng).unwrap();
+
+    let (reg_request, reg_state) =
+        ClientRegistration::<OpaqueRistretto255Sha512>::start(password, &mut rng).unwrap();
+
+    let reg_response =
+        ServerRegistration::<OpaqueRistretto255Sha512>::start(&setup, &reg_request, b"user123")
+            .unwrap();
+
+    let (record, export_key_reg) = reg_state.finish(&reg_response, b"", b"", &mut rng).unwrap();
+
+    let (ke1, client_state) =
+        ClientLogin::<OpaqueRistretto255Sha512>::start(password, &mut rng).unwrap();
+
+    let (ke2, server_state) = ServerLogin::<OpaqueRistretto255Sha512>::start(
+        &setup,
+        &record,
+        &ke1,
+        b"user123",
+        b"test-context",
+        b"",
+        b"",
+        &mut rng,
+    )
+    .unwrap();
+
+    let (ke3, client_session_key, export_key_login) = client_state
+        .finish(&ke2, b"test-context", b"", b"")
+        .unwrap();
+
+    let server_session_key = server_state.finish(&ke3).unwrap();
+
+    assert_eq!(
+        client_session_key, server_session_key,
+        "Empty password must produce matching session keys"
+    );
+    assert_eq!(
+        export_key_reg, export_key_login,
+        "Export keys must match with empty password"
+    );
+}
+
+// ==========================================================================
+// Deterministic replay (fixed randomness produces identical outputs)
+// ==========================================================================
+
+#[test]
+fn test_deterministic_replay() {
+    let password = b"replay-test-password";
+
+    // Build a setup from fixed seed
+    let setup_seed: Vec<Vec<u8>> = vec![
+        vec![0x01; 32], // oprf_seed
+        vec![0x02; 32], // server keypair seed
+    ];
+    let mut setup_rng = SequentialRng::new(setup_seed.clone());
+    let setup = ServerSetup::<OpaqueRistretto255Sha512>::new(&mut setup_rng).unwrap();
+
+    // Fixed registration randomness: blind_rng, finish_rng (nonce + seed)
+    let reg_blind = vec![0x10; 32];
+    let reg_nonce = vec![0x11; 32];
+    let reg_seed = vec![0x12; 32];
+
+    // Fixed login client randomness: blind_rng (feeds blind, nonce, seed sequentially)
+    let login_client_chunks = vec![
+        vec![0x20; 32], // blind
+        vec![0x21; 32], // nonce
+        vec![0x22; 32], // seed
+    ];
+
+    // Fixed login server randomness: nonce, seed, masking_nonce
+    let login_server_nonce = vec![0x30; 32];
+    let login_server_seed = vec![0x31; 32];
+    let login_server_masking = vec![0x32; 32];
+
+    // --- Run 1 ---
+    let mut reg_rng1 = SequentialRng::from_single(&reg_blind);
+    let (reg_request1, reg_state1) =
+        ClientRegistration::<OpaqueRistretto255Sha512>::start(password, &mut reg_rng1).unwrap();
+
+    let reg_response1 =
+        ServerRegistration::<OpaqueRistretto255Sha512>::start(&setup, &reg_request1, b"user1")
+            .unwrap();
+
+    let mut finish_rng1 = SequentialRng::new(vec![reg_nonce.clone(), reg_seed.clone()]);
+    let (record1, _) = reg_state1
+        .finish(&reg_response1, b"", b"", &mut finish_rng1)
+        .unwrap();
+
+    let mut login_rng1 = SequentialRng::new(login_client_chunks.clone());
+    let (ke1_1, client_state1) =
+        ClientLogin::<OpaqueRistretto255Sha512>::start(password, &mut login_rng1).unwrap();
+
+    let (ke2_1, server_state1) = ServerLogin::<OpaqueRistretto255Sha512>::start_with_nonce_and_seed(
+        &setup,
+        &record1,
+        &ke1_1,
+        b"user1",
+        b"ctx",
+        b"",
+        b"",
+        &login_server_nonce,
+        &login_server_seed,
+        &login_server_masking,
+    )
+    .unwrap();
+
+    let (ke3_1, session_key1, _) = client_state1.finish(&ke2_1, b"ctx", b"", b"").unwrap();
+    let server_key1 = server_state1.finish(&ke3_1).unwrap();
+
+    // --- Run 2 (same randomness) ---
+    let mut reg_rng2 = SequentialRng::from_single(&reg_blind);
+    let (reg_request2, reg_state2) =
+        ClientRegistration::<OpaqueRistretto255Sha512>::start(password, &mut reg_rng2).unwrap();
+
+    let reg_response2 =
+        ServerRegistration::<OpaqueRistretto255Sha512>::start(&setup, &reg_request2, b"user1")
+            .unwrap();
+
+    let mut finish_rng2 = SequentialRng::new(vec![reg_nonce.clone(), reg_seed.clone()]);
+    let (record2, _) = reg_state2
+        .finish(&reg_response2, b"", b"", &mut finish_rng2)
+        .unwrap();
+
+    let mut login_rng2 = SequentialRng::new(login_client_chunks.clone());
+    let (ke1_2, client_state2) =
+        ClientLogin::<OpaqueRistretto255Sha512>::start(password, &mut login_rng2).unwrap();
+
+    let (ke2_2, server_state2) = ServerLogin::<OpaqueRistretto255Sha512>::start_with_nonce_and_seed(
+        &setup,
+        &record2,
+        &ke1_2,
+        b"user1",
+        b"ctx",
+        b"",
+        b"",
+        &login_server_nonce,
+        &login_server_seed,
+        &login_server_masking,
+    )
+    .unwrap();
+
+    let (ke3_2, session_key2, _) = client_state2.finish(&ke2_2, b"ctx", b"", b"").unwrap();
+    let server_key2 = server_state2.finish(&ke3_2).unwrap();
+
+    // Verify determinism
+    assert_eq!(
+        ke1_1.serialize(),
+        ke1_2.serialize(),
+        "KE1 must be deterministic"
+    );
+    assert_eq!(
+        ke2_1.serialize(),
+        ke2_2.serialize(),
+        "KE2 must be deterministic"
+    );
+    assert_eq!(
+        ke3_1.client_mac, ke3_2.client_mac,
+        "KE3 must be deterministic"
+    );
+    assert_eq!(
+        session_key1, session_key2,
+        "Client session keys must be deterministic"
+    );
+    assert_eq!(
+        server_key1, server_key2,
+        "Server session keys must be deterministic"
+    );
+}

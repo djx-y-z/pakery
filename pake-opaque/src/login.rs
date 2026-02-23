@@ -125,9 +125,9 @@ impl<C: OpaqueCiphersuite> ClientLoginState<C> {
         let mut pad_info = Vec::with_capacity(ke2.masking_nonce.len() + 21);
         pad_info.extend_from_slice(&ke2.masking_nonce);
         pad_info.extend_from_slice(b"CredentialResponsePad");
-        let pad = C::Kdf::expand(&masking_key, &pad_info, cred_resp_size)?;
+        let pad = Zeroizing::new(C::Kdf::expand(&masking_key, &pad_info, cred_resp_size)?);
 
-        let mut cred_resp_bytes = vec![0u8; cred_resp_size];
+        let mut cred_resp_bytes = Zeroizing::new(vec![0u8; cred_resp_size]);
         for i in 0..cred_resp_size {
             cred_resp_bytes[i] = ke2.masked_response[i] ^ pad[i];
         }
@@ -188,7 +188,7 @@ impl<C: OpaqueCiphersuite> ClientLoginState<C> {
             .map_err(|_| OpaqueError::ServerAuthenticationError)?;
 
         // 8. Compute client MAC: MAC(km3, Hash(preamble || server_mac))
-        let mut transcript2_input = Vec::with_capacity(preamble.len() + expected_server_mac.len());
+        let mut transcript2_input = Zeroizing::new(Vec::with_capacity(preamble.len() + expected_server_mac.len()));
         transcript2_input.extend_from_slice(&preamble);
         transcript2_input.extend_from_slice(&expected_server_mac);
         let transcript2_hash = C::Hash::digest(&transcript2_input);
@@ -398,7 +398,7 @@ impl<C: OpaqueCiphersuite> ServerLogin<C> {
         let mut pad_info = Vec::with_capacity(masking_nonce.len() + 21);
         pad_info.extend_from_slice(&masking_nonce);
         pad_info.extend_from_slice(b"CredentialResponsePad");
-        let pad = C::Kdf::expand(&record.masking_key, &pad_info, cred_resp_size)?;
+        let pad = Zeroizing::new(C::Kdf::expand(&record.masking_key, &pad_info, cred_resp_size)?);
 
         let mut masked_response = vec![0u8; cred_resp_size];
         for i in 0..cred_resp_size {
@@ -460,7 +460,7 @@ impl<C: OpaqueCiphersuite> ServerLogin<C> {
         let server_mac = C::Mac::mac(&km2, &preamble_hash)?;
 
         // 9. Compute expected client MAC: MAC(km3, Hash(preamble || server_mac))
-        let mut transcript2_input = Vec::with_capacity(preamble.len() + server_mac.len());
+        let mut transcript2_input = Zeroizing::new(Vec::with_capacity(preamble.len() + server_mac.len()));
         transcript2_input.extend_from_slice(&preamble);
         transcript2_input.extend_from_slice(&server_mac);
         let transcript2_hash = C::Hash::digest(&transcript2_input);

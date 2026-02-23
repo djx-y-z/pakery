@@ -585,3 +585,75 @@ fn test_wrong_password_fails() {
         "Different passwords must produce different ISKs"
     );
 }
+
+// --- Deterministic replay ---
+
+#[test]
+fn test_deterministic_replay() {
+    let prs = h(PRS_HEX);
+    let ci = h(CI_HEX);
+    let sid = h(SID_HEX);
+    let ad_a = h(ADA_HEX);
+    let ad_b = h(ADB_HEX);
+
+    // Run 1
+    let mut rng_a1 = FixedScalarRng::new(YA_SCALAR_HEX);
+    let (ya1, state1) =
+        CpaceInitiator::<CpaceRistretto255Sha512>::start(&prs, &ci, &sid, &ad_a, &mut rng_a1)
+            .unwrap();
+
+    let mut rng_b1 = FixedScalarRng::new(YB_SCALAR_HEX);
+    let (yb1, resp1) = CpaceResponder::<CpaceRistretto255Sha512>::respond(
+        &ya1,
+        &prs,
+        &ci,
+        &sid,
+        &ad_a,
+        &ad_b,
+        CpaceMode::InitiatorResponder,
+        &mut rng_b1,
+    )
+    .unwrap();
+    let init1 = state1
+        .finish(&yb1, &ad_b, CpaceMode::InitiatorResponder)
+        .unwrap();
+
+    // Run 2 (same scalars)
+    let mut rng_a2 = FixedScalarRng::new(YA_SCALAR_HEX);
+    let (ya2, state2) =
+        CpaceInitiator::<CpaceRistretto255Sha512>::start(&prs, &ci, &sid, &ad_a, &mut rng_a2)
+            .unwrap();
+
+    let mut rng_b2 = FixedScalarRng::new(YB_SCALAR_HEX);
+    let (yb2, resp2) = CpaceResponder::<CpaceRistretto255Sha512>::respond(
+        &ya2,
+        &prs,
+        &ci,
+        &sid,
+        &ad_a,
+        &ad_b,
+        CpaceMode::InitiatorResponder,
+        &mut rng_b2,
+    )
+    .unwrap();
+    let init2 = state2
+        .finish(&yb2, &ad_b, CpaceMode::InitiatorResponder)
+        .unwrap();
+
+    assert_eq!(ya1, ya2, "Ya must be deterministic");
+    assert_eq!(yb1, yb2, "Yb must be deterministic");
+    assert_eq!(
+        init1.isk.as_bytes(),
+        init2.isk.as_bytes(),
+        "Initiator ISK must be deterministic"
+    );
+    assert_eq!(
+        resp1.isk.as_bytes(),
+        resp2.isk.as_bytes(),
+        "Responder ISK must be deterministic"
+    );
+    assert_eq!(
+        init1.session_id, init2.session_id,
+        "Session IDs must be deterministic"
+    );
+}
