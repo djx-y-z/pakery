@@ -27,7 +27,7 @@ pub fn expand_message_xmd<H: Digest + BlockSizeUser>(
 ) -> Result<Vec<u8>, PakeError> {
     let b_in_bytes = <H as Digest>::output_size();
     let s_in_bytes = <H as BlockSizeUser>::block_size();
-    let ell = (len_in_bytes + b_in_bytes - 1) / b_in_bytes;
+    let ell = len_in_bytes.div_ceil(b_in_bytes);
 
     if ell > 255 || len_in_bytes == 0 || len_in_bytes > 65535 || dst.len() > 255 {
         return Err(PakeError::InvalidInput(
@@ -40,7 +40,7 @@ pub fn expand_message_xmd<H: Digest + BlockSizeUser>(
 
     // b_0 = H(Z_pad || msg || l_i_b_str || I2OSP(0,1) || DST_prime)
     let mut h0 = H::new();
-    h0.update(&vec![0u8; s_in_bytes]); // Z_pad
+    h0.update(vec![0u8; s_in_bytes]); // Z_pad
     for m in msg {
         h0.update(m);
     }

@@ -38,6 +38,9 @@ pub fn generator_string<C: CpaceCiphersuite>(password: &[u8], ci: &[u8], sid: &[
 /// Calculate the CPace generator from password, channel identifier, and session ID.
 ///
 /// Hashes the generator string and maps the result to a group element.
+/// Returns [`PakeError::IdentityPoint`] if the derived generator is the
+/// identity element (defense-in-depth; spec-compliant `from_uniform_bytes`
+/// implementations should never produce the identity).
 pub fn calculate_generator<C: CpaceCiphersuite>(
     password: &[u8],
     ci: &[u8],
@@ -46,5 +49,9 @@ pub fn calculate_generator<C: CpaceCiphersuite>(
     const { assert!(<C::Hash as pake_core::crypto::Hash>::OUTPUT_SIZE >= 2 * C::FIELD_SIZE_BYTES) };
     let gen_str = generator_string::<C>(password, ci, sid);
     let hash_output = C::Hash::digest(&gen_str);
-    C::Group::from_uniform_bytes(&hash_output)
+    let g = C::Group::from_uniform_bytes(&hash_output)?;
+    if g.is_identity() {
+        return Err(pake_core::PakeError::IdentityPoint);
+    }
+    Ok(g)
 }

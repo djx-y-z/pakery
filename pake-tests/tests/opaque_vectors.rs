@@ -1240,3 +1240,112 @@ fn test_deterministic_replay() {
         "Server session keys must be deterministic"
     );
 }
+
+// ==========================================================================
+// KE2 field tampering — corrupted components must cause authentication failure
+// ==========================================================================
+
+#[test]
+fn test_tampered_ke2_evaluated_message() {
+    let mut rng = rand_core::OsRng;
+    let setup = ServerSetup::<OpaqueRistretto255Sha512>::new(&mut rng).unwrap();
+
+    let (reg_request, reg_state) =
+        ClientRegistration::<OpaqueRistretto255Sha512>::start(b"password", &mut rng).unwrap();
+    let reg_response =
+        ServerRegistration::<OpaqueRistretto255Sha512>::start(&setup, &reg_request, b"user")
+            .unwrap();
+    let (record, _) = reg_state.finish(&reg_response, b"", b"", &mut rng).unwrap();
+
+    let (ke1, client_state) =
+        ClientLogin::<OpaqueRistretto255Sha512>::start(b"password", &mut rng).unwrap();
+    let (mut ke2, _) = ServerLogin::<OpaqueRistretto255Sha512>::start(
+        &setup, &record, &ke1, b"user", b"ctx", b"", b"", &mut rng,
+    )
+    .unwrap();
+
+    // Corrupt the OPRF evaluated message — this changes the password hash
+    ke2.evaluated_message[0] ^= 0x01;
+
+    let result = client_state.finish(&ke2, b"ctx", b"", b"");
+    assert!(result.is_err(), "corrupted evaluated_message must cause authentication failure");
+}
+
+#[test]
+fn test_tampered_ke2_masked_response() {
+    let mut rng = rand_core::OsRng;
+    let setup = ServerSetup::<OpaqueRistretto255Sha512>::new(&mut rng).unwrap();
+
+    let (reg_request, reg_state) =
+        ClientRegistration::<OpaqueRistretto255Sha512>::start(b"password", &mut rng).unwrap();
+    let reg_response =
+        ServerRegistration::<OpaqueRistretto255Sha512>::start(&setup, &reg_request, b"user")
+            .unwrap();
+    let (record, _) = reg_state.finish(&reg_response, b"", b"", &mut rng).unwrap();
+
+    let (ke1, client_state) =
+        ClientLogin::<OpaqueRistretto255Sha512>::start(b"password", &mut rng).unwrap();
+    let (mut ke2, _) = ServerLogin::<OpaqueRistretto255Sha512>::start(
+        &setup, &record, &ke1, b"user", b"ctx", b"", b"", &mut rng,
+    )
+    .unwrap();
+
+    // Corrupt the masked response — this corrupts the envelope/credentials
+    ke2.masked_response[0] ^= 0x01;
+
+    let result = client_state.finish(&ke2, b"ctx", b"", b"");
+    assert!(result.is_err(), "corrupted masked_response must cause authentication failure");
+}
+
+#[test]
+fn test_tampered_ke2_server_keyshare() {
+    let mut rng = rand_core::OsRng;
+    let setup = ServerSetup::<OpaqueRistretto255Sha512>::new(&mut rng).unwrap();
+
+    let (reg_request, reg_state) =
+        ClientRegistration::<OpaqueRistretto255Sha512>::start(b"password", &mut rng).unwrap();
+    let reg_response =
+        ServerRegistration::<OpaqueRistretto255Sha512>::start(&setup, &reg_request, b"user")
+            .unwrap();
+    let (record, _) = reg_state.finish(&reg_response, b"", b"", &mut rng).unwrap();
+
+    let (ke1, client_state) =
+        ClientLogin::<OpaqueRistretto255Sha512>::start(b"password", &mut rng).unwrap();
+    let (mut ke2, _) = ServerLogin::<OpaqueRistretto255Sha512>::start(
+        &setup, &record, &ke1, b"user", b"ctx", b"", b"", &mut rng,
+    )
+    .unwrap();
+
+    // Corrupt server ephemeral public key — changes 3-DH shared secret
+    ke2.server_keyshare[0] ^= 0x01;
+
+    let result = client_state.finish(&ke2, b"ctx", b"", b"");
+    assert!(result.is_err(), "corrupted server_keyshare must cause authentication failure");
+}
+
+#[test]
+fn test_context_mismatch_fails() {
+    let mut rng = rand_core::OsRng;
+    let setup = ServerSetup::<OpaqueRistretto255Sha512>::new(&mut rng).unwrap();
+
+    let (reg_request, reg_state) =
+        ClientRegistration::<OpaqueRistretto255Sha512>::start(b"password", &mut rng).unwrap();
+    let reg_response =
+        ServerRegistration::<OpaqueRistretto255Sha512>::start(&setup, &reg_request, b"user")
+            .unwrap();
+    let (record, _) = reg_state.finish(&reg_response, b"", b"", &mut rng).unwrap();
+
+    let (ke1, client_state) =
+        ClientLogin::<OpaqueRistretto255Sha512>::start(b"password", &mut rng).unwrap();
+    let (ke2, _server_state) = ServerLogin::<OpaqueRistretto255Sha512>::start(
+        &setup, &record, &ke1, b"user", b"server-ctx", b"", b"", &mut rng,
+    )
+    .unwrap();
+
+    // Client uses different context than server
+    let result = client_state.finish(&ke2, b"client-ctx", b"", b"");
+    assert!(matches!(
+        result,
+        Err(OpaqueError::ServerAuthenticationError)
+    ), "context mismatch must cause server authentication failure");
+}

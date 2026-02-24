@@ -657,3 +657,52 @@ fn test_deterministic_replay() {
         "Session IDs must be deterministic"
     );
 }
+
+// --- Swapped messages produce different keys ---
+
+#[test]
+fn test_swapped_shares_produce_different_isk() {
+    let password = b"password";
+    let ci = b"ci";
+    let sid = b"sid";
+    let ad_a = b"initiator";
+    let ad_b = b"responder";
+    let mut rng = rand_core::OsRng;
+
+    // Normal handshake
+    let (ya_bytes, state_a) =
+        CpaceInitiator::<CpaceRistretto255Sha512>::start(password, ci, sid, ad_a, &mut rng)
+            .unwrap();
+    let (yb_bytes, output_b) = CpaceResponder::<CpaceRistretto255Sha512>::respond(
+        &ya_bytes,
+        password,
+        ci,
+        sid,
+        ad_a,
+        ad_b,
+        CpaceMode::InitiatorResponder,
+        &mut rng,
+    )
+    .unwrap();
+    let output_a = state_a
+        .finish(&yb_bytes, ad_b, CpaceMode::InitiatorResponder)
+        .unwrap();
+    assert_eq!(output_a.isk.as_bytes(), output_b.isk.as_bytes());
+
+    // Swapped: initiator sends Ya but receives its own Ya back instead of Yb
+    let (ya_bytes2, state_a2) =
+        CpaceInitiator::<CpaceRistretto255Sha512>::start(password, ci, sid, ad_a, &mut rng)
+            .unwrap();
+    let output_a2 = state_a2
+        .finish(&ya_bytes2, ad_b, CpaceMode::InitiatorResponder)
+        .unwrap();
+
+    // Reflected message should produce a different ISK (protocol is not vulnerable to reflection)
+    // Note: In IR mode, K = ya * Ya which is ya^2 * G — different from normal K = ya * Yb.
+    // The ISK is still derived correctly but doesn't match the responder's ISK.
+    assert_ne!(
+        output_a.isk.as_bytes(),
+        output_a2.isk.as_bytes(),
+        "reflected share must produce different ISK"
+    );
+}

@@ -298,16 +298,19 @@ fn test_identity_encoding_as_received_share() {
 
     let mut rng = rand_core::OsRng;
 
-    // Send all-zeros (Ristretto identity encoding) as pB to Party A
+    // Send all-zeros (Ristretto identity encoding) as pB to Party A.
+    // K = x * (identity - w*N) = x * (-w*N) which is non-identity for non-zero w,x,
+    // so finish() succeeds — but the resulting key is bogus.
+    // The important thing is that the protocol does not panic.
     let (_, state_a) = A::start(&w, identity_a, identity_b, aad, &mut rng).unwrap();
     let identity_bytes = [0u8; 32];
-    // K = x * (identity - w*N) = x * (-w*N) which is not identity for non-zero w,x
-    // This should not panic — the protocol either succeeds or returns an error gracefully
-    let _result_a = state_a.finish(&identity_bytes);
+    let result_a = state_a.finish(&identity_bytes);
+    assert!(result_a.is_ok(), "identity as pB must not panic (K is non-identity)");
 
-    // Send all-zeros as pA to Party B
+    // Send all-zeros as pA to Party B — same reasoning.
     let (_, state_b) = B::start(&w, identity_a, identity_b, aad, &mut rng).unwrap();
-    let _result_b = state_b.finish(&identity_bytes);
+    let result_b = state_b.finish(&identity_bytes);
+    assert!(result_b.is_ok(), "identity as pA must not panic (K is non-identity)");
 }
 
 // --- Empty identities ---
@@ -338,4 +341,70 @@ fn test_empty_identities() {
     output_b
         .verify_peer_confirmation(&output_a.confirmation_mac)
         .expect("confirmation should succeed with empty identities");
+}
+
+// --- MAC confirmation tampering ---
+
+#[test]
+fn test_tampered_confirmation_mac_rejected() {
+    let w = password_to_scalar(b"password");
+    let mut rng = rand_core::OsRng;
+
+    let (pa_bytes, state_a) = A::start(&w, b"alice", b"bob", b"", &mut rng).unwrap();
+    let (pb_bytes, state_b) = B::start(&w, b"alice", b"bob", b"", &mut rng).unwrap();
+
+    let output_a = state_a.finish(&pb_bytes).unwrap();
+    let output_b = state_b.finish(&pa_bytes).unwrap();
+
+    // Tamper with each byte position of the MAC
+    for i in 0..output_b.confirmation_mac.len() {
+        let mut tampered = output_b.confirmation_mac.clone();
+        tampered[i] ^= 0x01;
+        assert!(
+            output_a.verify_peer_confirmation(&tampered).is_err(),
+            "tampered MAC byte {i} must be rejected"
+        );
+    }
+
+    // Truncated MAC
+    assert!(
+        output_a
+            .verify_peer_confirmation(&output_b.confirmation_mac[..output_b.confirmation_mac.len() - 1])
+            .is_err(),
+        "truncated MAC must be rejected"
+    );
+
+    // Empty MAC
+    assert!(
+        output_a.verify_peer_confirmation(&[]).is_err(),
+        "empty MAC must be rejected"
+    );
+}
+
+#[test]
+fn test_swapped_confirmation_macs_rejected() {
+    let w = password_to_scalar(b"password");
+    let mut rng = rand_core::OsRng;
+
+    let (pa_bytes, state_a) = A::start(&w, b"alice", b"bob", b"", &mut rng).unwrap();
+    let (pb_bytes, state_b) = B::start(&w, b"alice", b"bob", b"", &mut rng).unwrap();
+
+    let output_a = state_a.finish(&pb_bytes).unwrap();
+    let output_b = state_b.finish(&pa_bytes).unwrap();
+
+    // Party A's own MAC sent back to Party A (instead of Party B's MAC)
+    assert!(
+        output_a
+            .verify_peer_confirmation(&output_a.confirmation_mac)
+            .is_err(),
+        "own MAC must not verify as peer MAC (asymmetric keys)"
+    );
+
+    // Party B's own MAC sent back to Party B
+    assert!(
+        output_b
+            .verify_peer_confirmation(&output_b.confirmation_mac)
+            .is_err(),
+        "own MAC must not verify as peer MAC (asymmetric keys)"
+    );
 }
