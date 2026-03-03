@@ -21,5 +21,6 @@ pub mod verifier;
 pub use ciphersuite::Spake2PlusCiphersuite;
 pub use error::Spake2PlusError;
 pub use prover::{Prover, ProverOutput, ProverState};
+pub use registration::compute_verifier;
 pub use transcript::Spake2PlusOutput;
 pub use verifier::{Verifier, VerifierState};

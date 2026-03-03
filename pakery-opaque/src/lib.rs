@@ -24,7 +24,8 @@ pub use ciphersuite::OpaqueCiphersuite;
 pub use error::OpaqueError;
 pub use login::{ClientLogin, ClientLoginState, ServerLogin, ServerLoginState};
 pub use messages::{
-    Envelope, RegistrationRecord, RegistrationRequest, RegistrationResponse, KE1, KE2, KE3,
+    CredentialResponse, Envelope, RegistrationRecord, RegistrationRequest, RegistrationResponse,
+    KE1, KE2, KE3,
 };
 pub use registration::{ClientRegistration, ClientRegistrationState, ServerRegistration};
 pub use server_setup::ServerSetup;

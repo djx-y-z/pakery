@@ -147,14 +147,13 @@ impl<C: OpaqueCiphersuite> ClientLoginState<C> {
         let cred_resp = CredentialResponse::deserialize::<C>(&cred_resp_bytes)?;
 
         // 4. Recover envelope
-        let (client_private_key_raw, _client_public_key, export_key) = envelope::recover::<C>(
+        let (client_private_key, _client_public_key, export_key) = envelope::recover::<C>(
             &randomized_pwd,
             &cred_resp.server_public_key,
             server_identity,
             client_identity,
             &cred_resp.envelope,
         )?;
-        let client_private_key = Zeroizing::new(client_private_key_raw);
 
         // Resolve identities for preamble
         let client_id_for_preamble: &[u8] = if client_identity.is_empty() {

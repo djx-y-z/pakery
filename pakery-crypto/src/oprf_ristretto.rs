@@ -8,6 +8,7 @@ use pakery_core::crypto::oprf::{Oprf, OprfClientState};
 use pakery_core::PakeError;
 use rand_core::CryptoRngCore;
 use sha2::Sha512;
+use subtle::ConstantTimeEq;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 use crate::oprf_common::{expand_message_xmd, finalize_hash, i2osp_2};
@@ -38,7 +39,7 @@ impl OprfClientState for Ristretto255OprfClientState {
         let blind_scalar = Scalar::from_canonical_bytes(self.blind)
             .into_option()
             .ok_or(PakeError::ProtocolError("invalid blind scalar"))?;
-        if blind_scalar == Scalar::ZERO {
+        if bool::from(blind_scalar.ct_eq(&Scalar::ZERO)) {
             return Err(PakeError::ProtocolError("blind scalar is zero"));
         }
         let r_inv = blind_scalar.invert();
@@ -85,7 +86,7 @@ impl Oprf for Ristretto255Oprf {
         // Generate non-zero random scalar.
         let mut r = loop {
             let s = Scalar::random(rng);
-            if s != Scalar::ZERO {
+            if !bool::from(s.ct_eq(&Scalar::ZERO)) {
                 break s;
             }
         };
@@ -108,7 +109,7 @@ impl Oprf for Ristretto255Oprf {
         let sk = Scalar::from_canonical_bytes(sk_bytes)
             .into_option()
             .ok_or(PakeError::InvalidInput("invalid OPRF key"))?;
-        if sk == Scalar::ZERO {
+        if bool::from(sk.ct_eq(&Scalar::ZERO)) {
             return Err(PakeError::InvalidInput("OPRF key is zero"));
         }
 
@@ -138,7 +139,7 @@ impl Oprf for Ristretto255Oprf {
         for counter in 0u8..=255 {
             let sk =
                 hash_to_scalar_with_dst(&[seed, &info_len, info, &[counter]], DERIVE_KEYPAIR_DST)?;
-            if sk != Scalar::ZERO {
+            if !bool::from(sk.ct_eq(&Scalar::ZERO)) {
                 return Ok(sk.to_bytes().to_vec());
             }
         }

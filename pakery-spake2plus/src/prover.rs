@@ -124,8 +124,11 @@ impl<C: Spake2PlusCiphersuite> ProverState<C> {
         share_v_bytes: &[u8],
         confirm_v: &[u8],
     ) -> Result<ProverOutput, Spake2PlusError> {
-        // Decode shareV
+        // Decode shareV and reject identity (defense-in-depth)
         let share_v = C::Group::from_bytes(share_v_bytes)?;
+        if share_v.is_identity() {
+            return Err(Spake2PlusError::IdentityPoint);
+        }
 
         // Decode N from ciphersuite constants
         let n = C::Group::from_bytes(C::N_BYTES)?;

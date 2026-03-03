@@ -1,13 +1,14 @@
 //! Wire-format message types for the OPAQUE protocol.
 
 use alloc::vec::Vec;
+use core::fmt;
 
 use crate::ciphersuite::OpaqueCiphersuite;
 use crate::OpaqueError;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 /// Client's first registration message containing the blinded password.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct RegistrationRequest {
     /// OPRF blinded element (Noe bytes).
     pub blinded_message: Vec<u8>,
@@ -31,7 +32,7 @@ impl RegistrationRequest {
 }
 
 /// Server's registration response containing the evaluated element and server public key.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct RegistrationResponse {
     /// OPRF evaluated element (Noe bytes).
     pub evaluated_message: Vec<u8>,
@@ -63,7 +64,7 @@ impl RegistrationResponse {
 }
 
 /// Encrypted envelope containing a nonce and auth tag.
-#[derive(Debug, Clone, Zeroize)]
+#[derive(Clone, Zeroize, ZeroizeOnDrop)]
 pub struct Envelope {
     /// Random nonce (Nn bytes).
     pub nonce: Vec<u8>,
@@ -102,7 +103,7 @@ impl Envelope {
 ///
 /// Contains `masking_key` which is a password-derived key.
 /// Zeroized on drop to prevent key material from lingering in memory.
-#[derive(Debug, Clone, Zeroize, ZeroizeOnDrop)]
+#[derive(Clone, Zeroize, ZeroizeOnDrop)]
 pub struct RegistrationRecord {
     /// Client's public key (Npk bytes).
     pub client_public_key: Vec<u8>,
@@ -146,7 +147,7 @@ impl RegistrationRecord {
 }
 
 /// Client's first login message (KE1).
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct KE1 {
     /// OPRF blinded element (Noe bytes).
     pub blinded_message: Vec<u8>,
@@ -189,7 +190,7 @@ impl KE1 {
 }
 
 /// Credential response embedded in KE2, masked by XOR with HKDF output.
-#[derive(Debug, Clone)]
+#[derive(Clone, Zeroize, ZeroizeOnDrop)]
 pub struct CredentialResponse {
     /// Server's long-term public key (Npk bytes).
     pub server_public_key: Vec<u8>,
@@ -228,7 +229,7 @@ impl CredentialResponse {
 }
 
 /// Server's login response (KE2).
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct KE2 {
     /// OPRF evaluated element (Noe bytes).
     pub evaluated_message: Vec<u8>,
@@ -319,7 +320,7 @@ impl KE2 {
 }
 
 /// Client's final login message (KE3).
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct KE3 {
     /// Client MAC (Nm bytes).
     pub client_mac: Vec<u8>,
@@ -339,5 +340,85 @@ impl KE3 {
         Ok(Self {
             client_mac: bytes.to_vec(),
         })
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Debug impls — redact sensitive cryptographic fields
+// ---------------------------------------------------------------------------
+
+impl fmt::Debug for RegistrationRequest {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("RegistrationRequest")
+            .field("blinded_message", &"[REDACTED]")
+            .finish()
+    }
+}
+
+impl fmt::Debug for RegistrationResponse {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("RegistrationResponse")
+            .field("evaluated_message", &"[REDACTED]")
+            .field("server_public_key", &"[REDACTED]")
+            .finish()
+    }
+}
+
+impl fmt::Debug for Envelope {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Envelope")
+            .field("nonce", &"[REDACTED]")
+            .field("auth_tag", &"[REDACTED]")
+            .finish()
+    }
+}
+
+impl fmt::Debug for RegistrationRecord {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("RegistrationRecord")
+            .field("client_public_key", &"[REDACTED]")
+            .field("masking_key", &"[REDACTED]")
+            .field("envelope", &self.envelope)
+            .finish()
+    }
+}
+
+impl fmt::Debug for KE1 {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("KE1")
+            .field("blinded_message", &"[REDACTED]")
+            .field("client_nonce", &"[REDACTED]")
+            .field("client_keyshare", &"[REDACTED]")
+            .finish()
+    }
+}
+
+impl fmt::Debug for CredentialResponse {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("CredentialResponse")
+            .field("server_public_key", &"[REDACTED]")
+            .field("envelope", &self.envelope)
+            .finish()
+    }
+}
+
+impl fmt::Debug for KE2 {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("KE2")
+            .field("evaluated_message", &"[REDACTED]")
+            .field("masking_nonce", &"[REDACTED]")
+            .field("masked_response", &"[REDACTED]")
+            .field("server_nonce", &"[REDACTED]")
+            .field("server_keyshare", &"[REDACTED]")
+            .field("server_mac", &"[REDACTED]")
+            .finish()
+    }
+}
+
+impl fmt::Debug for KE3 {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("KE3")
+            .field("client_mac", &"[REDACTED]")
+            .finish()
     }
 }

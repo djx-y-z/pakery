@@ -66,9 +66,9 @@ pub fn store<C: OpaqueCiphersuite>(
     server_identity: &[u8],
     client_identity: &[u8],
     nonce: &[u8],
-) -> Result<(Envelope, Vec<u8>, Vec<u8>, Zeroizing<Vec<u8>>), OpaqueError> {
+) -> Result<(Envelope, Vec<u8>, Zeroizing<Vec<u8>>, Zeroizing<Vec<u8>>), OpaqueError> {
     // masking_key = Expand(randomized_pwd, "MaskingKey", Nh)
-    let masking_key = C::Kdf::expand(randomized_pwd, b"MaskingKey", C::NH)?;
+    let masking_key = Zeroizing::new(C::Kdf::expand(randomized_pwd, b"MaskingKey", C::NH)?);
 
     // auth_key = Expand(randomized_pwd, concat(nonce, "AuthKey"), Nh)
     let auth_key = Zeroizing::new(C::Kdf::expand(
@@ -132,7 +132,7 @@ pub fn recover<C: OpaqueCiphersuite>(
     server_identity: &[u8],
     client_identity: &[u8],
     envelope: &Envelope,
-) -> Result<(Vec<u8>, Vec<u8>, Zeroizing<Vec<u8>>), OpaqueError> {
+) -> Result<(Zeroizing<Vec<u8>>, Vec<u8>, Zeroizing<Vec<u8>>), OpaqueError> {
     let nonce = &envelope.nonce;
 
     // auth_key = Expand(randomized_pwd, concat(nonce, "AuthKey"), Nh)
@@ -157,7 +157,8 @@ pub fn recover<C: OpaqueCiphersuite>(
     )?);
 
     // (client_private_key, client_public_key) = DeriveAuthKeyPair(seed)
-    let (client_private_key, client_public_key) = C::Dh::derive_keypair(&seed)?;
+    let (client_private_key_raw, client_public_key) = C::Dh::derive_keypair(&seed)?;
+    let client_private_key = Zeroizing::new(client_private_key_raw);
 
     // Resolve identities
     let client_id = if client_identity.is_empty() {

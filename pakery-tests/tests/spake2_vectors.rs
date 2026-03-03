@@ -299,24 +299,16 @@ fn test_identity_encoding_as_received_share() {
     let mut rng = rand_core::OsRng;
 
     // Send all-zeros (Ristretto identity encoding) as pB to Party A.
-    // K = x * (identity - w*N) = x * (-w*N) which is non-identity for non-zero w,x,
-    // so finish() succeeds — but the resulting key is bogus.
-    // The important thing is that the protocol does not panic.
+    // Defense-in-depth: identity is rejected before computation.
     let (_, state_a) = A::start(&w, identity_a, identity_b, aad, &mut rng).unwrap();
     let identity_bytes = [0u8; 32];
     let result_a = state_a.finish(&identity_bytes);
-    assert!(
-        result_a.is_ok(),
-        "identity as pB must not panic (K is non-identity)"
-    );
+    assert!(result_a.is_err(), "identity as pB must be rejected");
 
     // Send all-zeros as pA to Party B — same reasoning.
     let (_, state_b) = B::start(&w, identity_a, identity_b, aad, &mut rng).unwrap();
     let result_b = state_b.finish(&identity_bytes);
-    assert!(
-        result_b.is_ok(),
-        "identity as pA must not panic (K is non-identity)"
-    );
+    assert!(result_b.is_err(), "identity as pA must be rejected");
 }
 
 // --- Empty identities ---

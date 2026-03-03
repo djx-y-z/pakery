@@ -6,7 +6,7 @@
 use alloc::vec::Vec;
 use rand_core::CryptoRngCore;
 use subtle::ConstantTimeEq;
-use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
+use zeroize::{Zeroize, Zeroizing};
 
 use pakery_core::crypto::CpaceGroup;
 use pakery_core::SharedSecret;
@@ -17,23 +17,30 @@ use crate::error::Spake2PlusError;
 use crate::transcript::{derive_key_schedule, Spake2PlusOutput};
 
 /// State held by the Verifier between sending (shareV, confirmV) and receiving confirmP.
-#[derive(Zeroize, ZeroizeOnDrop)]
 pub struct VerifierState {
     expected_confirm_p: Vec<u8>,
-    #[zeroize(skip)]
     session_key: SharedSecret,
+}
+
+impl Drop for VerifierState {
+    fn drop(&mut self) {
+        self.expected_confirm_p.zeroize();
+        // session_key has its own ZeroizeOnDrop via SharedSecret
+    }
 }
 
 impl VerifierState {
     /// Finish the SPAKE2+ protocol by verifying the Prover's confirmation MAC.
-    pub fn finish(self, confirm_p: &[u8]) -> Result<Spake2PlusOutput, Spake2PlusError> {
+    pub fn finish(mut self, confirm_p: &[u8]) -> Result<Spake2PlusOutput, Spake2PlusError> {
         if !bool::from(self.expected_confirm_p.ct_eq(confirm_p)) {
             return Err(Spake2PlusError::ConfirmationFailed);
         }
 
-        Ok(Spake2PlusOutput {
-            session_key: self.session_key.clone(),
-        })
+        // Move session_key out; the placeholder empty secret is dropped
+        // (and zeroized) when `self` drops.
+        let session_key =
+            core::mem::replace(&mut self.session_key, SharedSecret::new(alloc::vec![]));
+        Ok(Spake2PlusOutput { session_key })
     }
 }
 
@@ -106,8 +113,11 @@ impl<C: Spake2PlusCiphersuite> Verifier<C> {
         id_prover: &[u8],
         id_verifier: &[u8],
     ) -> Result<(Vec<u8>, Vec<u8>, VerifierState), Spake2PlusError> {
-        // Decode shareP
+        // Decode shareP and reject identity (defense-in-depth)
         let share_p = C::Group::from_bytes(share_p_bytes)?;
+        if share_p.is_identity() {
+            return Err(Spake2PlusError::IdentityPoint);
+        }
 
         // Decode M from ciphersuite constants
         let m = C::Group::from_bytes(C::M_BYTES)?;

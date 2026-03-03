@@ -79,7 +79,7 @@ impl<C: OpaqueCiphersuite> ClientRegistrationState<C> {
 
         let record = RegistrationRecord {
             client_public_key,
-            masking_key,
+            masking_key: (*masking_key).clone(),
             envelope: env,
         };
 
@@ -117,7 +117,7 @@ impl<C: OpaqueCiphersuite> ClientRegistrationState<C> {
 
         let record = RegistrationRecord {
             client_public_key,
-            masking_key,
+            masking_key: (*masking_key).clone(),
             envelope: env,
         };
 

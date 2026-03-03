@@ -98,8 +98,11 @@ impl<C: Spake2Ciphersuite> PartyBState<C> {
     ///
     /// Returns the protocol output containing session key and confirmation MACs.
     pub fn finish(self, pa_bytes: &[u8]) -> Result<Spake2Output, Spake2Error> {
-        // Decode pA
+        // Decode pA and reject identity (defense-in-depth)
         let pa = C::Group::from_bytes(pa_bytes)?;
+        if pa.is_identity() {
+            return Err(Spake2Error::IdentityPoint);
+        }
 
         // Decode M
         let m = C::Group::from_bytes(C::M_BYTES)?;

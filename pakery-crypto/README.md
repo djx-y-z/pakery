@@ -34,7 +34,8 @@ pakery-crypto = { version = "0.1", features = ["ristretto255"] }
 
 | Type | Implements |
 |------|-----------|
-| `P256Group` | `CpaceGroup`, `DhGroup` |
+| `P256Group` | `CpaceGroup` |
+| `P256Dh` | `DhGroup` |
 | `P256Oprf` | `Oprf` |
 | `Sha256Hash` | `Hash` |
 | `HkdfSha256` | `Kdf` |

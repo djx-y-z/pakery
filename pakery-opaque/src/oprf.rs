@@ -6,12 +6,12 @@ use crate::ciphersuite::OpaqueCiphersuite;
 use crate::OpaqueError;
 use pakery_core::crypto::{Kdf, Oprf as OprfTrait, OprfClientState as OprfClientStateTrait};
 use rand_core::CryptoRngCore;
-use zeroize::{Zeroize, Zeroizing};
+use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
 /// State held by the client between blind and finalize.
 ///
 /// The inner OPRF blinding scalar is zeroed on drop.
-#[derive(Zeroize)]
+#[derive(Zeroize, ZeroizeOnDrop)]
 pub struct OprfClientState<C: OpaqueCiphersuite> {
     pub(crate) state: <C::Oprf as OprfTrait>::ClientState,
 }
