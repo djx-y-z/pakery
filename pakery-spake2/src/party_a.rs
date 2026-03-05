@@ -42,7 +42,7 @@ impl<C: Spake2Ciphersuite> PartyA<C> {
         rng: &mut impl CryptoRngCore,
     ) -> Result<(Vec<u8>, PartyAState<C>), Spake2Error> {
         let x = C::Group::random_scalar(rng);
-        Self::start_inner(w, &x, identity_a, identity_b, aad)
+        Self::start_inner(w.clone(), x, identity_a, identity_b, aad)
     }
 
     /// Start with a deterministic scalar (for testing).
@@ -60,12 +60,12 @@ impl<C: Spake2Ciphersuite> PartyA<C> {
         identity_b: &[u8],
         aad: &[u8],
     ) -> Result<(Vec<u8>, PartyAState<C>), Spake2Error> {
-        Self::start_inner(w, x, identity_a, identity_b, aad)
+        Self::start_inner(w.clone(), x.clone(), identity_a, identity_b, aad)
     }
 
     fn start_inner(
-        w: &<C::Group as CpaceGroup>::Scalar,
-        x: &<C::Group as CpaceGroup>::Scalar,
+        w: <C::Group as CpaceGroup>::Scalar,
+        x: <C::Group as CpaceGroup>::Scalar,
         identity_a: &[u8],
         identity_b: &[u8],
         aad: &[u8],
@@ -74,15 +74,15 @@ impl<C: Spake2Ciphersuite> PartyA<C> {
         let m = C::Group::from_bytes(C::M_BYTES)?;
 
         // pA = x*G + w*M
-        let x_g = C::Group::basepoint_mul(x);
-        let w_m = m.scalar_mul(w);
+        let x_g = C::Group::basepoint_mul(&x);
+        let w_m = m.scalar_mul(&w);
         let pa = x_g.add(&w_m);
 
         let pa_bytes = pa.to_bytes();
 
         let state = PartyAState {
-            x: x.clone(),
-            w: w.clone(),
+            x,
+            w,
             pa_bytes: pa_bytes.clone(),
             identity_a: identity_a.to_vec(),
             identity_b: identity_b.to_vec(),

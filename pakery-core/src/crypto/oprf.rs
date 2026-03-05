@@ -3,12 +3,16 @@
 use crate::error::PakeError;
 use alloc::vec::Vec;
 use rand_core::CryptoRngCore;
-use zeroize::Zeroize;
+use zeroize::{Zeroize, Zeroizing};
 
 /// Client-side OPRF state held between blind and finalize.
 pub trait OprfClientState: Sized + Zeroize {
     /// Finalize the OPRF output given the password and server's evaluation.
-    fn finalize(&self, password: &[u8], evaluated_bytes: &[u8]) -> Result<Vec<u8>, PakeError>;
+    fn finalize(
+        &self,
+        password: &[u8],
+        evaluated_bytes: &[u8],
+    ) -> Result<Zeroizing<Vec<u8>>, PakeError>;
 }
 
 /// An oblivious pseudorandom function.
@@ -26,5 +30,5 @@ pub trait Oprf {
     fn server_evaluate(oprf_key: &[u8], blinded_bytes: &[u8]) -> Result<Vec<u8>, PakeError>;
 
     /// Derive an OPRF key from a seed and info string.
-    fn derive_key(seed: &[u8], info: &[u8]) -> Result<Vec<u8>, PakeError>;
+    fn derive_key(seed: &[u8], info: &[u8]) -> Result<Zeroizing<Vec<u8>>, PakeError>;
 }

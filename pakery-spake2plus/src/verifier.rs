@@ -177,13 +177,13 @@ impl<C: Spake2PlusCiphersuite> Verifier<C> {
         );
 
         // Derive key schedule
-        let ks = derive_key_schedule::<C>(&tt, share_p_bytes, &share_v_bytes)?;
+        let mut ks = derive_key_schedule::<C>(&tt, share_p_bytes, &share_v_bytes)?;
 
         let state = VerifierState {
-            expected_confirm_p: ks.confirm_p,
-            session_key: ks.session_key,
+            expected_confirm_p: core::mem::take(&mut ks.confirm_p),
+            session_key: core::mem::replace(&mut ks.session_key, SharedSecret::new(Vec::new())),
         };
 
-        Ok((share_v_bytes, ks.confirm_v, state))
+        Ok((share_v_bytes, core::mem::take(&mut ks.confirm_v), state))
     }
 }

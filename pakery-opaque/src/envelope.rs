@@ -68,28 +68,20 @@ pub fn store<C: OpaqueCiphersuite>(
     nonce: &[u8],
 ) -> Result<(Envelope, Vec<u8>, Zeroizing<Vec<u8>>, Zeroizing<Vec<u8>>), OpaqueError> {
     // masking_key = Expand(randomized_pwd, "MaskingKey", Nh)
-    let masking_key = Zeroizing::new(C::Kdf::expand(randomized_pwd, b"MaskingKey", C::NH)?);
+    let masking_key = C::Kdf::expand(randomized_pwd, b"MaskingKey", C::NH)?;
 
     // auth_key = Expand(randomized_pwd, concat(nonce, "AuthKey"), Nh)
-    let auth_key = Zeroizing::new(C::Kdf::expand(
-        randomized_pwd,
-        &envelope_info(nonce, b"AuthKey"),
-        C::NH,
-    )?);
+    let auth_key = C::Kdf::expand(randomized_pwd, &envelope_info(nonce, b"AuthKey"), C::NH)?;
 
     // export_key = Expand(randomized_pwd, concat(nonce, "ExportKey"), Nh)
-    let export_key = Zeroizing::new(C::Kdf::expand(
-        randomized_pwd,
-        &envelope_info(nonce, b"ExportKey"),
-        C::NH,
-    )?);
+    let export_key = C::Kdf::expand(randomized_pwd, &envelope_info(nonce, b"ExportKey"), C::NH)?;
 
     // seed = Expand(randomized_pwd, concat(nonce, "PrivateKey"), Nseed)
-    let seed = Zeroizing::new(C::Kdf::expand(
+    let seed = C::Kdf::expand(
         randomized_pwd,
         &envelope_info(nonce, b"PrivateKey"),
         C::NSEED,
-    )?);
+    )?;
 
     // (client_private_key, client_public_key) = DeriveAuthKeyPair(seed)
     let (_, client_public_key) = C::Dh::derive_keypair(&seed)?;
@@ -136,29 +128,20 @@ pub fn recover<C: OpaqueCiphersuite>(
     let nonce = &envelope.nonce;
 
     // auth_key = Expand(randomized_pwd, concat(nonce, "AuthKey"), Nh)
-    let auth_key = Zeroizing::new(C::Kdf::expand(
-        randomized_pwd,
-        &envelope_info(nonce, b"AuthKey"),
-        C::NH,
-    )?);
+    let auth_key = C::Kdf::expand(randomized_pwd, &envelope_info(nonce, b"AuthKey"), C::NH)?;
 
     // export_key = Expand(randomized_pwd, concat(nonce, "ExportKey"), Nh)
-    let export_key = Zeroizing::new(C::Kdf::expand(
-        randomized_pwd,
-        &envelope_info(nonce, b"ExportKey"),
-        C::NH,
-    )?);
+    let export_key = C::Kdf::expand(randomized_pwd, &envelope_info(nonce, b"ExportKey"), C::NH)?;
 
     // seed = Expand(randomized_pwd, concat(nonce, "PrivateKey"), Nseed)
-    let seed = Zeroizing::new(C::Kdf::expand(
+    let seed = C::Kdf::expand(
         randomized_pwd,
         &envelope_info(nonce, b"PrivateKey"),
         C::NSEED,
-    )?);
+    )?;
 
     // (client_private_key, client_public_key) = DeriveAuthKeyPair(seed)
-    let (client_private_key_raw, client_public_key) = C::Dh::derive_keypair(&seed)?;
-    let client_private_key = Zeroizing::new(client_private_key_raw);
+    let (client_private_key, client_public_key) = C::Dh::derive_keypair(&seed)?;
 
     // Resolve identities
     let client_id = if client_identity.is_empty() {

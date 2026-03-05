@@ -7,7 +7,7 @@ use p256::ProjectivePoint;
 use pakery_core::crypto::dh::DhGroup;
 use pakery_core::PakeError;
 use rand_core::CryptoRngCore;
-use zeroize::Zeroize;
+use zeroize::{Zeroize, Zeroizing};
 
 use crate::oprf_p256::{point_from_bytes, point_to_bytes, scalar_from_bytes, P256Oprf};
 
@@ -20,7 +20,7 @@ use crate::oprf_p256::{point_from_bytes, point_to_bytes, scalar_from_bytes, P256
 pub struct P256Dh;
 
 impl DhGroup for P256Dh {
-    fn diffie_hellman(sk: &[u8], pk: &[u8]) -> Result<Vec<u8>, PakeError> {
+    fn diffie_hellman(sk: &[u8], pk: &[u8]) -> Result<Zeroizing<Vec<u8>>, PakeError> {
         use subtle::ConstantTimeEq;
 
         let scalar = scalar_from_bytes(sk)?;
@@ -30,10 +30,10 @@ impl DhGroup for P256Dh {
         if bool::from(result.ct_eq(&ProjectivePoint::IDENTITY)) {
             return Err(PakeError::IdentityPoint);
         }
-        Ok(point_to_bytes(&result))
+        Ok(Zeroizing::new(point_to_bytes(&result)))
     }
 
-    fn derive_keypair(seed: &[u8]) -> Result<(Vec<u8>, Vec<u8>), PakeError> {
+    fn derive_keypair(seed: &[u8]) -> Result<(Zeroizing<Vec<u8>>, Vec<u8>), PakeError> {
         use pakery_core::crypto::oprf::Oprf;
 
         let sk_bytes = P256Oprf::derive_key(seed, b"OPAQUE-DeriveDiffieHellmanKeyPair")?;
@@ -47,7 +47,9 @@ impl DhGroup for P256Dh {
         Ok((sk_bytes, pk))
     }
 
-    fn generate_keypair(rng: &mut impl CryptoRngCore) -> Result<(Vec<u8>, Vec<u8>), PakeError> {
+    fn generate_keypair(
+        rng: &mut impl CryptoRngCore,
+    ) -> Result<(Zeroizing<Vec<u8>>, Vec<u8>), PakeError> {
         let mut seed = [0u8; 32];
         rng.fill_bytes(&mut seed);
         let result = Self::derive_keypair(&seed);

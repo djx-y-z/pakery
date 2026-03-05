@@ -4,6 +4,7 @@
 //! The transcript has 10 fields (vs 6 in SPAKE2).
 
 use alloc::vec::Vec;
+use zeroize::Zeroizing;
 
 /// Encode a length as 8-byte little-endian.
 fn encode_le_u64(len: usize) -> [u8; 8] {
@@ -42,7 +43,7 @@ pub fn build_transcript(
     z: &[u8],
     v: &[u8],
     w0: &[u8],
-) -> Vec<u8> {
+) -> Zeroizing<Vec<u8>> {
     let mut tt = Vec::new();
     append_lv(&mut tt, context);
     append_lv(&mut tt, id_prover);
@@ -54,7 +55,7 @@ pub fn build_transcript(
     append_lv(&mut tt, z);
     append_lv(&mut tt, v);
     append_lv(&mut tt, w0);
-    tt
+    Zeroizing::new(tt)
 }
 
 #[cfg(test)]

@@ -11,7 +11,7 @@ use pakery_core::crypto::oprf::{Oprf, OprfClientState};
 use pakery_core::PakeError;
 use rand_core::CryptoRngCore;
 use sha2::Sha256;
-use zeroize::{Zeroize, ZeroizeOnDrop};
+use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
 use crate::oprf_common::{expand_message_xmd, finalize_hash, i2osp_2};
 
@@ -99,7 +99,11 @@ fn reduce_48_to_scalar(bytes: &[u8; 48]) -> Scalar {
 }
 
 impl OprfClientState for P256OprfClientState {
-    fn finalize(&self, password: &[u8], evaluated_bytes: &[u8]) -> Result<Vec<u8>, PakeError> {
+    fn finalize(
+        &self,
+        password: &[u8],
+        evaluated_bytes: &[u8],
+    ) -> Result<Zeroizing<Vec<u8>>, PakeError> {
         let z = point_from_bytes(evaluated_bytes)?;
 
         let blind_scalar = scalar_from_bytes(&self.blind)?;
@@ -110,7 +114,10 @@ impl OprfClientState for P256OprfClientState {
         let r_inv = r_inv.expect("checked above");
 
         let n = z * r_inv;
-        finalize_hash::<Sha256>(password, &point_to_bytes(&n))
+        Ok(Zeroizing::new(finalize_hash::<Sha256>(
+            password,
+            &point_to_bytes(&n),
+        )?))
     }
 }
 
@@ -159,14 +166,14 @@ impl Oprf for P256Oprf {
         Ok(point_to_bytes(&evaluated))
     }
 
-    fn derive_key(seed: &[u8], info: &[u8]) -> Result<Vec<u8>, PakeError> {
+    fn derive_key(seed: &[u8], info: &[u8]) -> Result<Zeroizing<Vec<u8>>, PakeError> {
         let info_len = i2osp_2(info.len())?;
 
         for counter in 0u8..=255 {
             let sk =
                 hash_to_scalar_with_dst(&[seed, &info_len, info, &[counter]], DERIVE_KEYPAIR_DST)?;
             if !bool::from(sk.is_zero()) {
-                return Ok(sk.to_repr().to_vec());
+                return Ok(Zeroizing::new(sk.to_repr().to_vec()));
             }
         }
 
@@ -195,7 +202,7 @@ mod tests {
     #[test]
     fn derive_key_pair() {
         let sk = P256Oprf::derive_key(&hex(SEED), &hex(KEY_INFO)).unwrap();
-        assert_eq!(sk, hex(SK_SM));
+        assert_eq!(*sk, hex(SK_SM));
     }
 
     #[test]
@@ -225,7 +232,7 @@ mod tests {
             blind: blind_bytes.as_slice().try_into().unwrap(),
         };
         let output = state.finalize(&input, &expected_eval).unwrap();
-        assert_eq!(output, expected_output);
+        assert_eq!(*output, expected_output);
     }
 
     #[test]
@@ -255,7 +262,7 @@ mod tests {
             blind: blind_bytes.as_slice().try_into().unwrap(),
         };
         let output = state.finalize(&input, &expected_eval).unwrap();
-        assert_eq!(output, expected_output);
+        assert_eq!(*output, expected_output);
     }
 
     #[test]

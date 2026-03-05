@@ -26,6 +26,14 @@ pub(crate) struct KeySchedule {
     pub session_key: SharedSecret,
 }
 
+impl Drop for KeySchedule {
+    fn drop(&mut self) {
+        self.confirm_p.zeroize();
+        self.confirm_v.zeroize();
+        // session_key has its own ZeroizeOnDrop via SharedSecret
+    }
+}
+
 /// Derive the key schedule from transcript TT.
 ///
 /// Per RFC 9383 section 3.4:
@@ -44,19 +52,16 @@ pub(crate) fn derive_key_schedule<C: Spake2PlusCiphersuite>(
     let k_main = Zeroizing::new(C::Hash::digest(tt));
 
     // Step 2: PRK = KDF.extract(salt=[], ikm=K_main)
-    let prk = Zeroizing::new(C::Kdf::extract(&[], &k_main[..C::NH]));
+    let prk = C::Kdf::extract(&[], &k_main[..C::NH]);
 
     // Step 3: K_confirmP || K_confirmV = KDF.expand(PRK, "ConfirmationKeys", 2*NH)
-    let kc = Zeroizing::new(
-        C::Kdf::expand(&prk, b"ConfirmationKeys", 2 * C::NH).map_err(|_| {
-            Spake2PlusError::InternalError("KDF expand failed for ConfirmationKeys")
-        })?,
-    );
+    let kc = C::Kdf::expand(&prk, b"ConfirmationKeys", 2 * C::NH)
+        .map_err(|_| Spake2PlusError::InternalError("KDF expand failed for ConfirmationKeys"))?;
     let k_confirm_p = &kc[..C::NH];
     let k_confirm_v = &kc[C::NH..2 * C::NH];
 
     // Step 4: K_shared = KDF.expand(PRK, "SharedKey", NH)
-    let k_shared = C::Kdf::expand(&prk, b"SharedKey", C::NH)
+    let mut k_shared = C::Kdf::expand(&prk, b"SharedKey", C::NH)
         .map_err(|_| Spake2PlusError::InternalError("KDF expand failed for SharedKey"))?;
 
     // Step 5: confirmV = MAC(K_confirmV, shareP), confirmP = MAC(K_confirmP, shareV)
@@ -69,6 +74,6 @@ pub(crate) fn derive_key_schedule<C: Spake2PlusCiphersuite>(
     Ok(KeySchedule {
         confirm_p,
         confirm_v,
-        session_key: SharedSecret::new(k_shared),
+        session_key: SharedSecret::new(core::mem::take(&mut *k_shared)),
     })
 }

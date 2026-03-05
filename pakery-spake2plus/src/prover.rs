@@ -58,7 +58,7 @@ impl<C: Spake2PlusCiphersuite> Prover<C> {
         rng: &mut impl CryptoRngCore,
     ) -> Result<(Vec<u8>, ProverState<C>), Spake2PlusError> {
         let x = C::Group::random_scalar(rng);
-        Self::start_inner(w0, w1, &x, context, id_prover, id_verifier)
+        Self::start_inner(w0.clone(), w1.clone(), x, context, id_prover, id_verifier)
     }
 
     /// Start with a deterministic scalar (for testing).
@@ -77,13 +77,20 @@ impl<C: Spake2PlusCiphersuite> Prover<C> {
         id_prover: &[u8],
         id_verifier: &[u8],
     ) -> Result<(Vec<u8>, ProverState<C>), Spake2PlusError> {
-        Self::start_inner(w0, w1, x, context, id_prover, id_verifier)
+        Self::start_inner(
+            w0.clone(),
+            w1.clone(),
+            x.clone(),
+            context,
+            id_prover,
+            id_verifier,
+        )
     }
 
     fn start_inner(
-        w0: &<C::Group as CpaceGroup>::Scalar,
-        w1: &<C::Group as CpaceGroup>::Scalar,
-        x: &<C::Group as CpaceGroup>::Scalar,
+        w0: <C::Group as CpaceGroup>::Scalar,
+        w1: <C::Group as CpaceGroup>::Scalar,
+        x: <C::Group as CpaceGroup>::Scalar,
         context: &[u8],
         id_prover: &[u8],
         id_verifier: &[u8],
@@ -92,16 +99,16 @@ impl<C: Spake2PlusCiphersuite> Prover<C> {
         let m = C::Group::from_bytes(C::M_BYTES)?;
 
         // shareP = x*G + w0*M
-        let x_g = C::Group::basepoint_mul(x);
-        let w0_m = m.scalar_mul(w0);
+        let x_g = C::Group::basepoint_mul(&x);
+        let w0_m = m.scalar_mul(&w0);
         let share_p = x_g.add(&w0_m);
 
         let share_p_bytes = share_p.to_bytes();
 
         let state = ProverState {
-            x: x.clone(),
-            w0: w0.clone(),
-            w1: w1.clone(),
+            x,
+            w0,
+            w1,
             share_p_bytes: share_p_bytes.clone(),
             context: context.to_vec(),
             id_prover: id_prover.to_vec(),
@@ -179,7 +186,7 @@ impl<C: Spake2PlusCiphersuite> ProverState<C> {
         );
 
         // Derive key schedule
-        let ks = derive_key_schedule::<C>(&tt, &self.share_p_bytes, share_v_bytes)?;
+        let mut ks = derive_key_schedule::<C>(&tt, &self.share_p_bytes, share_v_bytes)?;
 
         // Verify confirmV: MAC(K_confirmV, shareP)
         if !bool::from(ks.confirm_v.ct_eq(confirm_v)) {
@@ -187,8 +194,8 @@ impl<C: Spake2PlusCiphersuite> ProverState<C> {
         }
 
         Ok(ProverOutput {
-            session_key: ks.session_key,
-            confirm_p: ks.confirm_p,
+            session_key: core::mem::replace(&mut ks.session_key, SharedSecret::new(Vec::new())),
+            confirm_p: core::mem::take(&mut ks.confirm_p),
         })
     }
 }

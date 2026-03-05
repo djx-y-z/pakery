@@ -45,7 +45,7 @@ pub fn expand_label<C: OpaqueCiphersuite>(
     label: &[u8],
     context: &[u8],
     length: usize,
-) -> Result<Vec<u8>, OpaqueError> {
+) -> Result<Zeroizing<Vec<u8>>, OpaqueError> {
     let opaque_label = [b"OPAQUE-" as &[u8], label].concat();
 
     let mut custom_label = Vec::new();
@@ -68,7 +68,7 @@ pub fn derive_secret<C: OpaqueCiphersuite>(
     secret: &[u8],
     label: &[u8],
     transcript_hash: &[u8],
-) -> Result<Vec<u8>, OpaqueError> {
+) -> Result<Zeroizing<Vec<u8>>, OpaqueError> {
     expand_label::<C>(secret, label, transcript_hash, C::NX)
 }
 
@@ -79,8 +79,8 @@ pub fn derive_secret<C: OpaqueCiphersuite>(
 /// ```
 pub fn derive_randomized_password<C: OpaqueCiphersuite>(
     oprf_output: &[u8],
-) -> Result<Vec<u8>, OpaqueError> {
-    let hardened = Zeroizing::new(C::Ksf::stretch(oprf_output)?);
+) -> Result<Zeroizing<Vec<u8>>, OpaqueError> {
+    let hardened = C::Ksf::stretch(oprf_output)?;
     let mut ikm = Zeroizing::new(Vec::with_capacity(oprf_output.len() + hardened.len()));
     ikm.extend_from_slice(oprf_output);
     ikm.extend_from_slice(&hardened);
@@ -159,15 +159,11 @@ pub fn build_preamble(
 pub fn derive_keys<C: OpaqueCiphersuite>(
     ikm: &[u8],
     preamble: &[u8],
-) -> Result<(Vec<u8>, Vec<u8>, Vec<u8>), OpaqueError> {
-    let prk = Zeroizing::new(C::Kdf::extract(&[], ikm));
+) -> Result<(Zeroizing<Vec<u8>>, Zeroizing<Vec<u8>>, Zeroizing<Vec<u8>>), OpaqueError> {
+    let prk = C::Kdf::extract(&[], ikm);
     let preamble_hash = C::Hash::digest(preamble);
 
-    let handshake_secret = Zeroizing::new(derive_secret::<C>(
-        &prk,
-        b"HandshakeSecret",
-        &preamble_hash,
-    )?);
+    let handshake_secret = derive_secret::<C>(&prk, b"HandshakeSecret", &preamble_hash)?;
     let session_key = derive_secret::<C>(&prk, b"SessionKey", &preamble_hash)?;
 
     let km2 = derive_secret::<C>(&handshake_secret, b"ServerMAC", b"")?;
@@ -191,9 +187,9 @@ pub fn triple_dh_ikm<C: OpaqueCiphersuite>(
     dh3_sk: &[u8],
     dh3_pk: &[u8],
 ) -> Result<Zeroizing<Vec<u8>>, OpaqueError> {
-    let dh1 = Zeroizing::new(C::Dh::diffie_hellman(dh1_sk, dh1_pk)?);
-    let dh2 = Zeroizing::new(C::Dh::diffie_hellman(dh2_sk, dh2_pk)?);
-    let dh3 = Zeroizing::new(C::Dh::diffie_hellman(dh3_sk, dh3_pk)?);
+    let dh1 = C::Dh::diffie_hellman(dh1_sk, dh1_pk)?;
+    let dh2 = C::Dh::diffie_hellman(dh2_sk, dh2_pk)?;
+    let dh3 = C::Dh::diffie_hellman(dh3_sk, dh3_pk)?;
 
     let mut ikm = Zeroizing::new(Vec::with_capacity(dh1.len() + dh2.len() + dh3.len()));
     ikm.extend_from_slice(&dh1);

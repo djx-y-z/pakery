@@ -55,21 +55,21 @@ impl<C: OpaqueCiphersuite> ClientRegistrationState<C> {
         rng: &mut impl CryptoRngCore,
     ) -> Result<(RegistrationRecord, Zeroizing<Vec<u8>>), OpaqueError> {
         // Finalize OPRF
-        let oprf_output = Zeroizing::new(oprf::oprf_client_finalize::<C>(
+        let oprf_output = oprf::oprf_client_finalize::<C>(
             &self.oprf_state,
             &self.password,
             &response.evaluated_message,
-        )?);
+        )?;
 
         // Derive randomized password
-        let randomized_pwd = Zeroizing::new(derive_randomized_password::<C>(&oprf_output)?);
+        let randomized_pwd = derive_randomized_password::<C>(&oprf_output)?;
 
         // Generate envelope nonce
         let mut nonce = vec![0u8; C::NN];
         rng.fill_bytes(&mut nonce);
 
         // Store envelope
-        let (env, client_public_key, masking_key, export_key) = envelope::store::<C>(
+        let (env, client_public_key, mut masking_key, export_key) = envelope::store::<C>(
             &randomized_pwd,
             &response.server_public_key,
             server_identity,
@@ -79,7 +79,7 @@ impl<C: OpaqueCiphersuite> ClientRegistrationState<C> {
 
         let record = RegistrationRecord {
             client_public_key,
-            masking_key: (*masking_key).clone(),
+            masking_key: core::mem::take(&mut *masking_key),
             envelope: env,
         };
 
@@ -100,14 +100,14 @@ impl<C: OpaqueCiphersuite> ClientRegistrationState<C> {
         client_identity: &[u8],
         nonce: &[u8],
     ) -> Result<(RegistrationRecord, Zeroizing<Vec<u8>>), OpaqueError> {
-        let oprf_output = Zeroizing::new(oprf::oprf_client_finalize::<C>(
+        let oprf_output = oprf::oprf_client_finalize::<C>(
             &self.oprf_state,
             &self.password,
             &response.evaluated_message,
-        )?);
-        let randomized_pwd = Zeroizing::new(derive_randomized_password::<C>(&oprf_output)?);
+        )?;
+        let randomized_pwd = derive_randomized_password::<C>(&oprf_output)?;
 
-        let (env, client_public_key, masking_key, export_key) = envelope::store::<C>(
+        let (env, client_public_key, mut masking_key, export_key) = envelope::store::<C>(
             &randomized_pwd,
             &response.server_public_key,
             server_identity,
@@ -117,7 +117,7 @@ impl<C: OpaqueCiphersuite> ClientRegistrationState<C> {
 
         let record = RegistrationRecord {
             client_public_key,
-            masking_key: (*masking_key).clone(),
+            masking_key: core::mem::take(&mut *masking_key),
             envelope: env,
         };
 

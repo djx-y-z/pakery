@@ -32,7 +32,7 @@ pub fn oprf_client_finalize<C: OpaqueCiphersuite>(
     state: &OprfClientState<C>,
     password: &[u8],
     evaluated_bytes: &[u8],
-) -> Result<Vec<u8>, OpaqueError> {
+) -> Result<Zeroizing<Vec<u8>>, OpaqueError> {
     Ok(state.state.finalize(password, evaluated_bytes)?)
 }
 
@@ -54,13 +54,13 @@ pub fn oprf_server_evaluate<C: OpaqueCiphersuite>(
 pub fn derive_oprf_key<C: OpaqueCiphersuite>(
     oprf_seed: &[u8],
     credential_id: &[u8],
-) -> Result<Vec<u8>, OpaqueError> {
+) -> Result<Zeroizing<Vec<u8>>, OpaqueError> {
     let mut info = Vec::with_capacity(credential_id.len() + 7);
     info.extend_from_slice(credential_id);
     info.extend_from_slice(b"OprfKey");
 
     // oprf_seed is used directly as the PRK for KDF-Expand
-    let seed = Zeroizing::new(C::Kdf::expand(oprf_seed, &info, C::NSEED)?);
+    let seed = C::Kdf::expand(oprf_seed, &info, C::NSEED)?;
 
     // Use OPRF DeriveKeyPair to get the actual scalar key
     Ok(C::Oprf::derive_key(&seed, b"OPAQUE-DeriveKeyPair")?)

@@ -2,11 +2,12 @@
 
 use crate::error::PakeError;
 use alloc::vec::Vec;
+use zeroize::Zeroizing;
 
 /// A key stretching function (KSF) used to harden passwords.
 pub trait Ksf {
     /// Stretch the input bytes.
-    fn stretch(input: &[u8]) -> Result<Vec<u8>, PakeError>;
+    fn stretch(input: &[u8]) -> Result<Zeroizing<Vec<u8>>, PakeError>;
 }
 
 /// Identity key stretching function (pass-through).
@@ -18,7 +19,7 @@ pub trait Ksf {
 pub struct IdentityKsf;
 
 impl Ksf for IdentityKsf {
-    fn stretch(input: &[u8]) -> Result<Vec<u8>, PakeError> {
-        Ok(input.to_vec())
+    fn stretch(input: &[u8]) -> Result<Zeroizing<Vec<u8>>, PakeError> {
+        Ok(Zeroizing::new(input.to_vec()))
     }
 }

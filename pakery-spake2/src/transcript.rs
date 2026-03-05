@@ -49,21 +49,19 @@ pub fn derive_key_schedule<C: Spake2Ciphersuite>(
 ) -> Result<Spake2Output, Spake2Error> {
     // Step 1: Hash(TT) → Ke || Ka
     const { assert!(<C::Hash as pakery_core::crypto::Hash>::OUTPUT_SIZE >= C::NH) };
-    let hash_tt = C::Hash::digest(tt);
+    let hash_tt = Zeroizing::new(C::Hash::digest(tt));
     let half = C::NH / 2;
     let ke = &hash_tt[..half];
     let ka = &hash_tt[half..C::NH];
 
     // Step 2: PRK = KDF.extract(salt=[], ikm=Ka)
-    let prk = Zeroizing::new(C::Kdf::extract(&[], ka));
+    let prk = C::Kdf::extract(&[], ka);
 
     // Step 3: KcA || KcB = KDF.expand(PRK, "ConfirmationKeys" || AAD, NH)
     let mut info = Vec::from(b"ConfirmationKeys" as &[u8]);
     info.extend_from_slice(aad);
-    let kc = Zeroizing::new(
-        C::Kdf::expand(&prk, &info, C::NH)
-            .map_err(|_| Spake2Error::InternalError("KDF expand failed"))?,
-    );
+    let kc = C::Kdf::expand(&prk, &info, C::NH)
+        .map_err(|_| Spake2Error::InternalError("KDF expand failed"))?;
     let kc_a = &kc[..half];
     let kc_b = &kc[half..C::NH];
 

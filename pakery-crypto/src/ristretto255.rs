@@ -8,7 +8,7 @@ use pakery_core::crypto::dh::DhGroup;
 use pakery_core::crypto::group::CpaceGroup;
 use pakery_core::PakeError;
 use rand_core::CryptoRngCore;
-use zeroize::Zeroize;
+use zeroize::{Zeroize, Zeroizing};
 
 /// Ristretto255 group element for CPace.
 #[derive(Clone, PartialEq)]
@@ -93,7 +93,7 @@ impl CpaceGroup for Ristretto255Group {
 pub struct Ristretto255Dh;
 
 impl DhGroup for Ristretto255Dh {
-    fn diffie_hellman(sk: &[u8], pk: &[u8]) -> Result<Vec<u8>, PakeError> {
+    fn diffie_hellman(sk: &[u8], pk: &[u8]) -> Result<Zeroizing<Vec<u8>>, PakeError> {
         use curve25519_dalek::traits::Identity;
         use subtle::ConstantTimeEq;
         let sk_bytes: [u8; 32] = sk
@@ -114,10 +114,10 @@ impl DhGroup for Ristretto255Dh {
         if bool::from(result.ct_eq(&RistrettoPoint::identity())) {
             return Err(PakeError::IdentityPoint);
         }
-        Ok(result.compress().to_bytes().to_vec())
+        Ok(Zeroizing::new(result.compress().to_bytes().to_vec()))
     }
 
-    fn derive_keypair(seed: &[u8]) -> Result<(Vec<u8>, Vec<u8>), PakeError> {
+    fn derive_keypair(seed: &[u8]) -> Result<(Zeroizing<Vec<u8>>, Vec<u8>), PakeError> {
         use crate::oprf_ristretto::Ristretto255Oprf;
         use pakery_core::crypto::oprf::Oprf;
 
@@ -140,7 +140,9 @@ impl DhGroup for Ristretto255Dh {
         Ok((sk_bytes, pk))
     }
 
-    fn generate_keypair(rng: &mut impl CryptoRngCore) -> Result<(Vec<u8>, Vec<u8>), PakeError> {
+    fn generate_keypair(
+        rng: &mut impl CryptoRngCore,
+    ) -> Result<(Zeroizing<Vec<u8>>, Vec<u8>), PakeError> {
         let mut seed = [0u8; 32];
         rng.fill_bytes(&mut seed);
         let result = Self::derive_keypair(&seed);

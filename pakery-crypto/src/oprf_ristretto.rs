@@ -9,7 +9,7 @@ use pakery_core::PakeError;
 use rand_core::CryptoRngCore;
 use sha2::Sha512;
 use subtle::ConstantTimeEq;
-use zeroize::{Zeroize, ZeroizeOnDrop};
+use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
 use crate::oprf_common::{expand_message_xmd, finalize_hash, i2osp_2};
 
@@ -28,7 +28,11 @@ pub struct Ristretto255OprfClientState {
 }
 
 impl OprfClientState for Ristretto255OprfClientState {
-    fn finalize(&self, password: &[u8], evaluated_bytes: &[u8]) -> Result<Vec<u8>, PakeError> {
+    fn finalize(
+        &self,
+        password: &[u8],
+        evaluated_bytes: &[u8],
+    ) -> Result<Zeroizing<Vec<u8>>, PakeError> {
         let z_bytes: [u8; 32] = evaluated_bytes
             .try_into()
             .map_err(|_| PakeError::InvalidInput("invalid evaluation element length"))?;
@@ -45,7 +49,10 @@ impl OprfClientState for Ristretto255OprfClientState {
         let r_inv = blind_scalar.invert();
 
         let n = r_inv * z;
-        finalize_hash::<Sha512>(password, &n.compress().to_bytes())
+        Ok(Zeroizing::new(finalize_hash::<Sha512>(
+            password,
+            &n.compress().to_bytes(),
+        )?))
     }
 }
 
@@ -133,14 +140,14 @@ impl Oprf for Ristretto255Oprf {
         Ok(evaluated.compress().to_bytes().to_vec())
     }
 
-    fn derive_key(seed: &[u8], info: &[u8]) -> Result<Vec<u8>, PakeError> {
+    fn derive_key(seed: &[u8], info: &[u8]) -> Result<Zeroizing<Vec<u8>>, PakeError> {
         let info_len = i2osp_2(info.len())?;
 
         for counter in 0u8..=255 {
             let sk =
                 hash_to_scalar_with_dst(&[seed, &info_len, info, &[counter]], DERIVE_KEYPAIR_DST)?;
             if !bool::from(sk.ct_eq(&Scalar::ZERO)) {
-                return Ok(sk.to_bytes().to_vec());
+                return Ok(Zeroizing::new(sk.to_bytes().to_vec()));
             }
         }
 
@@ -169,7 +176,7 @@ mod tests {
     #[test]
     fn derive_key_pair() {
         let sk = Ristretto255Oprf::derive_key(&hex(SEED), &hex(KEY_INFO)).unwrap();
-        assert_eq!(sk, hex(SK_SM));
+        assert_eq!(*sk, hex(SK_SM));
     }
 
     #[test]
@@ -199,7 +206,7 @@ mod tests {
             blind: blind_bytes.as_slice().try_into().unwrap(),
         };
         let output = state.finalize(&input, &expected_eval).unwrap();
-        assert_eq!(output, expected_output);
+        assert_eq!(*output, expected_output);
     }
 
     #[test]
@@ -229,7 +236,7 @@ mod tests {
             blind: blind_bytes.as_slice().try_into().unwrap(),
         };
         let output = state.finalize(&input, &expected_eval).unwrap();
-        assert_eq!(output, expected_output);
+        assert_eq!(*output, expected_output);
     }
 
     #[test]

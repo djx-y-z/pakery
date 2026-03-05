@@ -24,6 +24,39 @@
 - Test against RFC test vectors where available
 - Lockstep versioning: all crates share a single version from root `Cargo.toml`
 
+## Security conventions
+
+### Secret material ownership
+
+- Core traits (`Kdf`, `DhGroup`, `Oprf`, `Ksf`) return `Zeroizing<Vec<u8>>` for secret material (keys, PRKs, OPRF outputs). This makes the API safe-by-default — callers get automatic zeroization without manual wrapping.
+- Public keys and MAC tags are **not** wrapped in `Zeroizing` — they are not secret.
+- `SharedSecret` has `#[derive(ZeroizeOnDrop)]` and redacted `Debug` output. Equality uses `ConstantTimeEq`.
+
+### Zeroization rules
+
+- All structs holding secret state must derive `Zeroize + ZeroizeOnDrop`, or implement `Drop` manually with `.zeroize()` calls.
+- Use `Zeroizing::new(...)` for intermediate secret material on the stack (transcripts, hash outputs, DH results, scalar bytes).
+- When moving a secret out of a struct that implements `Drop`, use `core::mem::take(&mut *zeroizing_val)` or `core::mem::replace(&mut field, placeholder)` — never `.clone()`.
+- To extract the inner `Vec<u8>` from `Zeroizing<Vec<u8>>`, use `core::mem::take(&mut *val)` (there is no `into_inner()` method).
+- Fields of type `SharedSecret` in outer structs should be annotated `#[zeroize(skip)]` since `SharedSecret` handles its own zeroization.
+
+### Constant-time operations
+
+- All secret comparisons must use `subtle::ConstantTimeEq::ct_eq` — never `==` on secret data.
+- MAC verification, confirmation MAC checks, and `SharedSecret` equality all use `ct_eq`.
+- Identity point checks in group implementations (`is_identity()`) must use `ct_eq` against the identity/neutral element.
+
+### Input validation
+
+- Reject identity/neutral group elements after every DH or scalar multiplication (`is_identity()` check). This is defense-in-depth.
+- Reject zero scalars before cryptographic operations (OPRF blind, OPRF key derivation).
+- Validate point encodings via `from_bytes()` before use; reject invalid encodings early.
+
+### Test-only APIs
+
+- Methods that accept deterministic scalars/seeds (for RFC test vector validation) must be gated behind `#[cfg(feature = "test-utils")]` and documented with a `# Security` warning.
+- Never use `test-utils` methods in production code paths.
+
 ## Build & test commands
 
 ```bash

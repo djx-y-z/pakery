@@ -3,6 +3,7 @@
 //! SPAKE2 uses 8-byte little-endian length prefixes (not LEB128).
 
 use alloc::vec::Vec;
+use zeroize::Zeroizing;
 
 /// Encode a length as 8-byte little-endian.
 fn encode_le_u64(len: usize) -> [u8; 8] {
@@ -34,7 +35,7 @@ pub fn build_transcript(
     pb: &[u8],
     k: &[u8],
     w: &[u8],
-) -> Vec<u8> {
+) -> Zeroizing<Vec<u8>> {
     let mut tt = Vec::new();
     append_lv(&mut tt, identity_a);
     append_lv(&mut tt, identity_b);
@@ -42,7 +43,7 @@ pub fn build_transcript(
     append_lv(&mut tt, pb);
     append_lv(&mut tt, k);
     append_lv(&mut tt, w);
-    tt
+    Zeroizing::new(tt)
 }
 
 #[cfg(test)]

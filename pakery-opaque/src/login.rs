@@ -17,6 +17,31 @@ use pakery_core::SharedSecret;
 use rand_core::CryptoRngCore;
 use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
+/// Compute the inner_ke2 bytes (everything before server_mac) from raw slices.
+///
+/// Avoids constructing a temporary `KE2` with `.clone()` calls.
+fn compute_inner_ke2(
+    evaluated_message: &[u8],
+    masking_nonce: &[u8],
+    masked_response: &[u8],
+    server_nonce: &[u8],
+    server_keyshare: &[u8],
+) -> Vec<u8> {
+    let mut out = Vec::with_capacity(
+        evaluated_message.len()
+            + masking_nonce.len()
+            + masked_response.len()
+            + server_nonce.len()
+            + server_keyshare.len(),
+    );
+    out.extend_from_slice(evaluated_message);
+    out.extend_from_slice(masking_nonce);
+    out.extend_from_slice(masked_response);
+    out.extend_from_slice(server_nonce);
+    out.extend_from_slice(server_keyshare);
+    out
+}
+
 /// Client-side login state held between start and finish.
 #[derive(Zeroize, ZeroizeOnDrop)]
 pub struct ClientLoginState<C: OpaqueCiphersuite> {
@@ -46,7 +71,7 @@ impl<C: OpaqueCiphersuite> ClientLogin<C> {
 
         let mut client_eph_seed = Zeroizing::new(vec![0u8; C::NSEED]);
         rng.fill_bytes(&mut client_eph_seed);
-        let (client_eph_sk, client_eph_pk) = C::Dh::derive_keypair(&client_eph_seed)?;
+        let (mut client_eph_sk, client_eph_pk) = C::Dh::derive_keypair(&client_eph_seed)?;
 
         let ke1 = KE1 {
             blinded_message,
@@ -59,7 +84,7 @@ impl<C: OpaqueCiphersuite> ClientLogin<C> {
         let state = ClientLoginState {
             oprf_state,
             password: password.to_vec(),
-            client_eph_sk,
+            client_eph_sk: core::mem::take(&mut *client_eph_sk),
             ke1_bytes,
             _marker: core::marker::PhantomData,
         };
@@ -82,7 +107,7 @@ impl<C: OpaqueCiphersuite> ClientLogin<C> {
     ) -> Result<(KE1, ClientLoginState<C>), OpaqueError> {
         let (oprf_state, blinded_message) = oprf::oprf_client_blind::<C>(password, blind_rng)?;
 
-        let (client_eph_sk, client_eph_pk) = C::Dh::derive_keypair(client_keyshare_seed)?;
+        let (mut client_eph_sk, client_eph_pk) = C::Dh::derive_keypair(client_keyshare_seed)?;
 
         let ke1 = KE1 {
             blinded_message,
@@ -95,7 +120,7 @@ impl<C: OpaqueCiphersuite> ClientLogin<C> {
         let state = ClientLoginState {
             oprf_state,
             password: password.to_vec(),
-            client_eph_sk,
+            client_eph_sk: core::mem::take(&mut *client_eph_sk),
             ke1_bytes,
             _marker: core::marker::PhantomData,
         };
@@ -116,24 +141,24 @@ impl<C: OpaqueCiphersuite> ClientLoginState<C> {
         client_identity: &[u8],
     ) -> Result<(KE3, SharedSecret, Zeroizing<Vec<u8>>), OpaqueError> {
         // 1. Finalize OPRF
-        let oprf_output = Zeroizing::new(oprf::oprf_client_finalize::<C>(
+        let oprf_output = oprf::oprf_client_finalize::<C>(
             &self.oprf_state,
             &self.password,
             &ke2.evaluated_message,
-        )?);
+        )?;
 
         // 2. Derive randomized password
-        let randomized_pwd = Zeroizing::new(derive_randomized_password::<C>(&oprf_output)?);
+        let randomized_pwd = derive_randomized_password::<C>(&oprf_output)?;
 
         // 3. Unmask credential response
-        let masking_key = Zeroizing::new(C::Kdf::expand(&randomized_pwd, b"MaskingKey", C::NH)?);
+        let masking_key = C::Kdf::expand(&randomized_pwd, b"MaskingKey", C::NH)?;
         let cred_resp_size = CredentialResponse::size::<C>();
 
         // XOR-decrypt: credential_response_pad = Expand(masking_key, concat(masking_nonce, "CredentialResponsePad"), cred_resp_size)
         let mut pad_info = Vec::with_capacity(ke2.masking_nonce.len() + 21);
         pad_info.extend_from_slice(&ke2.masking_nonce);
         pad_info.extend_from_slice(b"CredentialResponsePad");
-        let pad = Zeroizing::new(C::Kdf::expand(&masking_key, &pad_info, cred_resp_size)?);
+        let pad = C::Kdf::expand(&masking_key, &pad_info, cred_resp_size)?;
 
         if ke2.masked_response.len() != cred_resp_size {
             return Err(OpaqueError::DeserializationError);
@@ -187,9 +212,7 @@ impl<C: OpaqueCiphersuite> ClientLoginState<C> {
             &inner_ke2,
         )?;
 
-        let (km2, km3, session_key) = derive_keys::<C>(&ikm, &preamble)?;
-        let km2 = Zeroizing::new(km2);
-        let km3 = Zeroizing::new(km3);
+        let (km2, km3, mut session_key) = derive_keys::<C>(&ikm, &preamble)?;
 
         // 7. Verify server MAC (compute once, verify via constant-time comparison)
         let preamble_hash = C::Hash::digest(&preamble);
@@ -211,7 +234,11 @@ impl<C: OpaqueCiphersuite> ClientLoginState<C> {
 
         let ke3 = KE3 { client_mac };
 
-        Ok((ke3, SharedSecret::new(session_key), export_key))
+        Ok((
+            ke3,
+            SharedSecret::new(core::mem::take(&mut *session_key)),
+            export_key,
+        ))
     }
 }
 
@@ -317,10 +344,7 @@ impl<C: OpaqueCiphersuite> ServerLogin<C> {
         rng: &mut impl CryptoRngCore,
     ) -> Result<KE2, OpaqueError> {
         // 1. OPRF evaluate (deterministic from oprf_seed + credential_id)
-        let oprf_key = Zeroizing::new(oprf::derive_oprf_key::<C>(
-            setup.oprf_seed(),
-            credential_id,
-        )?);
+        let oprf_key = oprf::derive_oprf_key::<C>(setup.oprf_seed(), credential_id)?;
         let evaluated_message = oprf::oprf_server_evaluate::<C>(&oprf_key, &ke1.blinded_message)?;
 
         // 2. Random masking nonce
@@ -337,8 +361,7 @@ impl<C: OpaqueCiphersuite> ServerLogin<C> {
         rng.fill_bytes(&mut server_nonce);
         let mut server_eph_seed = Zeroizing::new(vec![0u8; C::NSEED]);
         rng.fill_bytes(&mut server_eph_seed);
-        let (server_eph_sk_raw, server_eph_pk) = C::Dh::derive_keypair(&server_eph_seed)?;
-        let server_eph_sk = Zeroizing::new(server_eph_sk_raw);
+        let (server_eph_sk, server_eph_pk) = C::Dh::derive_keypair(&server_eph_seed)?;
 
         // 5. Generate a fake client public key (random valid point)
         let (_, fake_client_pk) = C::Dh::generate_keypair(rng)?;
@@ -366,16 +389,13 @@ impl<C: OpaqueCiphersuite> ServerLogin<C> {
         )?;
 
         // 8. Build preamble and derive keys
-        let inner_ke2_msg = KE2 {
-            evaluated_message: evaluated_message.clone(),
-            masking_nonce: masking_nonce.clone(),
-            masked_response: masked_response.clone(),
-            server_nonce: server_nonce.clone(),
-            server_keyshare: server_eph_pk.clone(),
-            server_mac: vec![],
-        };
-
-        let inner_ke2 = inner_ke2_msg.inner_ke2();
+        let inner_ke2 = compute_inner_ke2(
+            &evaluated_message,
+            &masking_nonce,
+            &masked_response,
+            &server_nonce,
+            &server_eph_pk,
+        );
         let ke1_bytes = ke1.serialize();
         let preamble = build_preamble(
             context,
@@ -386,8 +406,6 @@ impl<C: OpaqueCiphersuite> ServerLogin<C> {
         )?;
 
         let (km2, km3, _) = derive_keys::<C>(&ikm, &preamble)?;
-        let km2 = Zeroizing::new(km2);
-        let km3 = Zeroizing::new(km3);
 
         // 9. Compute server MAC
         let preamble_hash = C::Hash::digest(&preamble);
@@ -427,10 +445,7 @@ impl<C: OpaqueCiphersuite> ServerLogin<C> {
         masking_nonce: &[u8],
     ) -> Result<(KE2, ServerLoginState), OpaqueError> {
         // 1. OPRF evaluate
-        let oprf_key = Zeroizing::new(oprf::derive_oprf_key::<C>(
-            setup.oprf_seed(),
-            credential_id,
-        )?);
+        let oprf_key = oprf::derive_oprf_key::<C>(setup.oprf_seed(), credential_id)?;
         let evaluated_message = oprf::oprf_server_evaluate::<C>(&oprf_key, &ke1.blinded_message)?;
 
         let masking_nonce = masking_nonce.to_vec();
@@ -446,11 +461,7 @@ impl<C: OpaqueCiphersuite> ServerLogin<C> {
         let mut pad_info = Vec::with_capacity(masking_nonce.len() + 21);
         pad_info.extend_from_slice(&masking_nonce);
         pad_info.extend_from_slice(b"CredentialResponsePad");
-        let pad = Zeroizing::new(C::Kdf::expand(
-            &record.masking_key,
-            &pad_info,
-            cred_resp_size,
-        )?);
+        let pad = C::Kdf::expand(&record.masking_key, &pad_info, cred_resp_size)?;
 
         let mut masked_response = vec![0u8; cred_resp_size];
         for i in 0..cred_resp_size {
@@ -458,8 +469,7 @@ impl<C: OpaqueCiphersuite> ServerLogin<C> {
         }
 
         // 4. Server ephemeral keypair
-        let (server_eph_sk_raw, server_eph_pk) = C::Dh::derive_keypair(server_keyshare_seed)?;
-        let server_eph_sk = Zeroizing::new(server_eph_sk_raw);
+        let (server_eph_sk, server_eph_pk) = C::Dh::derive_keypair(server_keyshare_seed)?;
 
         // 5. Resolve identities
         let client_id_for_preamble: &[u8] = if client_identity.is_empty() {
@@ -484,16 +494,13 @@ impl<C: OpaqueCiphersuite> ServerLogin<C> {
         )?;
 
         // 7. Build preamble (without server_mac — that's what inner_ke2 is)
-        let inner_ke2_msg = KE2 {
-            evaluated_message: evaluated_message.clone(),
-            masking_nonce: masking_nonce.clone(),
-            masked_response: masked_response.clone(),
-            server_nonce: server_nonce.to_vec(),
-            server_keyshare: server_eph_pk.clone(),
-            server_mac: vec![], // placeholder, not used in inner_ke2()
-        };
-
-        let inner_ke2 = inner_ke2_msg.inner_ke2();
+        let inner_ke2 = compute_inner_ke2(
+            &evaluated_message,
+            &masking_nonce,
+            &masked_response,
+            server_nonce,
+            &server_eph_pk,
+        );
         let ke1_bytes = ke1.serialize();
         let preamble = build_preamble(
             context,
@@ -503,9 +510,7 @@ impl<C: OpaqueCiphersuite> ServerLogin<C> {
             &inner_ke2,
         )?;
 
-        let (km2, km3, session_key) = derive_keys::<C>(&ikm, &preamble)?;
-        let km2 = Zeroizing::new(km2);
-        let km3 = Zeroizing::new(km3);
+        let (km2, km3, mut session_key) = derive_keys::<C>(&ikm, &preamble)?;
 
         // 8. Compute server MAC
         let preamble_hash = C::Hash::digest(&preamble);
@@ -530,7 +535,7 @@ impl<C: OpaqueCiphersuite> ServerLogin<C> {
 
         let state = ServerLoginState {
             expected_client_mac,
-            session_key,
+            session_key: core::mem::take(&mut *session_key),
         };
 
         Ok((ke2, state))
