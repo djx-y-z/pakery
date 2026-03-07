@@ -43,7 +43,7 @@ jobs:
             if OUTPUT=$(cargo publish -p "$crate" 2>&1); then
               echo "$OUTPUT"
               echo "$crate published successfully"
-            elif echo "$OUTPUT" | grep -q "already uploaded"; then
+            elif echo "$OUTPUT" | grep -qE "already uploaded|already exists"; then
               echo "$crate already published, skipping"
             else
               echo "$OUTPUT" >&2
