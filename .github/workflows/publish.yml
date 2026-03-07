@@ -41,14 +41,6 @@ jobs:
       - name: Wait for crates.io index
         run: sleep 30
 
-      - name: Publish pakery-crypto
-        run: cargo publish -p pakery-crypto
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-
-      - name: Wait for crates.io index
-        run: sleep 30
-
       - name: Publish pakery-cpace
         run: cargo publish -p pakery-cpace
         env:
@@ -66,6 +58,14 @@ jobs:
 
       - name: Publish pakery-spake2plus
         run: cargo publish -p pakery-spake2plus
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+      - name: Wait for crates.io index
+        run: sleep 30
+
+      - name: Publish pakery-crypto
+        run: cargo publish -p pakery-crypto
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
 
