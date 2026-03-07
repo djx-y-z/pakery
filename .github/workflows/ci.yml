@@ -136,7 +136,7 @@ jobs:
         id: coverage
         run: |
           cargo llvm-cov --workspace --all-features --lcov --output-path lcov.info
-          COVERAGE=$(cargo llvm-cov report --json | jq '.data[0].totals.lines.percent')
+          COVERAGE=$(cargo llvm-cov report --json | jq '.data[0].totals.lines.percent * 10 | round / 10')
           echo "percentage=$COVERAGE" >> "$GITHUB_OUTPUT"
     outputs:
       percentage: ${{ steps.coverage.outputs.percentage }}
