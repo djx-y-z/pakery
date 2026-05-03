@@ -1,7 +1,7 @@
 //! SPAKE2 Party A (initiator) state machine.
 
 use alloc::vec::Vec;
-use rand_core::CryptoRngCore;
+use rand_core::CryptoRng;
 use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
 use pakery_core::crypto::CpaceGroup;
@@ -39,7 +39,7 @@ impl<C: Spake2Ciphersuite> PartyA<C> {
         identity_a: &[u8],
         identity_b: &[u8],
         aad: &[u8],
-        rng: &mut impl CryptoRngCore,
+        rng: &mut impl CryptoRng,
     ) -> Result<(Vec<u8>, PartyAState<C>), Spake2Error> {
         let x = C::Group::random_scalar(rng);
         Self::start_inner(w.clone(), x, identity_a, identity_b, aad)

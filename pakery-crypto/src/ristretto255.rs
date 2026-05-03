@@ -7,7 +7,7 @@ use curve25519_dalek::{RistrettoPoint, Scalar};
 use pakery_core::crypto::dh::DhGroup;
 use pakery_core::crypto::group::CpaceGroup;
 use pakery_core::PakeError;
-use rand_core::CryptoRngCore;
+use rand_core::CryptoRng;
 use zeroize::{Zeroize, Zeroizing};
 
 /// Ristretto255 group element for CPace.
@@ -52,8 +52,13 @@ impl CpaceGroup for Ristretto255Group {
         })
     }
 
-    fn random_scalar(rng: &mut impl CryptoRngCore) -> Scalar {
-        Scalar::random(rng)
+    fn random_scalar(rng: &mut impl CryptoRng) -> Scalar {
+        // Sample 64 wide bytes and reduce mod the group order. Avoids
+        // `Scalar::random` from curve25519-dalek 4.1, which is tied to
+        // rand_core 0.6 and incompatible with our 0.10 RNG bound.
+        let mut wide = Zeroizing::new([0u8; 64]);
+        rng.fill_bytes(&mut *wide);
+        Scalar::from_bytes_mod_order_wide(&wide)
     }
 
     fn add(&self, other: &Self) -> Self {
@@ -141,7 +146,7 @@ impl DhGroup for Ristretto255Dh {
     }
 
     fn generate_keypair(
-        rng: &mut impl CryptoRngCore,
+        rng: &mut impl CryptoRng,
     ) -> Result<(Zeroizing<Vec<u8>>, Vec<u8>), PakeError> {
         let mut seed = [0u8; 32];
         rng.fill_bytes(&mut seed);

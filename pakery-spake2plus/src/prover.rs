@@ -3,7 +3,7 @@
 //! The Prover knows the password and derives `(w0, w1)` from it.
 
 use alloc::vec::Vec;
-use rand_core::CryptoRngCore;
+use rand_core::CryptoRng;
 use subtle::ConstantTimeEq;
 use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
@@ -39,6 +39,41 @@ pub struct ProverOutput {
     pub confirm_p: Vec<u8>,
 }
 
+impl ProverOutput {
+    /// Consume the output and yield the session key.
+    ///
+    /// Because [`ProverOutput`] derives `ZeroizeOnDrop`, it cannot be
+    /// pattern-destructured by the caller. This consumer extracts the
+    /// session key cleanly without the boilerplate `mem::replace` shim
+    /// users would otherwise have to write themselves.
+    ///
+    /// Both fields remain `pub`, so to keep `confirm_p` while consuming
+    /// `session_key`, clone it first:
+    ///
+    /// ```ignore
+    /// let confirm_p = output.confirm_p.clone();
+    /// let session_key = output.into_session_key();
+    /// ```
+    #[must_use]
+    pub fn into_session_key(mut self) -> SharedSecret {
+        core::mem::replace(&mut self.session_key, SharedSecret::new(Vec::new()))
+    }
+
+    /// Consume the output and yield the `confirmP` MAC.
+    ///
+    /// Mirror of [`Self::into_session_key`]. To also keep `session_key`,
+    /// clone it first:
+    ///
+    /// ```ignore
+    /// let session_key = output.session_key.clone();
+    /// let confirm_p = output.into_confirm_p();
+    /// ```
+    #[must_use]
+    pub fn into_confirm_p(mut self) -> Vec<u8> {
+        core::mem::take(&mut self.confirm_p)
+    }
+}
+
 /// SPAKE2+ Prover: generates the first message and processes the Verifier's response.
 pub struct Prover<C: Spake2PlusCiphersuite>(core::marker::PhantomData<C>);
 
@@ -55,7 +90,7 @@ impl<C: Spake2PlusCiphersuite> Prover<C> {
         context: &[u8],
         id_prover: &[u8],
         id_verifier: &[u8],
-        rng: &mut impl CryptoRngCore,
+        rng: &mut impl CryptoRng,
     ) -> Result<(Vec<u8>, ProverState<C>), Spake2PlusError> {
         let x = C::Group::random_scalar(rng);
         Self::start_inner(w0.clone(), w1.clone(), x, context, id_prover, id_verifier)

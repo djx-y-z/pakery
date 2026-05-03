@@ -15,7 +15,7 @@ categories = ["cryptography", "no-std::no-alloc", "authentication"]
 [features]
 default = ["std"]
 std = ["pakery-core/std"]
-getrandom = ["rand_core/getrandom"]
+os_rng = ["rand_core/os_rng"]
 
 [dependencies]
 pakery-core = { workspace = true }

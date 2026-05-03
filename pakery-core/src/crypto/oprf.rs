@@ -2,7 +2,7 @@
 
 use crate::error::PakeError;
 use alloc::vec::Vec;
-use rand_core::CryptoRngCore;
+use rand_core::CryptoRng;
 use zeroize::{Zeroize, Zeroizing};
 
 /// Client-side OPRF state held between blind and finalize.
@@ -23,7 +23,7 @@ pub trait Oprf {
     /// Blind a password. Returns `(state, blinded_element_bytes)`.
     fn client_blind(
         password: &[u8],
-        rng: &mut impl CryptoRngCore,
+        rng: &mut impl CryptoRng,
     ) -> Result<(Self::ClientState, Vec<u8>), PakeError>;
 
     /// Server-side: evaluate the blinded element with the given key.

@@ -14,7 +14,7 @@ use crate::server_setup::ServerSetup;
 use crate::OpaqueError;
 use pakery_core::crypto::{DhGroup, Hash, Kdf, Mac};
 use pakery_core::SharedSecret;
-use rand_core::CryptoRngCore;
+use rand_core::CryptoRng;
 use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
 /// Compute the inner_ke2 bytes (everything before server_mac) from raw slices.
@@ -62,7 +62,7 @@ impl<C: OpaqueCiphersuite> ClientLogin<C> {
     /// Returns `(KE1, state)`.
     pub fn start(
         password: &[u8],
-        rng: &mut impl CryptoRngCore,
+        rng: &mut impl CryptoRng,
     ) -> Result<(KE1, ClientLoginState<C>), OpaqueError> {
         let (oprf_state, blinded_message) = oprf::oprf_client_blind::<C>(password, rng)?;
 
@@ -101,7 +101,7 @@ impl<C: OpaqueCiphersuite> ClientLogin<C> {
     #[cfg(feature = "test-utils")]
     pub fn start_with_blind_and_nonce_and_seed(
         password: &[u8],
-        blind_rng: &mut impl CryptoRngCore,
+        blind_rng: &mut impl CryptoRng,
         client_nonce: &[u8],
         client_keyshare_seed: &[u8],
     ) -> Result<(KE1, ClientLoginState<C>), OpaqueError> {
@@ -265,7 +265,7 @@ impl<C: OpaqueCiphersuite> ServerLogin<C> {
         context: &[u8],
         server_identity: &[u8],
         client_identity: &[u8],
-        rng: &mut impl CryptoRngCore,
+        rng: &mut impl CryptoRng,
     ) -> Result<(KE2, ServerLoginState), OpaqueError> {
         let mut server_nonce = vec![0u8; C::NN];
         rng.fill_bytes(&mut server_nonce);
@@ -341,7 +341,7 @@ impl<C: OpaqueCiphersuite> ServerLogin<C> {
         context: &[u8],
         server_identity: &[u8],
         client_identity: &[u8],
-        rng: &mut impl CryptoRngCore,
+        rng: &mut impl CryptoRng,
     ) -> Result<KE2, OpaqueError> {
         // 1. OPRF evaluate (deterministic from oprf_seed + credential_id)
         let oprf_key = oprf::derive_oprf_key::<C>(setup.oprf_seed(), credential_id)?;

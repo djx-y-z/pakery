@@ -34,7 +34,11 @@ impl CpaceCiphersuite for MyCpaceSuite {
     const FIELD_SIZE_BYTES: usize = 32;
 }
 
-let mut rng = rand_core::OsRng;
+// Requires the `os_rng` crate feature. In rand_core 0.9 `OsRng` only
+// implements `TryRngCore`; `UnwrapErr` adapts it to the `CryptoRng`
+// bound used by pakery's API (panics on RNG failure, which never
+// happens on a real OS).
+let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
 
 // Initiator starts the exchange
 let (ya, state) = CpaceInitiator::<MyCpaceSuite>::start(

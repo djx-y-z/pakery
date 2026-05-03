@@ -1,7 +1,7 @@
 //! CPace responder (one-shot).
 
 use alloc::vec::Vec;
-use rand_core::CryptoRngCore;
+use rand_core::CryptoRng;
 use zeroize::{Zeroize, Zeroizing};
 
 use crate::ciphersuite::CpaceCiphersuite;
@@ -27,7 +27,7 @@ impl<C: CpaceCiphersuite> CpaceResponder<C> {
         ad_initiator: &[u8],
         ad_responder: &[u8],
         mode: CpaceMode,
-        rng: &mut impl CryptoRngCore,
+        rng: &mut impl CryptoRng,
     ) -> Result<(Vec<u8>, CpaceOutput), CpaceError> {
         // Decode Ya
         let ya = C::Group::from_bytes(initiator_share).map_err(|_| CpaceError::InvalidPoint)?;

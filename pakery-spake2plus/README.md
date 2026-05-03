@@ -38,7 +38,11 @@ impl Spake2PlusCiphersuite for MySpake2PlusSuite {
     const N_BYTES: &'static [u8] = &SPAKE2_N_COMPRESSED;
 }
 
-let mut rng = rand_core::OsRng;
+// Requires the `os_rng` crate feature. In rand_core 0.9 `OsRng` only
+// implements `TryRngCore`; `UnwrapErr` adapts it to the `CryptoRng`
+// bound used by pakery's API (panics on RNG failure, which never
+// happens on a real OS).
+let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
 
 // Derive password scalars (w0, w1)
 let h0 = Sha512Hash::digest(b"passwordw0");

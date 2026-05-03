@@ -317,8 +317,8 @@ fn test_empty_password_round_trip() {
     let ad_a = b"";
     let ad_b = b"";
 
-    let mut rng_a = rand_core::OsRng;
-    let mut rng_b = rand_core::OsRng;
+    let mut rng_a = rand_core::UnwrapErr(rand_core::OsRng);
+    let mut rng_b = rand_core::UnwrapErr(rand_core::OsRng);
 
     let (ya_bytes, state) =
         CpaceInitiator::<CpaceRistretto255Sha512>::start(b"", &ci, &sid, ad_a, &mut rng_a).unwrap();
@@ -413,10 +413,6 @@ impl rand_core::RngCore for FixedScalarRng {
                 *b = 0;
             }
         }
-    }
-    fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), rand_core::Error> {
-        self.fill_bytes(dest);
-        Ok(())
     }
 }
 
@@ -666,7 +662,7 @@ fn test_swapped_shares_produce_different_isk() {
     let sid = b"sid";
     let ad_a = b"initiator";
     let ad_b = b"responder";
-    let mut rng = rand_core::OsRng;
+    let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
 
     // Normal handshake
     let (ya_bytes, state_a) =
