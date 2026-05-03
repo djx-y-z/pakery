@@ -4,7 +4,7 @@
 //! the password or `w1` directly.
 
 use alloc::vec::Vec;
-use rand_core::CryptoRngCore;
+use rand_core::CryptoRng;
 use subtle::ConstantTimeEq;
 use zeroize::{Zeroize, Zeroizing};
 
@@ -62,7 +62,7 @@ impl<C: Spake2PlusCiphersuite> Verifier<C> {
         context: &[u8],
         id_prover: &[u8],
         id_verifier: &[u8],
-        rng: &mut impl CryptoRngCore,
+        rng: &mut impl CryptoRng,
     ) -> Result<(Vec<u8>, Vec<u8>, VerifierState), Spake2PlusError> {
         let y = C::Group::random_scalar(rng);
         Self::start_inner(

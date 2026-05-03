@@ -6,7 +6,7 @@ use p256::elliptic_curve::sec1::ToEncodedPoint;
 use p256::ProjectivePoint;
 use pakery_core::crypto::dh::DhGroup;
 use pakery_core::PakeError;
-use rand_core::CryptoRngCore;
+use rand_core::CryptoRng;
 use zeroize::{Zeroize, Zeroizing};
 
 use crate::oprf_p256::{point_from_bytes, point_to_bytes, scalar_from_bytes, P256Oprf};
@@ -48,7 +48,7 @@ impl DhGroup for P256Dh {
     }
 
     fn generate_keypair(
-        rng: &mut impl CryptoRngCore,
+        rng: &mut impl CryptoRng,
     ) -> Result<(Zeroizing<Vec<u8>>, Vec<u8>), PakeError> {
         let mut seed = [0u8; 32];
         rng.fill_bytes(&mut seed);

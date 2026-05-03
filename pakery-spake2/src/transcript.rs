@@ -33,6 +33,34 @@ impl Spake2Output {
             Err(Spake2Error::ConfirmationFailed)
         }
     }
+
+    /// Consume the output and yield the session key.
+    ///
+    /// Because [`Spake2Output`] derives `ZeroizeOnDrop`, it cannot be
+    /// pattern-destructured by the caller. This consumer extracts the
+    /// session key cleanly without the boilerplate `mem::replace` shim
+    /// users would otherwise have to write themselves.
+    ///
+    /// Both `pub` fields remain accessible; clone the one you want to
+    /// keep before calling the consumer that takes the other:
+    ///
+    /// ```ignore
+    /// output.verify_peer_confirmation(peer_mac)?;
+    /// let confirmation_mac = output.confirmation_mac.clone();
+    /// let session_key = output.into_session_key();
+    /// ```
+    #[must_use]
+    pub fn into_session_key(mut self) -> SharedSecret {
+        core::mem::replace(&mut self.session_key, SharedSecret::new(Vec::new()))
+    }
+
+    /// Consume the output and yield this party's confirmation MAC.
+    ///
+    /// Mirror of [`Self::into_session_key`].
+    #[must_use]
+    pub fn into_confirmation_mac(mut self) -> Vec<u8> {
+        core::mem::take(&mut self.confirmation_mac)
+    }
 }
 
 /// Derive the key schedule from transcript TT.

@@ -104,11 +104,6 @@ impl rand_core::RngCore for SequentialRng {
             written += to_copy;
         }
     }
-
-    fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), rand_core::Error> {
-        self.fill_bytes(dest);
-        Ok(())
-    }
 }
 
 impl rand_core::CryptoRng for SequentialRng {}
@@ -231,7 +226,7 @@ fn p256_dh_public_key_from_private() {
 
 #[test]
 fn p256_dh_consistency() {
-    let mut rng = rand_core::OsRng;
+    let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
     let (sk_a, pk_a) = P256Dh::generate_keypair(&mut rng).unwrap();
     let (sk_b, pk_b) = P256Dh::generate_keypair(&mut rng).unwrap();
 
@@ -242,7 +237,7 @@ fn p256_dh_consistency() {
 
 #[test]
 fn p256_dh_rejects_invalid_inputs() {
-    let mut rng = rand_core::OsRng;
+    let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
     let (sk, _pk) = P256Dh::generate_keypair(&mut rng).unwrap();
 
     // Invalid public key length.
@@ -259,7 +254,7 @@ fn p256_dh_rejects_invalid_inputs() {
 
 #[test]
 fn p256_dh_generate_produces_different_keys() {
-    let mut rng = rand_core::OsRng;
+    let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
     let (sk1, pk1) = P256Dh::generate_keypair(&mut rng).unwrap();
     let (sk2, pk2) = P256Dh::generate_keypair(&mut rng).unwrap();
     assert_ne!(sk1, sk2);
@@ -694,7 +689,7 @@ fn test_vector2_full_login() {
 
 #[test]
 fn test_full_roundtrip_random() {
-    let mut rng = rand_core::OsRng;
+    let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
     let password = b"correct horse battery staple";
 
     let setup = ServerSetup::<OpaqueP256Sha256>::new(&mut rng).unwrap();
@@ -733,7 +728,7 @@ fn test_full_roundtrip_random() {
 
 #[test]
 fn login_roundtrip_with_explicit_identities() {
-    let mut rng = rand_core::OsRng;
+    let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
     let password = b"password123";
 
     let setup = ServerSetup::<OpaqueP256Sha256>::new(&mut rng).unwrap();
@@ -776,7 +771,7 @@ fn login_roundtrip_with_explicit_identities() {
 
 #[test]
 fn wrong_password_rejected() {
-    let mut rng = rand_core::OsRng;
+    let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
 
     let setup = ServerSetup::<OpaqueP256Sha256>::new(&mut rng).unwrap();
 
@@ -804,7 +799,7 @@ fn wrong_password_rejected() {
 
 #[test]
 fn test_empty_password_roundtrip() {
-    let mut rng = rand_core::OsRng;
+    let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
     let password = b"";
 
     let setup = ServerSetup::<OpaqueP256Sha256>::new(&mut rng).unwrap();
@@ -851,7 +846,7 @@ fn test_empty_password_roundtrip() {
 
 #[test]
 fn tampered_server_mac_detected() {
-    let mut rng = rand_core::OsRng;
+    let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
     let setup = ServerSetup::<OpaqueP256Sha256>::new(&mut rng).unwrap();
 
     let (reg_request, reg_state) =
@@ -879,7 +874,7 @@ fn tampered_server_mac_detected() {
 
 #[test]
 fn tampered_client_mac_detected() {
-    let mut rng = rand_core::OsRng;
+    let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
     let setup = ServerSetup::<OpaqueP256Sha256>::new(&mut rng).unwrap();
 
     let (reg_request, reg_state) =
@@ -909,7 +904,7 @@ fn tampered_client_mac_detected() {
 
 #[test]
 fn tampered_ke2_evaluated_message() {
-    let mut rng = rand_core::OsRng;
+    let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
     let setup = ServerSetup::<OpaqueP256Sha256>::new(&mut rng).unwrap();
 
     let (reg_request, reg_state) =
@@ -936,7 +931,7 @@ fn tampered_ke2_evaluated_message() {
 
 #[test]
 fn tampered_ke2_masked_response() {
-    let mut rng = rand_core::OsRng;
+    let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
     let setup = ServerSetup::<OpaqueP256Sha256>::new(&mut rng).unwrap();
 
     let (reg_request, reg_state) =
@@ -963,7 +958,7 @@ fn tampered_ke2_masked_response() {
 
 #[test]
 fn tampered_ke2_server_keyshare() {
-    let mut rng = rand_core::OsRng;
+    let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
     let setup = ServerSetup::<OpaqueP256Sha256>::new(&mut rng).unwrap();
 
     let (reg_request, reg_state) =
@@ -990,7 +985,7 @@ fn tampered_ke2_server_keyshare() {
 
 #[test]
 fn tampered_ke1_keyshare_detected() {
-    let mut rng = rand_core::OsRng;
+    let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
     let setup = ServerSetup::<OpaqueP256Sha256>::new(&mut rng).unwrap();
 
     let (reg_request, reg_state) =
@@ -1018,7 +1013,7 @@ fn tampered_ke1_keyshare_detected() {
 
 #[test]
 fn test_context_mismatch_fails() {
-    let mut rng = rand_core::OsRng;
+    let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
     let setup = ServerSetup::<OpaqueP256Sha256>::new(&mut rng).unwrap();
 
     let (reg_request, reg_state) =
@@ -1054,7 +1049,7 @@ fn test_context_mismatch_fails() {
 
 #[test]
 fn test_fake_credential_response() {
-    let mut rng = rand_core::OsRng;
+    let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
     let password = b"some password";
 
     let setup = ServerSetup::<OpaqueP256Sha256>::new(&mut rng).unwrap();
@@ -1083,7 +1078,7 @@ fn test_fake_credential_response() {
 
 #[test]
 fn test_fake_credential_client_fails() {
-    let mut rng = rand_core::OsRng;
+    let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
     let password = b"some password";
 
     let setup = ServerSetup::<OpaqueP256Sha256>::new(&mut rng).unwrap();
@@ -1107,7 +1102,7 @@ fn test_fake_credential_client_fails() {
 
 #[test]
 fn test_fake_ke2_size_matches_real() {
-    let mut rng = rand_core::OsRng;
+    let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
     let password = b"test password";
 
     let setup = ServerSetup::<OpaqueP256Sha256>::new(&mut rng).unwrap();

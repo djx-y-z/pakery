@@ -10,7 +10,7 @@ use crate::messages::{RegistrationRecord, RegistrationRequest, RegistrationRespo
 use crate::oprf::{self, OprfClientState};
 use crate::server_setup::ServerSetup;
 use crate::OpaqueError;
-use rand_core::CryptoRngCore;
+use rand_core::CryptoRng;
 use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
 /// Client-side registration state held between start and finish.
@@ -29,7 +29,7 @@ impl<C: OpaqueCiphersuite> ClientRegistration<C> {
     /// Returns `(RegistrationRequest, state)`.
     pub fn start(
         password: &[u8],
-        rng: &mut impl CryptoRngCore,
+        rng: &mut impl CryptoRng,
     ) -> Result<(RegistrationRequest, ClientRegistrationState<C>), OpaqueError> {
         let (oprf_state, blinded_message) = oprf::oprf_client_blind::<C>(password, rng)?;
 
@@ -52,7 +52,7 @@ impl<C: OpaqueCiphersuite> ClientRegistrationState<C> {
         response: &RegistrationResponse,
         server_identity: &[u8],
         client_identity: &[u8],
-        rng: &mut impl CryptoRngCore,
+        rng: &mut impl CryptoRng,
     ) -> Result<(RegistrationRecord, Zeroizing<Vec<u8>>), OpaqueError> {
         // Finalize OPRF
         let oprf_output = oprf::oprf_client_finalize::<C>(

@@ -1,0 +1,16 @@
+[alias]
+# Sanity-check that all user-facing crates compile cleanly to
+# wasm32-unknown-unknown when downstream users bring their own RNG (i.e.
+# without enabling the `os_rng` feature). Excludes `pakery-tests` because it
+# always links `getrandom` for OsRng-driven RFC vectors.
+wasm-check = [
+    "check",
+    "-p", "pakery-core",
+    "-p", "pakery-cpace",
+    "-p", "pakery-opaque",
+    "-p", "pakery-spake2",
+    "-p", "pakery-spake2plus",
+    "-p", "pakery-crypto",
+    "--target", "wasm32-unknown-unknown",
+    "--no-default-features",
+]

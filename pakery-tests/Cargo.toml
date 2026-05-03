@@ -23,6 +23,6 @@ pakery-crypto = { workspace = true }
 hex = "0.4"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-rand_core = { workspace = true, features = ["getrandom"] }
+rand_core = { workspace = true, features = ["os_rng"] }
 curve25519-dalek = { workspace = true }
 p256 = { workspace = true, optional = true }

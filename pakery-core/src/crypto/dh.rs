@@ -2,7 +2,7 @@
 
 use crate::error::PakeError;
 use alloc::vec::Vec;
-use rand_core::CryptoRngCore;
+use rand_core::CryptoRng;
 use zeroize::Zeroizing;
 
 /// A Diffie-Hellman group operating on byte-serialized keys.
@@ -19,7 +19,7 @@ pub trait DhGroup {
     ///
     /// Returns `(secret_key, public_key)`.
     fn generate_keypair(
-        rng: &mut impl CryptoRngCore,
+        rng: &mut impl CryptoRng,
     ) -> Result<(Zeroizing<Vec<u8>>, Vec<u8>), PakeError>;
 
     /// Compute the public key from a private key.

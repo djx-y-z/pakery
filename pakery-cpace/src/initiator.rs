@@ -1,7 +1,7 @@
 //! CPace initiator state machine.
 
 use alloc::vec::Vec;
-use rand_core::CryptoRngCore;
+use rand_core::CryptoRng;
 use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
 use crate::ciphersuite::CpaceCiphersuite;
@@ -12,6 +12,11 @@ use pakery_core::crypto::CpaceGroup;
 use pakery_core::SharedSecret;
 
 /// Output of a completed CPace protocol run.
+///
+/// This type intentionally does NOT derive `ZeroizeOnDrop`: `isk`
+/// already self-zeroizes via [`SharedSecret`]'s impl, and `session_id`
+/// is public bytes (not secret material — it's typically exchanged or
+/// logged). Pattern destructure is permitted.
 pub struct CpaceOutput {
     /// The intermediate session key.
     pub isk: SharedSecret,
@@ -42,7 +47,7 @@ impl<C: CpaceCiphersuite> CpaceInitiator<C> {
         ci: &[u8],
         sid: &[u8],
         ad_initiator: &[u8],
-        rng: &mut impl CryptoRngCore,
+        rng: &mut impl CryptoRng,
     ) -> Result<(Vec<u8>, InitiatorState<C>), CpaceError> {
         let g = calculate_generator::<C>(password, ci, sid)?;
         let ya = C::Group::random_scalar(rng);

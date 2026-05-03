@@ -5,7 +5,7 @@ use alloc::vec::Vec;
 
 use crate::ciphersuite::OpaqueCiphersuite;
 use pakery_core::crypto::DhGroup;
-use rand_core::CryptoRngCore;
+use rand_core::CryptoRng;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 /// Server's long-term configuration: OPRF seed and authentication keypair.
@@ -20,7 +20,7 @@ pub struct ServerSetup<C: OpaqueCiphersuite> {
 
 impl<C: OpaqueCiphersuite> ServerSetup<C> {
     /// Create a new server setup with random seed and keypair.
-    pub fn new(rng: &mut impl CryptoRngCore) -> Result<Self, crate::OpaqueError> {
+    pub fn new(rng: &mut impl CryptoRng) -> Result<Self, crate::OpaqueError> {
         // oprf_seed must be Nh bytes per the spec (not Nseed)
         let mut oprf_seed = vec![0u8; C::NH];
         rng.fill_bytes(&mut oprf_seed);

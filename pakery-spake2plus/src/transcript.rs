@@ -17,6 +17,18 @@ pub struct Spake2PlusOutput {
     pub session_key: SharedSecret,
 }
 
+impl Spake2PlusOutput {
+    /// Consume the output and yield the session key.
+    ///
+    /// Because [`Spake2PlusOutput`] derives `ZeroizeOnDrop`, it cannot be
+    /// pattern-destructured by the caller. This consumer extracts the
+    /// session key cleanly without the boilerplate `mem::replace` shim.
+    #[must_use]
+    pub fn into_session_key(mut self) -> SharedSecret {
+        core::mem::replace(&mut self.session_key, SharedSecret::new(Vec::new()))
+    }
+}
+
 /// Key schedule derived from the SPAKE2+ transcript.
 ///
 /// Contains confirmation keys, MACs, and the shared session key.

@@ -5,7 +5,7 @@ use alloc::vec::Vec;
 use crate::ciphersuite::OpaqueCiphersuite;
 use crate::OpaqueError;
 use pakery_core::crypto::{Kdf, Oprf as OprfTrait, OprfClientState as OprfClientStateTrait};
-use rand_core::CryptoRngCore;
+use rand_core::CryptoRng;
 use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
 /// State held by the client between blind and finalize.
@@ -21,7 +21,7 @@ pub struct OprfClientState<C: OpaqueCiphersuite> {
 /// Returns the client state (to keep) and the serialized blinded element (to send).
 pub fn oprf_client_blind<C: OpaqueCiphersuite>(
     password: &[u8],
-    rng: &mut impl CryptoRngCore,
+    rng: &mut impl CryptoRng,
 ) -> Result<(OprfClientState<C>, Vec<u8>), OpaqueError> {
     let (state, blinded_bytes) = C::Oprf::client_blind(password, rng)?;
     Ok((OprfClientState { state }, blinded_bytes))

@@ -2,7 +2,7 @@
 
 use crate::error::PakeError;
 use alloc::vec::Vec;
-use rand_core::CryptoRngCore;
+use rand_core::CryptoRng;
 use zeroize::Zeroize;
 
 /// A prime-order group suitable for CPace.
@@ -28,7 +28,7 @@ pub trait CpaceGroup: Clone + PartialEq {
     fn from_uniform_bytes(bytes: &[u8]) -> Result<Self, PakeError>;
 
     /// Sample a random scalar.
-    fn random_scalar(rng: &mut impl CryptoRngCore) -> Self::Scalar;
+    fn random_scalar(rng: &mut impl CryptoRng) -> Self::Scalar;
 
     /// Point addition: `self + other`.
     fn add(&self, other: &Self) -> Self;

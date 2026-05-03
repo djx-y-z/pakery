@@ -72,7 +72,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0dc92fb57ca44df6db8059111ab3af99a63d5d0f8375d9972e319a379c6bab76"
 dependencies = [
  "generic-array",
- "rand_core",
+ "rand_core 0.6.4",
  "subtle",
  "zeroize",
 ]
@@ -98,7 +98,7 @@ dependencies = [
  "curve25519-dalek-derive",
  "fiat-crypto",
  "group",
- "rand_core",
+ "rand_core 0.6.4",
  "rustc_version",
  "subtle",
  "zeroize",
@@ -148,7 +148,7 @@ dependencies = [
  "ff",
  "generic-array",
  "group",
- "rand_core",
+ "rand_core 0.6.4",
  "sec1",
  "subtle",
  "zeroize",
@@ -160,7 +160,7 @@ version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c0b50bfb653653f9ca9095b427bed08ab8d75a137839d9ad64eb11810d5b6393"
 dependencies = [
- "rand_core",
+ "rand_core 0.6.4",
  "subtle",
 ]
 
@@ -183,13 +183,14 @@ dependencies = [
 
 [[package]]
 name = "getrandom"
-version = "0.2.17"
+version = "0.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ff2abc00be7fca6ebc474524697ae276ad847ad0a6b3faa4bcb027e9a4614ad0"
+checksum = "899def5c37c4fd7b2664648c28120ecec138e4d395b459e5ca34f9cce2dd77fd"
 dependencies = [
  "cfg-if",
  "libc",
- "wasi",
+ "r-efi",
+ "wasip2",
 ]
 
 [[package]]
@@ -199,7 +200,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f0f9ef7462f7c099f518d754361858f86d8a07af53ba9af0fe635bbccb151a63"
 dependencies = [
  "ff",
- "rand_core",
+ "rand_core 0.6.4",
  "subtle",
 ]
 
@@ -257,9 +258,9 @@ dependencies = [
 
 [[package]]
 name = "pakery-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
- "rand_core",
+ "rand_core 0.9.5",
  "subtle",
  "zeroize",
  "zeroize_derive",
@@ -267,17 +268,17 @@ dependencies = [
 
 [[package]]
 name = "pakery-cpace"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "pakery-core",
- "rand_core",
+ "rand_core 0.9.5",
  "subtle",
  "zeroize",
 ]
 
 [[package]]
 name = "pakery-crypto"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "argon2",
  "curve25519-dalek",
@@ -290,7 +291,7 @@ dependencies = [
  "pakery-opaque",
  "pakery-spake2",
  "pakery-spake2plus",
- "rand_core",
+ "rand_core 0.9.5",
  "sha2",
  "subtle",
  "zeroize",
@@ -298,37 +299,37 @@ dependencies = [
 
 [[package]]
 name = "pakery-opaque"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "pakery-core",
- "rand_core",
+ "rand_core 0.9.5",
  "subtle",
  "zeroize",
 ]
 
 [[package]]
 name = "pakery-spake2"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "pakery-core",
- "rand_core",
+ "rand_core 0.9.5",
  "subtle",
  "zeroize",
 ]
 
 [[package]]
 name = "pakery-spake2plus"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "pakery-core",
- "rand_core",
+ "rand_core 0.9.5",
  "subtle",
  "zeroize",
 ]
 
 [[package]]
 name = "pakery-tests"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "curve25519-dalek",
  "hex",
@@ -339,7 +340,7 @@ dependencies = [
  "pakery-opaque",
  "pakery-spake2",
  "pakery-spake2plus",
- "rand_core",
+ "rand_core 0.9.5",
  "serde",
  "serde_json",
 ]
@@ -351,7 +352,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "346f04948ba92c43e8469c1ee6736c7563d71012b17d40745260fe106aac2166"
 dependencies = [
  "base64ct",
- "rand_core",
+ "rand_core 0.6.4",
  "subtle",
 ]
 
@@ -383,10 +384,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "r-efi"
+version = "5.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "69cdb34c158ceb288df11e18b4bd39de994f6657d83847bdffdbd7f346754b0f"
+
+[[package]]
 name = "rand_core"
 version = "0.6.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ec0be4795e2f6a28069bec0b5ff3e2ac9bafc99e6a9a7dc3547996c5c816922c"
+
+[[package]]
+name = "rand_core"
+version = "0.9.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "76afc826de14238e6e8c374ddcc1fa19e374fd8dd986b0d2af0d02377261d83c"
 dependencies = [
  "getrandom",
 ]
@@ -492,9 +505,9 @@ dependencies = [
 
 [[package]]
 name = "typenum"
-version = "1.19.0"
+version = "1.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "562d481066bde0658276a35467c4af00bdc6ee726305698a55b86e61d7ad82bb"
+checksum = "40ce102ab67701b8526c123c1bab5cbe42d7040ccfd0f64af1a385808d2f43de"
 
 [[package]]
 name = "unicode-ident"
@@ -509,10 +522,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 
 [[package]]
-name = "wasi"
-version = "0.11.1+wasi-snapshot-preview1"
+name = "wasip2"
+version = "1.0.3+wasi-0.2.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ccf3ec651a847eb01de73ccad15eb7d99f80485de043efb2f370cd654f4ea44b"
+checksum = "20064672db26d7cdc89c7798c48a0fdfac8213434a1186e5ef29fd560ae223d6"
+dependencies = [
+ "wit-bindgen",
+]
+
+[[package]]
+name = "wit-bindgen"
+version = "0.57.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1ebf944e87a7c253233ad6766e082e3cd714b5d03812acc24c318f549614536e"
 
 [[package]]
 name = "zeroize"

@@ -294,7 +294,7 @@ fn test_full_round_trip() {
     let id_prover = b"client";
     let id_verifier = b"server";
 
-    let mut rng = rand_core::OsRng;
+    let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
 
     let (share_p_bytes, prover_state) =
         P::start(&w0, &w1, context, id_prover, id_verifier, &mut rng).unwrap();
@@ -335,7 +335,7 @@ fn test_wrong_password_confirmation_fails() {
     let context = b"test";
     let id_prover = b"client";
     let id_verifier = b"server";
-    let mut rng = rand_core::OsRng;
+    let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
 
     let (share_p_bytes, prover_state) = P::start(
         &w0_wrong,
@@ -443,7 +443,7 @@ fn test_invalid_point_rejection_verifier() {
     let context = b"test";
     let id_prover = b"client";
     let id_verifier = b"server";
-    let mut rng = rand_core::OsRng;
+    let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
 
     // Garbage shareP
     let mut garbage = [0xffu8; 33];
@@ -495,7 +495,7 @@ fn test_verifier_first_confirmation_order() {
     let context = b"order test";
     let id_prover = b"client";
     let id_verifier = b"server";
-    let mut rng = rand_core::OsRng;
+    let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
 
     let (share_p_bytes, prover_state) =
         P::start(&w0, &w1, context, id_prover, id_verifier, &mut rng).unwrap();
@@ -533,7 +533,7 @@ fn test_empty_password_round_trip() {
     let id_prover = b"client";
     let id_verifier = b"server";
 
-    let mut rng = rand_core::OsRng;
+    let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
 
     let (share_p_bytes, prover_state) =
         P::start(&w0, &w1, context, id_prover, id_verifier, &mut rng).unwrap();
@@ -575,7 +575,7 @@ fn test_empty_context_and_identities() {
     let id_prover = b"";
     let id_verifier = b"";
 
-    let mut rng = rand_core::OsRng;
+    let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
 
     let (share_p_bytes, prover_state) =
         P::start(&w0, &w1, context, id_prover, id_verifier, &mut rng).unwrap();

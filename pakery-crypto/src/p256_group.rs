@@ -1,14 +1,15 @@
 //! P-256 (NIST P-256 / secp256r1) implementation of the CpaceGroup trait.
 
 use alloc::vec::Vec;
+use p256::elliptic_curve::ff::PrimeField;
 use p256::elliptic_curve::hash2curve::{ExpandMsgXmd, GroupDigest};
 use p256::elliptic_curve::ops::Reduce;
 use p256::elliptic_curve::sec1::{FromEncodedPoint, ToEncodedPoint};
-use p256::elliptic_curve::{ff::Field, ff::PrimeField};
 use p256::{AffinePoint, EncodedPoint, NistP256, ProjectivePoint, Scalar};
 use pakery_core::crypto::group::CpaceGroup;
 use pakery_core::PakeError;
-use rand_core::CryptoRngCore;
+use rand_core::CryptoRng;
+use zeroize::{Zeroize, Zeroizing};
 
 /// DST for hash-to-curve in `from_uniform_bytes`.
 const HASH_TO_CURVE_DST: &[u8] = b"PAKE-P256-HashToCurve-v1";
@@ -66,8 +67,23 @@ impl CpaceGroup for P256Group {
         Ok(Self { point })
     }
 
-    fn random_scalar(rng: &mut impl CryptoRngCore) -> Scalar {
-        Scalar::random(rng)
+    fn random_scalar(rng: &mut impl CryptoRng) -> Scalar {
+        // Generate a uniformly-random non-zero scalar via 32-byte rejection
+        // sampling. Matches p256 0.13's `Scalar::random` byte-consumption
+        // pattern, preserving RFC test-vector compatibility for downstream
+        // protocols that pass deterministic 32-byte scalars via test RNGs. We
+        // can't call `Scalar::random` directly because it is tied to rand_core
+        // 0.6 and incompatible with our 0.9 RNG bound.
+        loop {
+            let mut bytes = Zeroizing::new([0u8; 32]);
+            rng.fill_bytes(&mut *bytes);
+            let mut fb = p256::FieldBytes::from(*bytes);
+            let result = Option::<Scalar>::from(Scalar::from_repr(fb));
+            fb.zeroize();
+            if let Some(s) = result {
+                return s;
+            }
+        }
     }
 
     fn add(&self, other: &Self) -> Self {

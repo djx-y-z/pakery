@@ -307,7 +307,7 @@ fn test_full_round_trip() {
     let identity_b = b"bob";
     let aad = b"additional data";
 
-    let mut rng = rand_core::OsRng;
+    let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
 
     let (pa_bytes, state_a) = A::start(&w, identity_a, identity_b, aad, &mut rng).unwrap();
     let (pb_bytes, state_b) = B::start(&w, identity_a, identity_b, aad, &mut rng).unwrap();
@@ -337,7 +337,7 @@ fn test_wrong_password_different_keys() {
     let identity_b = b"bob";
     let aad = b"";
 
-    let mut rng = rand_core::OsRng;
+    let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
 
     let (pa_bytes, state_a) = A::start(&w_correct, identity_a, identity_b, aad, &mut rng).unwrap();
     let (pb_bytes, state_b) = B::start(&w_wrong, identity_a, identity_b, aad, &mut rng).unwrap();
@@ -440,7 +440,7 @@ fn test_empty_identities() {
     let w = password_to_scalar(b"password");
     let aad = b"";
 
-    let mut rng = rand_core::OsRng;
+    let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
 
     let (pa_bytes, state_a) = A::start(&w, b"", b"", aad, &mut rng).unwrap();
     let (pb_bytes, state_b) = B::start(&w, b"", b"", aad, &mut rng).unwrap();
