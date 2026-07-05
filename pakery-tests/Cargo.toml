@@ -19,10 +19,18 @@ pakery-cpace = { workspace = true }
 pakery-opaque = { workspace = true, features = ["test-utils"] }
 pakery-spake2 = { workspace = true, features = ["test-utils"] }
 pakery-spake2plus = { workspace = true, features = ["test-utils"] }
-pakery-crypto = { workspace = true }
+pakery-crypto = { workspace = true, features = ["cpace", "spake2", "spake2plus", "opaque"] }
 hex = "0.4"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 rand_core = { workspace = true, features = ["os_rng"] }
 curve25519-dalek = { workspace = true }
 p256 = { workspace = true, optional = true }
+
+[dev-dependencies]
+# proptest 1.11+ has MSRV 1.85 (> workspace 1.79) but is a dev-dependency of this
+# test-only crate; the MSRV CI job (`cargo check --workspace`) does not build
+# dev-dependencies and proptest's manifest is edition 2021, so 1.79 parses it.
+# Verified locally with `cargo +1.79 check --workspace`.
+proptest = "1"
+rand_chacha = "0.9"
