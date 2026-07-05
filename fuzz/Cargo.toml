@@ -1,0 +1,83 @@
+[package]
+name = "pakery-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+arbitrary = { version = "1", features = ["derive"] }
+rand_core = "0.9"
+rand_chacha = "0.9"
+hex = "0.4"
+
+pakery-core = { path = "../pakery-core" }
+pakery-cpace = { path = "../pakery-cpace" }
+pakery-opaque = { path = "../pakery-opaque" }
+pakery-spake2 = { path = "../pakery-spake2" }
+pakery-spake2plus = { path = "../pakery-spake2plus" }
+pakery-crypto = { path = "../pakery-crypto", features = [
+    "ristretto255",
+    "p256",
+    "cpace",
+    "spake2",
+    "spake2plus",
+    "opaque",
+] }
+
+# This is a standalone workspace, deliberately excluded from the root one so
+# the MSRV / no_std / minimal-versions / wasm CI jobs never see nightly-only
+# fuzzing dependencies.
+[workspace]
+
+# Fuzz targets are built with the release profile; keep the arithmetic and
+# invariant oracles armed.
+[profile.release]
+debug = 1
+overflow-checks = true
+debug-assertions = true
+
+[[bin]]
+name = "opaque_deserialize"
+path = "fuzz_targets/opaque_deserialize.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "group_decode"
+path = "fuzz_targets/group_decode.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "cpace_flow"
+path = "fuzz_targets/cpace_flow.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "spake2_flow"
+path = "fuzz_targets/spake2_flow.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "spake2plus_flow"
+path = "fuzz_targets/spake2plus_flow.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "opaque_flow"
+path = "fuzz_targets/opaque_flow.rs"
+test = false
+doc = false
+bench = false

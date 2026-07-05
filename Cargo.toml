@@ -1,6 +1,10 @@
 [workspace]
 resolver = "2"
 members = ["pakery-core", "pakery-cpace", "pakery-crypto", "pakery-opaque", "pakery-spake2", "pakery-spake2plus", "pakery-tests"]
+# fuzz/ is its own workspace (nightly-only cargo-fuzz harness); keeping it out
+# of the root workspace shields the MSRV / no_std / minimal-versions / wasm
+# CI jobs from its dependencies.
+exclude = ["fuzz"]
 
 [workspace.package]
 version = "0.2.0"

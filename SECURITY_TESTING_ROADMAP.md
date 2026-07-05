@@ -148,7 +148,25 @@ and draft revision documented in test headers.
 
 ## Item 3 — cargo-fuzz harness + PR smoke job
 
-**Status:** [ ] not started
+**Status:** [x] done (2026-07-05, on main). Standalone `fuzz/` workspace
+(excluded from the root workspace; OSS-Fuzz-compatible layout), six targets:
+`opaque_deserialize`, `group_decode`, `cpace_flow`, `spake2_flow`,
+`spake2plus_flow`, `opaque_flow` (structure-aware via `arbitrary` 1.4,
+incl. `start_fake` and replace/XOR tampering of every wire message).
+Fuzz profile builds with `overflow-checks` + `debug-assertions`; runs use
+`-s none` (ASan rejected above — `forbid(unsafe_code)` everywhere).
+Checked-in seed corpus `fuzz/seeds/` (RFC 9807 D.1.1 messages + honest-flow
+messages, regenerated via `cargo run --example gen_seeds`); MAC-verifying
+targets deliberately seeded with zero MACs so their forgery asserts stay
+sound. PR smoke job `.github/workflows/fuzz.yml`: nightly + cargo-fuzz,
+6-target matrix, 60 s each, corpus cached with restore-key fallback, crash
+artifacts uploaded. Local runs: 60–120 s per target, throughput 2.4k–1.4M
+exec/s. One finding, in the harness itself (not the library): the
+`opaque_flow` oracle asserted `ServerLogin::start_fake` always succeeds,
+but a tampered KE1 can decode yet carry an identity blinded element that
+the server rightly rejects — oracle relaxed to tolerate `Err` on tampered
+flows only. Tool versions verified 2026-07-05: cargo-fuzz 0.13.2,
+libfuzzer-sys 0.4.13, arbitrary 1.4.2.
 
 **Goal:** coverage-guided fuzzing of everything that parses attacker-controlled
 bytes, plus full protocol state machines fed adversarial peer messages
