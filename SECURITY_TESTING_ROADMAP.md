@@ -209,7 +209,28 @@ fixed); smoke job wired into PR CI; `fuzz/README.md` documents how to run locall
 
 ## Item 4 — Scheduled long fuzz runs
 
-**Status:** [ ] not started (requires item 3)
+**Status:** [x] done (2026-07-05, on main). New `.github/workflows/fuzz-long.yml`:
+weekly cron (Mon 03:17 UTC) + `workflow_dispatch` (with `max_total_time` input,
+default 1800 s), 6-target matrix, fork mode `-fork=$(nproc)`. Note: cargo-fuzz
+0.13.2 has **no** `--stop-after-first-failure` flag (roadmap assumption was
+wrong) — the libFuzzer equivalent `-ignore_crashes=0 -ignore_ooms=0
+-ignore_timeouts=0` is used instead. Corpus shared with the smoke job via the
+same `fuzz-corpus-<target>-*` cache keys; after each clean run the corpus is
+minimized in place with `cargo fuzz cmin` before the cache post step saves it
+(a failed run skips the save, keeping crashing inputs out of the shared
+corpus). On findings: crash artifacts uploaded + a GitHub issue
+`Scheduled fuzz failure: <target>` opened (or commented if already open —
+deduplicated; needs `issues: write`, granted in the workflow). Optional
+coverage adopted: an advisory `continue-on-error` job replays corpus+seeds via
+`cargo fuzz coverage` and uploads `llvm-cov report` summaries (binary lands
+under root `target/<triple>/coverage/…`, not `fuzz/target/` — verified
+locally). Runbook added to `fuzz/README.md`. Verified locally: actionlint
+clean, 25 s fork-mode run, `cmin` (23→21 files), full coverage pipeline on
+`cpace_flow`, issue-step shell dry-run. Tool versions re-checked 2026-07-05:
+cargo-fuzz 0.13.2 / libfuzzer-sys 0.4.13 / arbitrary 1.4.2 — all still
+current. **Deferred acceptance:** "workflow green for a full week" and corpus
+growth in cache can only be observed in CI after merge — re-check ~2026-07-13
+(first scheduled firing) before calling this fully closed.
 
 **Goal:** weekly (or nightly) cron workflow running each target 600–1800 s with
 `-fork=$(nproc)`, `--stop-after-first-failure`, corpus shared via the same

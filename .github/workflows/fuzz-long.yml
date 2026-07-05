@@ -1,0 +1,185 @@
+name: Fuzz (scheduled)
+
+on:
+  schedule:
+    # Weekly long run (Monday 03:17 UTC); the corpus accumulates in the
+    # actions cache between runs under the same keys the PR smoke job uses.
+    - cron: '17 3 * * 1'
+  workflow_dispatch:
+    inputs:
+      max_total_time:
+        description: Seconds of fuzzing per target (roadmap range 600-1800)
+        required: false
+        default: '1800'
+
+permissions:
+  contents: read
+  issues: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  long:
+    name: Long (${{ matrix.target }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - opaque_deserialize
+          - group_decode
+          - cpace_flow
+          - spake2_flow
+          - spake2plus_flow
+          - opaque_flow
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@nightly
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-fuzz
+      - name: Restore corpus
+        uses: actions/cache@v4
+        with:
+          path: fuzz/corpus/${{ matrix.target }}
+          key: fuzz-corpus-${{ matrix.target }}-${{ github.run_id }}
+          restore-keys: |
+            fuzz-corpus-${{ matrix.target }}-
+      # -ignore_crashes=0 makes the fork server exit on the first failure
+      # (cargo-fuzz 0.13 has no --stop-after-first-failure flag; this is the
+      # libFuzzer equivalent). -s none: the workspace is forbid(unsafe_code),
+      # sanitizers were rejected in SECURITY_TESTING_ROADMAP.md.
+      - name: Fuzz (fork mode, stop on first failure)
+        run: |
+          mkdir -p fuzz/corpus/${{ matrix.target }}
+          cargo fuzz run ${{ matrix.target }} \
+            fuzz/corpus/${{ matrix.target }} fuzz/seeds/${{ matrix.target }} \
+            -s none -- \
+            -fork="$(nproc)" \
+            -ignore_crashes=0 -ignore_ooms=0 -ignore_timeouts=0 \
+            -max_total_time=${{ inputs.max_total_time || '1800' }}
+      # Only reached (and only cached) when the fuzz step found nothing:
+      # the actions/cache post step skips saving on job failure, so a
+      # crashing run never pollutes the shared corpus.
+      - name: Minimize corpus
+        run: cargo fuzz cmin ${{ matrix.target }} -s none
+      - name: Upload crash artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-artifacts-${{ matrix.target }}
+          path: fuzz/artifacts/${{ matrix.target }}
+          if-no-files-found: ignore
+      - name: Open or update GitHub issue
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          title="Scheduled fuzz failure: ${{ matrix.target }}"
+          run_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          number=$(gh issue list --state open --search "\"$title\" in:title" \
+            --json number --jq '.[0].number // empty')
+          if [ -n "$number" ]; then
+            gh issue comment "$number" --body "Failed again in a later scheduled run: $run_url"
+          else
+            body=$(cat <<EOF
+          The scheduled long fuzz run found a failure in target \`${{ matrix.target }}\`.
+
+          - Run: $run_url
+          - Crash inputs: \`fuzz-artifacts-${{ matrix.target }}\` artifact on that run.
+
+          Reproduce locally (crash file from the artifact, placed under
+          \`fuzz/artifacts/${{ matrix.target }}/\`):
+
+          \`\`\`bash
+          cargo +nightly fuzz run ${{ matrix.target }} fuzz/artifacts/${{ matrix.target }}/<crash-file> -s none
+          \`\`\`
+
+          See fuzz/README.md for the runbook.
+          EOF
+            )
+            gh issue create --title "$title" --body "$body"
+          fi
+
+  # Advisory: replay the (freshly grown) corpus under coverage
+  # instrumentation and publish per-target llvm-cov summaries, to spot dead
+  # corners the fuzzers never reach. Never blocks the workflow.
+  coverage:
+    name: Coverage report
+    needs: long
+    if: always()
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: llvm-tools
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-fuzz
+      - name: Restore corpus (opaque_deserialize)
+        uses: actions/cache/restore@v4
+        with:
+          path: fuzz/corpus/opaque_deserialize
+          key: fuzz-corpus-opaque_deserialize-${{ github.run_id }}
+          restore-keys: |
+            fuzz-corpus-opaque_deserialize-
+      - name: Restore corpus (group_decode)
+        uses: actions/cache/restore@v4
+        with:
+          path: fuzz/corpus/group_decode
+          key: fuzz-corpus-group_decode-${{ github.run_id }}
+          restore-keys: |
+            fuzz-corpus-group_decode-
+      - name: Restore corpus (cpace_flow)
+        uses: actions/cache/restore@v4
+        with:
+          path: fuzz/corpus/cpace_flow
+          key: fuzz-corpus-cpace_flow-${{ github.run_id }}
+          restore-keys: |
+            fuzz-corpus-cpace_flow-
+      - name: Restore corpus (spake2_flow)
+        uses: actions/cache/restore@v4
+        with:
+          path: fuzz/corpus/spake2_flow
+          key: fuzz-corpus-spake2_flow-${{ github.run_id }}
+          restore-keys: |
+            fuzz-corpus-spake2_flow-
+      - name: Restore corpus (spake2plus_flow)
+        uses: actions/cache/restore@v4
+        with:
+          path: fuzz/corpus/spake2plus_flow
+          key: fuzz-corpus-spake2plus_flow-${{ github.run_id }}
+          restore-keys: |
+            fuzz-corpus-spake2plus_flow-
+      - name: Restore corpus (opaque_flow)
+        uses: actions/cache/restore@v4
+        with:
+          path: fuzz/corpus/opaque_flow
+          key: fuzz-corpus-opaque_flow-${{ github.run_id }}
+          restore-keys: |
+            fuzz-corpus-opaque_flow-
+      - name: Generate per-target coverage summaries
+        run: |
+          triple=x86_64-unknown-linux-gnu
+          llvm_cov="$(rustc --print sysroot)/lib/rustlib/$triple/bin/llvm-cov"
+          mkdir -p coverage-reports
+          for t in opaque_deserialize group_decode cpace_flow spake2_flow spake2plus_flow opaque_flow; do
+            mkdir -p "fuzz/corpus/$t"
+            cargo fuzz coverage "$t" "fuzz/corpus/$t" "fuzz/seeds/$t" -s none
+            "$llvm_cov" report \
+              "target/$triple/coverage/$triple/release/$t" \
+              -instr-profile="fuzz/coverage/$t/coverage.profdata" \
+              -ignore-filename-regex='(\.cargo/registry|\.rustup|/rustc/)' \
+              > "coverage-reports/$t.txt"
+            tail -n 2 "coverage-reports/$t.txt"
+          done
+      - name: Upload coverage reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-coverage-reports
+          path: coverage-reports/
