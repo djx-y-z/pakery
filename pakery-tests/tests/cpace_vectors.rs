@@ -1,5 +1,13 @@
-//! Test vectors from draft-irtf-cfrg-cpace-18 for Ristretto255 + SHA-512
-//! (G_Coffee25519 in testvectors.json).
+//! Test vectors from draft-irtf-cfrg-cpace-21 for Ristretto255 + SHA-512
+//! (G_Coffee25519 / G_Coffee25519_points in testvectors.json).
+//!
+//! Source: https://github.com/cfrg/draft-irtf-cfrg-cpace, commit
+//! 8fb4056e1b9201927d9f651b9970d9d5660c7892 (matches the published
+//! draft-irtf-cfrg-cpace-21 appendix B.3, verified against
+//! https://www.ietf.org/archive/id/draft-irtf-cfrg-cpace-21.txt).
+//! Re-check these constants on every draft bump: between -18 and -21 the
+//! example CI input changed (from `o_cat`-ordered to plain
+//! `lv(A_initiator) || lv(B_responder)`), which changed every derived value.
 
 use pakery_core::encoding::{leb128_encode, lv_cat, o_cat, prepend_len};
 use pakery_cpace::generator::{calculate_generator, generator_string};
@@ -26,22 +34,33 @@ fn h(hex_str: &str) -> Vec<u8> {
 
 // Test vector constants (G_Coffee25519 = Ristretto255)
 const PRS_HEX: &str = "50617373776F7264"; // "Password"
-const CI_HEX: &str = "6F630B425F726573706F6E6465720B415F696E69746961746F72";
+const CI_HEX: &str = "0B415F696E69746961746F720B425F726573706F6E646572";
 const SID_HEX: &str = "7E4B4791D6A8EF019B936C79FB7F2C57";
-const G_HEX: &str = "A6FC82C3B8968FBB2E06FEE81CA858586DEA50D248F0C7CA6A18B0902A30B36B";
+const G_HEX: &str = "222B6B195FE84B1652BADB6F6A3AE3D24341E7306967F0B8115B40D5698C7E56";
 const YA_SCALAR_HEX: &str = "DA3D23700A9E5699258AEF94DC060DFDA5EBB61F02A5EA77FAD53F4FF0976D08";
 const ADA_HEX: &str = "414461"; // "ADa"
-const YA_POINT_HEX: &str = "D40FB265A7ABEAEE7939D91A585FE59F7053F982C296EC413C624C669308F87A";
+const YA_POINT_HEX: &str = "D6BAC480F2C386C394EFC7C47ADB9925DCD2630B64F240C50F8D0EEC482B9157";
 const YB_SCALAR_HEX: &str = "D2316B454718C35362D83D69DF6320F38578ED5984651435E2949762D900B80D";
 const ADB_HEX: &str = "414462"; // "ADb"
-const YB_POINT_HEX: &str = "08BCF6E9777A9C313A3DB6DAA510F2D398403319C2341BD506A92E672EB7E307";
-const K_HEX: &str = "E22B1EF7788F661478F3CDDD4C600774FC0F41E6B711569190FF88FA0E607E09";
-const ISK_IR_HEX: &str = "4C5469A16B2364C4B944EBC1A79E51D1674AD47DB26E8718154F59FAEBFAA52D8346F30AA58377117EB20D527F2CBC5C76381F7FD372E89DF8239F87F2E02ED1";
-const ISK_SY_HEX: &str = "980DCC5A1C52CEEA031E75F38ED266586616488C5C5780285FCBCF79087C7BCDBD993502EEE606B718BA31E840A000A7B7BEFE15EA427C5CFE88344FA1237F35";
-const SID_OUTPUT_IR_HEX: &str = "2A76D3BBC499DFDC4DCACC9FF042F4E1A54E3843258E100CCD7C60F0A541F9D3EBF025E68A460DDE218BD39F0711BC6FA11409C9D7B69D8CCF6B32FC51DDB699";
-const SID_OUTPUT_OC_HEX: &str = "CA4B50700C46203CCD10BC0E9F31095E508189CB59857537BE561048D34B9ED9A9697AF11C998F484C3D783B0B531434CAA6835D4C32344FCD17160C9C348FC7";
+const YB_POINT_HEX: &str = "3EA7E0B19560D7C0B0F5734F63B955286DFA8232B5EBE63324E2D9E7433F7258";
+const K_HEX: &str = "80B69A8A76457AB6A4D7F887A4BF6B55A2F80AC19C333F917A05FC9887C8B40F";
+const ISK_IR_HEX: &str = "B69EFFBF61B51D56401C0F65601ABE428DE8206FEAAF0E32198896DCAE7B35CD2B38950A39DFD5D4A79164614C2984F7DAA460B588C1E80C3FA2068AF7900447";
+const ISK_SY_HEX: &str = "544199D71F62F8D9A1FEE55727E24FE4A45844593C2B6013C4FA3969D0E5DEBB2244675C0B43397CBB68D342B01FC0F98FC961469A25134DE9F0F813C1A57476";
+const SID_OUTPUT_IR_HEX: &str = "BB1C449B35F0EA79A65C209F329A693D475E0CE2387BED9FE4B78F60B2A27C219813FB2CFE175EF40D2222D9261E66DA7D78F7C55A303B1B8611DCDFAB880C47";
+const SID_OUTPUT_OC_HEX: &str = "10D5941D4933497FE31B9188D690B84465E2A2D158332A7267284A071A8D0876FC5C8C329DC735D59A9F8EF6623EE23924704A2F929DD631CA981227EE82FFF2";
 
-// Invalid points (G_Coffee25519_points)
+// Valid scalar_mult vector (draft-21 B.3.10, G_Coffee25519_points "Valid")
+const VALID_MULT_SCALAR_HEX: &str =
+    "7CD0E075FA7955BA52C02759A6C90DBBFC10E6D40AEA8D283E407D88CF538A05";
+const VALID_MULT_POINT_HEX: &str =
+    "2C3C6B8C4F3800E7AEF6864025B4ED79BD599117E427C41BD47D93D654B4A51C";
+const VALID_MULT_RESULT_HEX: &str =
+    "7C13645FE790A468F62C39BEB7388E541D8405D1ADE69D1778C5FE3E7F6B600E";
+
+// Invalid inputs for scalar_mult_vfy (draft-21 B.3.11, G_Coffee25519_points).
+// Y_i1 is an invalid ristretto255 encoding; Y_i2 is the encoding of the
+// neutral element. The draft: "When points Y_i1 or Y_i2 are included in
+// message of A or B the protocol MUST abort."
 const INVALID_Y1_HEX: &str = "2B3C6B8C4F3800E7AEF6864025B4ED79BD599117E427C41BD47D93D654B4A51C";
 const INVALID_Y2_HEX: &str = "0000000000000000000000000000000000000000000000000000000000000000";
 
@@ -106,7 +125,8 @@ fn test_generator_string() {
 
     let gen_str = generator_string::<CpaceRistretto255Sha512>(&prs, &ci, &sid);
 
-    assert_eq!(gen_str.len(), 172, "generator string should be 172 bytes");
+    // lv(DSI=17) + lv(PRS=8) + lv(zero-pad=89) + lv(CI=24) + lv(sid=16) = 170
+    assert_eq!(gen_str.len(), 170, "generator string should be 170 bytes");
 }
 
 #[test]
@@ -351,21 +371,84 @@ fn test_empty_password_round_trip() {
     );
 }
 
-// --- Invalid point tests ---
+// --- Official negative vectors (draft-21 B.3.10 / B.3.11) ---
 
 #[test]
-fn test_invalid_points_rejected() {
+fn test_scalar_mult_valid_vector() {
     use pakery_core::crypto::CpaceGroup;
 
-    let invalid_points = [INVALID_Y1_HEX, INVALID_Y2_HEX];
+    let s = decode_scalar(VALID_MULT_SCALAR_HEX);
+    let x = Ristretto255Group::from_bytes(&h(VALID_MULT_POINT_HEX)).expect("valid point");
+    let result = x.scalar_mul(&s);
 
-    for (i, hex) in invalid_points.iter().enumerate() {
-        let bytes = h(hex);
-        let result = Ristretto255Group::from_bytes(&bytes);
+    assert_eq!(
+        &result.to_bytes()[..],
+        &h(VALID_MULT_RESULT_HEX)[..],
+        "G.scalar_mult(s, decode(X)) must match draft-21 B.3.10 vector"
+    );
+}
+
+#[test]
+fn test_invalid_y1_rejected_by_decoder() {
+    use pakery_core::crypto::CpaceGroup;
+
+    // Y_i1 is not a valid ristretto255 encoding — from_bytes must fail.
+    assert!(
+        Ristretto255Group::from_bytes(&h(INVALID_Y1_HEX)).is_err(),
+        "Invalid Y1 must be rejected by point decoding"
+    );
+}
+
+#[test]
+fn test_invalid_y2_is_identity() {
+    use pakery_core::crypto::CpaceGroup;
+
+    // Y_i2 is the canonical encoding of the neutral element; it decodes,
+    // but scalar_mult_vfy semantics require the protocol to abort on it.
+    let p = Ristretto255Group::from_bytes(&h(INVALID_Y2_HEX)).expect("identity encoding decodes");
+    assert!(p.is_identity(), "Invalid Y2 must decode to the identity");
+}
+
+/// draft-21 B.3.11: "When points Y_i1 or Y_i2 are included in message of A
+/// or B the protocol MUST abort."
+#[test]
+fn test_invalid_points_abort_protocol() {
+    let prs = h(PRS_HEX);
+    let ci = h(CI_HEX);
+    let sid = h(SID_HEX);
+    let ad_a = h(ADA_HEX);
+    let ad_b = h(ADB_HEX);
+
+    for (name, hex) in [("Y_i1", INVALID_Y1_HEX), ("Y_i2", INVALID_Y2_HEX)] {
+        let invalid = h(hex);
+
+        // Initiator receives the invalid point as the responder's share.
+        let mut rng_a = FixedScalarRng::new(YA_SCALAR_HEX);
+        let (_, state) =
+            CpaceInitiator::<CpaceRistretto255Sha512>::start(&prs, &ci, &sid, &ad_a, &mut rng_a)
+                .unwrap();
         assert!(
-            result.is_err() || result.unwrap().is_identity(),
-            "Invalid point Y{} should be rejected or be identity",
-            i + 1
+            state
+                .finish(&invalid, &ad_b, CpaceMode::InitiatorResponder)
+                .is_err(),
+            "initiator must abort on {name}"
+        );
+
+        // Responder receives the invalid point as the initiator's share.
+        let mut rng_b = FixedScalarRng::new(YB_SCALAR_HEX);
+        assert!(
+            CpaceResponder::<CpaceRistretto255Sha512>::respond(
+                &invalid,
+                &prs,
+                &ci,
+                &sid,
+                &ad_a,
+                &ad_b,
+                CpaceMode::InitiatorResponder,
+                &mut rng_b,
+            )
+            .is_err(),
+            "responder must abort on {name}"
         );
     }
 }

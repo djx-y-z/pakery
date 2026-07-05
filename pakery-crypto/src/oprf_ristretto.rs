@@ -40,6 +40,15 @@ impl OprfClientState for Ristretto255OprfClientState {
             .decompress()
             .ok_or(PakeError::InvalidInput("invalid evaluation element"))?;
 
+        // Reject identity element as defense-in-depth: an identity evaluation
+        // element would make the OPRF output independent of the password.
+        {
+            use curve25519_dalek::traits::Identity;
+            if bool::from(z.ct_eq(&RistrettoPoint::identity())) {
+                return Err(PakeError::InvalidInput("evaluation element is identity"));
+            }
+        }
+
         let blind_scalar = Scalar::from_canonical_bytes(self.blind)
             .into_option()
             .ok_or(PakeError::ProtocolError("invalid blind scalar"))?;
@@ -286,6 +295,14 @@ mod tests {
         let state = Ristretto255OprfClientState { blind: [0u8; 32] };
         let eval = hex("7ec6578ae5120958eb2db1745758ff379e77cb64fe77b0b2d8cc917ea0869c7e");
         assert!(state.finalize(&[0x00], &eval).is_err());
+    }
+
+    #[test]
+    fn finalize_rejects_identity_evaluation() {
+        let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
+        let (state, _) = Ristretto255Oprf::client_blind(b"password", &mut rng).unwrap();
+        // Identity encoding = 32 zero bytes.
+        assert!(state.finalize(b"password", &[0u8; 32]).is_err());
     }
 
     #[test]

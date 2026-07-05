@@ -104,7 +104,23 @@ groups (ristretto255, P-256):**
 
 ## Item 2 — CPace negative test vectors + negative-vector sweep
 
-**Status:** [ ] not started
+**Status:** [x] done (2026-07-05, branch `security/negative-vectors`). The vector
+repo had moved from draft-18 to draft-21 (published 2026-07-02): only the
+example CI input changed (`o_cat`-ordered → plain `lv(A)||lv(B)`), not the
+protocol — our implementation reproduces every draft-21 value, so
+`cpace_vectors.rs` was bumped to -21 (source commit `8fb4056e` recorded in
+test headers). Official negative vectors landed for both suites: B.3.10/B.3.11
+(ristretto255) in `cpace_vectors.rs`, B.5.10/B.5.11 (P-256 point validation;
+positive vectors N/A — our suite differs from the draft's SSWU suite) in
+`cpace_p256_vectors.rs`, each asserting protocol MUST-abort on Y_i1/Y_i2 from
+both roles. Home-grown sweep: `pakery-tests/vectors/negative_vectors.json`
+(all 29 RFC 9496 A.2 invalid ristretto255 encodings, 6 constructed bad P-256
+encodings, zero + non-canonical scalars) driven by
+`pakery-tests/tests/negative_vectors.rs` across `from_bytes`, DH, OPRF
+evaluate/finalize, and all SPAKE2/SPAKE2+/OPAQUE step functions, both groups.
+Finding fixed along the way: OPRF `finalize` (both groups) accepted an
+identity evaluation element — identity rejection added in `pakery-crypto`
+plus unit tests.
 
 **Goal:** consume the official CPace negative vectors — the only spec here that
 ships any — and extend the same idea to the other protocols.

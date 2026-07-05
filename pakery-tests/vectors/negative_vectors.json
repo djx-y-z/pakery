@@ -1,0 +1,230 @@
+{
+  "_description": "Home-grown negative test vectors for pakery (SECURITY_TESTING_ROADMAP.md item 2). RFC 9807 (OPAQUE), RFC 9382 (SPAKE2) and RFC 9383 (SPAKE2+) ship no negative vectors; these are constructed from the underlying group specifications. ristretto255 invalid points: RFC 9496 appendix A.2 (encodings that MUST be rejected). P-256 invalid points: SEC1 v2.0 encoding rules; off_curve_uncompressed is Y_i1 from draft-irtf-cfrg-cpace-21 appendix B.5.11; the remaining P-256 entries are constructed (see reasons). Scalars: zero and non-canonical (>= group order) encodings. Every entry must be rejected by every entry point that consumes attacker-controlled bytes: CpaceGroup::from_bytes, DhGroup::diffie_hellman, Oprf::server_evaluate, OprfClientState::finalize, and the SPAKE2 / SPAKE2+ / OPAQUE protocol step functions. Identity points are valid encodings of the neutral element: they may decode, but every protocol entry point must still reject them.",
+  "ristretto255": {
+    "identity_point": {
+      "name": "identity",
+      "hex": "0000000000000000000000000000000000000000000000000000000000000000",
+      "reason": "canonical encoding of the neutral element (RFC 9496); protocols must abort"
+    },
+    "invalid_points": [
+      {
+        "name": "non_canonical_field_1",
+        "hex": "00ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "reason": "non canonical field (RFC 9496 A.2)"
+      },
+      {
+        "name": "non_canonical_field_2",
+        "hex": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+        "reason": "non canonical field (RFC 9496 A.2)"
+      },
+      {
+        "name": "non_canonical_field_3",
+        "hex": "f3ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+        "reason": "non canonical field (RFC 9496 A.2)"
+      },
+      {
+        "name": "non_canonical_field_4",
+        "hex": "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+        "reason": "non canonical field (RFC 9496 A.2)"
+      },
+      {
+        "name": "negative_field_element_1",
+        "hex": "0100000000000000000000000000000000000000000000000000000000000000",
+        "reason": "negative field element (RFC 9496 A.2)"
+      },
+      {
+        "name": "negative_field_element_2",
+        "hex": "01ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+        "reason": "negative field element (RFC 9496 A.2)"
+      },
+      {
+        "name": "negative_field_element_3",
+        "hex": "ed57ffd8c914fb201471d1c3d245ce3c746fcbe63a3679d51b6a516ebebe0e20",
+        "reason": "negative field element (RFC 9496 A.2)"
+      },
+      {
+        "name": "negative_field_element_4",
+        "hex": "c34c4e1826e5d403b78e246e88aa051c36ccf0aafebffe137d148a2bf9104562",
+        "reason": "negative field element (RFC 9496 A.2)"
+      },
+      {
+        "name": "negative_field_element_5",
+        "hex": "c940e5a4404157cfb1628b108db051a8d439e1a421394ec4ebccb9ec92a8ac78",
+        "reason": "negative field element (RFC 9496 A.2)"
+      },
+      {
+        "name": "negative_field_element_6",
+        "hex": "47cfc5497c53dc8e61c91d17fd626ffb1c49e2bca94eed052281b510b1117a24",
+        "reason": "negative field element (RFC 9496 A.2)"
+      },
+      {
+        "name": "negative_field_element_7",
+        "hex": "f1c6165d33367351b0da8f6e4511010c68174a03b6581212c71c0e1d026c3c72",
+        "reason": "negative field element (RFC 9496 A.2)"
+      },
+      {
+        "name": "negative_field_element_8",
+        "hex": "87260f7a2f12495118360f02c26a470f450dadf34a413d21042b43b9d93e1309",
+        "reason": "negative field element (RFC 9496 A.2)"
+      },
+      {
+        "name": "non_square_x2_1",
+        "hex": "26948d35ca62e643e26a83177332e6b6afeb9d08e4268b650f1f5bbd8d81d371",
+        "reason": "non square x2 (RFC 9496 A.2)"
+      },
+      {
+        "name": "non_square_x2_2",
+        "hex": "4eac077a713c57b4f4397629a4145982c661f48044dd3f96427d40b147d9742f",
+        "reason": "non square x2 (RFC 9496 A.2)"
+      },
+      {
+        "name": "non_square_x2_3",
+        "hex": "de6a7b00deadc788eb6b6c8d20c0ae96c2f2019078fa604fee5b87d6e989ad7b",
+        "reason": "non square x2 (RFC 9496 A.2)"
+      },
+      {
+        "name": "non_square_x2_4",
+        "hex": "bcab477be20861e01e4a0e295284146a510150d9817763caf1a6f4b422d67042",
+        "reason": "non square x2 (RFC 9496 A.2)"
+      },
+      {
+        "name": "non_square_x2_5",
+        "hex": "2a292df7e32cababbd9de088d1d1abec9fc0440f637ed2fba145094dc14bea08",
+        "reason": "non square x2 (RFC 9496 A.2)"
+      },
+      {
+        "name": "non_square_x2_6",
+        "hex": "f4a9e534fc0d216c44b218fa0c42d99635a0127ee2e53c712f70609649fdff22",
+        "reason": "non square x2 (RFC 9496 A.2)"
+      },
+      {
+        "name": "non_square_x2_7",
+        "hex": "8268436f8c4126196cf64b3c7ddbda90746a378625f9813dd9b8457077256731",
+        "reason": "non square x2 (RFC 9496 A.2)"
+      },
+      {
+        "name": "non_square_x2_8",
+        "hex": "2810e5cbc2cc4d4eece54f61c6f69758e289aa7ab440b3cbeaa21995c2f4232b",
+        "reason": "non square x2 (RFC 9496 A.2)"
+      },
+      {
+        "name": "negative_xy_1",
+        "hex": "3eb858e78f5a7254d8c9731174a94f76755fd3941c0ac93735c07ba14579630e",
+        "reason": "negative xy (RFC 9496 A.2)"
+      },
+      {
+        "name": "negative_xy_2",
+        "hex": "a45fdc55c76448c049a1ab33f17023edfb2be3581e9c7aade8a6125215e04220",
+        "reason": "negative xy (RFC 9496 A.2)"
+      },
+      {
+        "name": "negative_xy_3",
+        "hex": "d483fe813c6ba647ebbfd3ec41adca1c6130c2beeee9d9bf065c8d151c5f396e",
+        "reason": "negative xy (RFC 9496 A.2)"
+      },
+      {
+        "name": "negative_xy_4",
+        "hex": "8a2e1d30050198c65a54483123960ccc38aef6848e1ec8f5f780e8523769ba32",
+        "reason": "negative xy (RFC 9496 A.2)"
+      },
+      {
+        "name": "negative_xy_5",
+        "hex": "32888462f8b486c68ad7dd9610be5192bbeaf3b443951ac1a8118419d9fa097b",
+        "reason": "negative xy (RFC 9496 A.2)"
+      },
+      {
+        "name": "negative_xy_6",
+        "hex": "227142501b9d4355ccba290404bde41575b037693cef1f438c47f8fbf35d1165",
+        "reason": "negative xy (RFC 9496 A.2)"
+      },
+      {
+        "name": "negative_xy_7",
+        "hex": "5c37cc491da847cfeb9281d407efc41e15144c876e0170b499a96a22ed31e01e",
+        "reason": "negative xy (RFC 9496 A.2)"
+      },
+      {
+        "name": "negative_xy_8",
+        "hex": "445425117cb8c90edcbc7c1cc0e74f747f2c1efa5630a967c64f287792a48a4b",
+        "reason": "negative xy (RFC 9496 A.2)"
+      },
+      {
+        "name": "s_minus_one_y_zero_1",
+        "hex": "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+        "reason": "s minus one y zero (RFC 9496 A.2)"
+      }
+    ],
+    "non_canonical_scalars": [
+      {
+        "name": "group_order_l",
+        "hex": "edd3f55c1a631258d69cf7a2def9de1400000000000000000000000000000010",
+        "reason": "the group order l itself, little-endian: smallest non-canonical scalar"
+      },
+      {
+        "name": "all_ff",
+        "hex": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "reason": "2^256-1: far above the group order"
+      }
+    ],
+    "zero_scalar": {
+      "name": "zero",
+      "hex": "0000000000000000000000000000000000000000000000000000000000000000",
+      "reason": "zero scalar: OPRF keys must reject it; DH with it yields the identity"
+    }
+  },
+  "p256": {
+    "identity_point": {
+      "name": "point_at_infinity",
+      "hex": "00",
+      "reason": "SEC1 encoding of the point at infinity; protocols must abort"
+    },
+    "invalid_points": [
+      {
+        "name": "off_curve_uncompressed",
+        "hex": "0424648eb986c2be0af636455cef0550671d6bcd8aa26e0d72ffa1b1fd12ba4e0f78da2b6d2184f31af39e566aef127014b6936c9a37346d10a4ab2514faef5857",
+        "reason": "not on the curve (draft-irtf-cfrg-cpace-21 B.5.11 Y_i1)"
+      },
+      {
+        "name": "wrong_y_uncompressed",
+        "hex": "046b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c2964fe342e2fe1a7f9b8ee7eb4a7c0f9e162bce33576b315ececbb6406837bf51f6",
+        "reason": "generator x with y+1: fails the curve equation"
+      },
+      {
+        "name": "non_residue_x_compressed",
+        "hex": "020000000000000000000000000000000000000000000000000000000000000001",
+        "reason": "compressed encoding with x=1: x^3-3x+b is a quadratic non-residue, no such point"
+      },
+      {
+        "name": "x_ge_p_compressed",
+        "hex": "02ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "reason": "compressed encoding with x >= p: non-canonical field element"
+      },
+      {
+        "name": "invalid_prefix",
+        "hex": "0500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+        "reason": "invalid SEC1 tag byte 0x05"
+      },
+      {
+        "name": "zero_point_uncompressed",
+        "hex": "0400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+        "reason": "(0,0) is not on the curve (b != 0)"
+      }
+    ],
+    "non_canonical_scalars": [
+      {
+        "name": "group_order_n",
+        "hex": "ffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551",
+        "reason": "the group order n itself, big-endian: smallest non-canonical scalar"
+      },
+      {
+        "name": "all_ff",
+        "hex": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "reason": "2^256-1: far above the group order"
+      }
+    ],
+    "zero_scalar": {
+      "name": "zero",
+      "hex": "0000000000000000000000000000000000000000000000000000000000000000",
+      "reason": "zero scalar: OPRF keys must reject it; DH with it yields the identity"
+    }
+  }
+}

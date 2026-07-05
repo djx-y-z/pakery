@@ -106,6 +106,15 @@ impl OprfClientState for P256OprfClientState {
     ) -> Result<Zeroizing<Vec<u8>>, PakeError> {
         let z = point_from_bytes(evaluated_bytes)?;
 
+        // Reject identity element as defense-in-depth: an identity evaluation
+        // element would make the OPRF output independent of the password.
+        {
+            use subtle::ConstantTimeEq;
+            if bool::from(z.ct_eq(&ProjectivePoint::IDENTITY)) {
+                return Err(PakeError::InvalidInput("evaluation element is identity"));
+            }
+        }
+
         let blind_scalar = scalar_from_bytes(&self.blind)?;
         let r_inv = blind_scalar.invert();
         if bool::from(r_inv.is_none()) {
@@ -319,6 +328,14 @@ mod tests {
         let state = P256OprfClientState { blind: [0u8; 32] };
         let eval = hex("030de02ffec47a1fd53efcdd1c6faf5bdc270912b8749e783c7ca75bb412958832");
         assert!(state.finalize(&[0x00], &eval).is_err());
+    }
+
+    #[test]
+    fn finalize_rejects_identity_evaluation() {
+        let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
+        let (state, _) = P256Oprf::client_blind(b"password", &mut rng).unwrap();
+        // SEC1 identity encoding = single 0x00 byte.
+        assert!(state.finalize(b"password", &[0x00]).is_err());
     }
 
     #[test]
