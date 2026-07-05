@@ -12,6 +12,10 @@ publish = false
 default = []
 p256 = ["pakery-crypto/p256", "dep:p256"]
 argon2 = ["pakery-crypto/argon2"]
+# Differential testing against opaque-ke v4 (RFC 9807 peer implementation).
+# Pulls a large dependency tree — deliberately not a default feature; enabled
+# in CI via --all-features. Covers both suites, hence implies `p256`.
+differential = ["dep:opaque-ke", "dep:sha2", "p256", "p256/voprf"]
 
 [dependencies]
 pakery-core = { workspace = true, default-features = true }
@@ -26,6 +30,14 @@ serde_json = "1"
 rand_core = { workspace = true, features = ["os_rng"] }
 curve25519-dalek = { workspace = true }
 p256 = { workspace = true, optional = true }
+# Differential-testing deps (Item 5 of SECURITY_TESTING_ROADMAP.md). Cargo does
+# not support optional dev-dependencies, so these live in [dependencies] behind
+# the `differential` feature (this crate is publish = false and test-only, so
+# the distinction is immaterial). opaque-ke 4 is on the rand 0.8 wave; the RNG
+# traits its API requires are reached through its `opaque_ke::rand` re-export.
+# sha2 is needed to name the hash in opaque-ke's `TripleDh<_, Hash>` parameter.
+opaque-ke = { version = "4", default-features = false, features = ["ristretto255"], optional = true }
+sha2 = { workspace = true, optional = true }
 
 [dev-dependencies]
 # proptest 1.11+ has MSRV 1.85 (> workspace 1.79) but is a dev-dependency of this

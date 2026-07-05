@@ -245,7 +245,32 @@ cache; runbook note in `fuzz/README.md`.
 
 ## Item 5 — Differential testing: OPAQUE vs opaque-ke v4
 
-**Status:** [ ] not started
+**Status:** [x] done (2026-07-05, on main). opaque-ke 4.0.1 verified current
+(MSRV 1.85, **edition-2024 manifest**). New `differential` feature in
+`pakery-tests` (implies `p256` + `p256/voprf`; cargo does not support optional
+dev-dependencies, so opaque-ke lives as an optional `[dependencies]` entry —
+immaterial for a publish=false test crate). `tests/differential_opaque.rs`:
+both suites (ristretto255-SHA512, P-256-SHA256, identity KSF), full
+registration + login on identical inputs, **everything byte-compared** —
+all six messages, registration record, export_key, session_key (four-way).
+Input forcing: opaque-ke's `ServerSetup` built via `deserialize(oprf_seed ||
+sk || dummy_pk)`; nonces/keyshare-seeds fed positionally through a
+chunk-per-call mock RNG that panics on any consumption-pattern change; OPRF
+blinds (no public deterministic API — `deterministic_blind_unchecked` is
+cfg(test)-internal) extracted from opaque-ke's serialized client state and
+replayed into our side via the RNG. Only the fake-credentials path is not
+differential-tested (both sides sample fresh randomness by design;
+documented in `pakery-tests/README.md` along with the oracle's limits).
+4 fixed cases + proptest (16 cases/suite). CI: no workflow change needed —
+the existing `--all-features` jobs (check/test/clippy/doc/coverage/
+minimal-versions) activate `differential`; runtime ~2 s/suite. MSRV job
+unaffected: it runs `cargo check --workspace` without features, and the
+optional dep's manifest is then not parsed — verified `cargo +1.79 check
+--workspace` green with opaque-ke in the lockfile (with the feature **on**,
+1.79 does fail on the edition-2024 manifest, as the roadmap predicted).
+Minimal-versions job verified locally (`-Z minimal-versions` resolves
+opaque-ke 4.0.0 and compiles). No mismatches found between the two
+implementations.
 
 **Goal:** cross-implementation oracle for the one protocol where a same-spec peer
 exists: `opaque-ke` v4.0.1+ implements **RFC 9807 final** (v4.0.0 changelog:
