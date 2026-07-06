@@ -197,3 +197,36 @@ impl DhGroup for Ristretto255Dh {
         Ok(pk)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use pakery_core::crypto::CpaceGroup;
+
+    /// `scalar_to_bytes` must produce the canonical 32-byte little-endian
+    /// encoding (roadmap item 8: CPace itself never serializes scalars, so
+    /// only a direct contract test constrains this trait method).
+    #[test]
+    fn scalar_to_bytes_roundtrips_canonical_encoding() {
+        let mut wide = [0u8; 64];
+        wide[0] = 5; // 5 < group order: reduction is the identity
+        let scalar = <Ristretto255Group as CpaceGroup>::scalar_from_wide_bytes(&wide).unwrap();
+        let bytes = <Ristretto255Group as CpaceGroup>::scalar_to_bytes(&scalar);
+        let mut expected = [0u8; 32];
+        expected[0] = 5;
+        assert_eq!(bytes, expected);
+    }
+
+    /// `public_key_from_private` must reproduce the public key of
+    /// `derive_keypair` (roadmap item 8: the P-256 twin has this test in
+    /// pakery-tests, the ristretto255 side was unconstrained).
+    #[test]
+    fn public_key_from_private_matches_derive_keypair() {
+        use pakery_core::crypto::DhGroup;
+        let (sk, pk) = Ristretto255Dh::derive_keypair(&[7u8; 32]).unwrap();
+        let pk2 = Ristretto255Dh::public_key_from_private(&sk).unwrap();
+        assert_eq!(pk, pk2);
+        assert_eq!(pk.len(), 32);
+        assert!(Ristretto255Dh::public_key_from_private(&[0u8; 31]).is_err());
+    }
+}

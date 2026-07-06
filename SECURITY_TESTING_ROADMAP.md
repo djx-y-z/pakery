@@ -445,7 +445,52 @@ Three small independent tasks, one PR:
 
 ## Item 8 — cargo-mutants (scheduled mutation testing)
 
-**Status:** [ ] not started (best after items 1–2 so mutants have tests to kill)
+**Status:** [x] done (2026-07-06, on main). cargo-mutants 27.1.0 verified current
+(roadmap's "v27+" holds; no Homebrew formula — installed via cargo-binstall).
+`.cargo/mutants.toml`: `test_package` lists all 7 workspace members
+(integration tests + every crate's unit tests; `test_workspace = true` is
+unusable — it injects a colliding `--workspace` and leaves the baseline
+building only the mutated crates, where the feature names don't resolve);
+features `p256 + argon2 + differential` (argon2 deliberately ON — without it
+`ksf.rs` is cfg'd out and its mutants become false survivors; `__ctgrind`
+deliberately OFF), `additional_cargo_args = ["--workspace"]` for baseline
+feature resolution, `cap_lints`, `minimum_test_timeout = 120` (mutants that
+break rejection-sampling loops hang forever; 3 such loop mutants —
+`leb128_encode`, both `client_blind`s — were correctly killed by timeout).
+**Full local run:** 2558 mutants, ~3.5 h wall on an 8-core macOS box at
+`-j 4` (run under `caffeinate`: machine sleep first produced 208 spurious
+wall-clock timeouts, all re-tested via `--iterate` resume). **Triage of 47
+surviving mutants:** 42 killed by 26 new unit tests across 12 files — error
+`Display`/`From` conversions in all five crates, `SharedSecret` inequality +
+`Debug` redaction, all 8 OPAQUE message `Debug` redactions,
+`expand_message_xmd` guard boundaries, `build_cleartext_credentials` /
+`build_preamble` u16 length guards, OPAQUE `i2osp` length arms,
+`CpaceGroup::scalar_to_bytes` contracts (CPace never serializes scalars, so
+only direct tests constrain them), ristretto255 `public_key_from_private`
+consistency, and a P-256 wide-reduction KAT (pins `high * R + low` operators
+and the R constant; expected value computed independently). 2 redundant-code
+removals instead of exclusions (`expand_message_xmd`'s `len > 65535` clause —
+subsumed by `ell > 255` + `i2osp_2`; `CpaceError::from`'s `InvalidPoint` arm —
+wildcard covers it). 3 documented-equivalent exclusions in
+`.cargo/mutants.toml`, each justified: `o_cat` `>` -> `>=` (branches differ
+only for `a == b`, where outputs are byte-identical), and the two
+spake2plus manual `Drop` impls that delegate to `self.zeroize()` (drop-time
+observation is UB from safe Rust — the documented item-7 scope decision).
+**Notably zero survivors** in protocol step functions, MAC verification,
+identity-point rejection, or key schedules — the vector/property/differential
+layers constrain all of those; survivors concentrated in error-type plumbing,
+Debug redaction, defensive length guards, and API surface protocol flows
+never touch. **CI:** new `mutants.yml` — weekly full run (Mon 05:37 UTC,
+staggered after fuzz-long/dudect) sharded 8× + `workflow_dispatch`; a
+`summarize` job aggregates `missed.txt` across shards, opens/updates a
+deduplicated GitHub issue and fails loudly on survivors (never a PR gate);
+plus an advisory `--in-diff` job on PRs (`continue-on-error: true`).
+Runbook in CONTRIBUTING.md ("Mutation testing"). actionlint clean; full
+local CI set green (check / test default + all-features / clippy `-D
+warnings` / fmt / doc `-D warnings` / MSRV 1.79 / minimal-versions with
+Cargo.lock restored). **Deferred acceptance:** the weekly firing and the PR
+`--in-diff` job on real ubuntu-latest can only be observed after push —
+re-check on the first scheduled run before calling this fully closed.
 
 **Goal:** find code our tests don't actually constrain. Expected value concentrates
 exactly where positive RFC vectors never look: error paths, `is_identity()` checks,

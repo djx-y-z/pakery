@@ -197,3 +197,52 @@ pub fn triple_dh_ikm<C: OpaqueCiphersuite>(
     ikm.extend_from_slice(&dh3);
     Ok(ikm)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Boundary behavior of the private I2OSP helper (roadmap item 8: the
+    /// per-length `max` match arms and the `>` guard were unconstrained).
+    #[test]
+    fn i2osp_rejects_values_exceeding_length() {
+        assert_eq!(i2osp(0xFF, 1).unwrap(), vec![0xFF]);
+        assert!(i2osp(0x100, 1).is_err());
+        assert_eq!(i2osp(0xFFFF, 2).unwrap(), vec![0xFF, 0xFF]);
+        assert!(i2osp(0x1_0000, 2).is_err());
+    }
+
+    /// Big-endian layout with leading zero padding.
+    #[test]
+    fn i2osp_encodes_big_endian() {
+        assert_eq!(i2osp(0x0102, 2).unwrap(), vec![0x01, 0x02]);
+        assert_eq!(i2osp(7, 2).unwrap(), vec![0x00, 0x07]);
+    }
+
+    /// Boundary values for the preamble length guards (roadmap item 8).
+    /// The exact guard messages are asserted because the `i2osp` calls
+    /// further down would also reject oversized lengths, just with a
+    /// different message — a mutated guard is distinguishable only by it.
+    #[test]
+    fn build_preamble_length_guards() {
+        let max = vec![0u8; u16::MAX as usize];
+        let over = vec![0u8; u16::MAX as usize + 1];
+        assert!(build_preamble(&max, &max, b"ke1", &max, b"ke2").is_ok());
+        assert!(matches!(
+            build_preamble(&over, b"", b"", b"", b""),
+            Err(OpaqueError::InvalidInput("context exceeds u16 length"))
+        ));
+        assert!(matches!(
+            build_preamble(b"", &over, b"", b"", b""),
+            Err(OpaqueError::InvalidInput(
+                "client_identity exceeds u16 length"
+            ))
+        ));
+        assert!(matches!(
+            build_preamble(b"", b"", b"", &over, b""),
+            Err(OpaqueError::InvalidInput(
+                "server_identity exceeds u16 length"
+            ))
+        ));
+    }
+}

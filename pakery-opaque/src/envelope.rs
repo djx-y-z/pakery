@@ -170,3 +170,30 @@ pub fn recover<C: OpaqueCiphersuite>(
 
     Ok((client_private_key, client_public_key, export_key))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alloc::vec;
+
+    /// Boundary values for the I2OSP(len, 2) overflow guards (roadmap
+    /// item 8: `>` -> `==` mutants survived — oversized identities were
+    /// never exercised).
+    #[test]
+    fn cleartext_credentials_identity_length_guards() {
+        let max = vec![0u8; u16::MAX as usize];
+        let over = vec![0u8; u16::MAX as usize + 1];
+        assert!(build_cleartext_credentials(b"pk", &max, &max).is_ok());
+        assert!(build_cleartext_credentials(b"pk", &over, b"").is_err());
+        assert!(build_cleartext_credentials(b"pk", b"", &over).is_err());
+    }
+
+    /// Pin the exact CleartextCredentials layout (RFC 9807 Section 4):
+    /// pk || I2OSP(len(server_identity), 2) || server_identity
+    ///    || I2OSP(len(client_identity), 2) || client_identity.
+    #[test]
+    fn cleartext_credentials_layout() {
+        let creds = build_cleartext_credentials(b"PK", b"srv", b"cl").unwrap();
+        assert_eq!(creds, b"PK\x00\x03srv\x00\x02cl");
+    }
+}

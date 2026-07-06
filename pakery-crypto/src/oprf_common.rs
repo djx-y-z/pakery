@@ -29,7 +29,11 @@ pub fn expand_message_xmd<H: Digest + BlockSizeUser>(
     let s_in_bytes = <H as BlockSizeUser>::block_size();
     let ell = len_in_bytes.div_ceil(b_in_bytes);
 
-    if ell > 255 || len_in_bytes == 0 || len_in_bytes > 65535 || dst.len() > 255 {
+    // RFC 9380 also requires len_in_bytes <= 65535; that bound needs no
+    // clause of its own: any such length either drives `ell` past 255 for
+    // every hash this crate can instantiate (output <= 64 bytes), or fails
+    // in the `i2osp_2(len_in_bytes)` encoding right below.
+    if ell > 255 || len_in_bytes == 0 || dst.len() > 255 {
         return Err(PakeError::InvalidInput(
             "expand_message_xmd: invalid parameters",
         ));
@@ -130,6 +134,26 @@ mod tests {
     fn expand_message_xmd_rejects_long_dst() {
         let long_dst = [0u8; 256];
         assert!(expand_message_xmd::<sha2::Sha256>(&[b"msg"], &long_dst, 32).is_err());
+    }
+
+    /// Boundary values for the parameter guard (roadmap item 8: `>` -> `>=`
+    /// mutants on the guard survived — only the rejecting side was tested).
+    #[test]
+    fn expand_message_xmd_guard_boundaries() {
+        // ell = 255 (the maximum) must be accepted, ell = 256 rejected.
+        let out = expand_message_xmd::<sha2::Sha256>(&[b"msg"], b"dst", 255 * 32).unwrap();
+        assert_eq!(out.len(), 255 * 32);
+        assert!(expand_message_xmd::<sha2::Sha256>(&[b"msg"], b"dst", 255 * 32 + 1).is_err());
+
+        // A 255-byte DST (the maximum) must be accepted.
+        let dst255 = [0x44u8; 255];
+        assert!(expand_message_xmd::<sha2::Sha256>(&[b"msg"], &dst255, 32).is_ok());
+
+        // len_in_bytes > 65535 must still fail after the explicit clause was
+        // folded into `ell > 255` + the i2osp_2 encoding (see the guard
+        // comment): for SHA-256 it trips `ell`, and a hypothetical wide hash
+        // would trip `i2osp_2`.
+        assert!(expand_message_xmd::<sha2::Sha256>(&[b"msg"], b"dst", 65536).is_err());
     }
 
     // ======================================================================

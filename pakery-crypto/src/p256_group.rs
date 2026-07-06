@@ -147,3 +147,40 @@ fn r_constant() -> Scalar {
     ]))
     .expect("R constant is a valid P-256 scalar")
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use pakery_core::crypto::CpaceGroup;
+
+    /// `scalar_to_bytes` must produce the canonical 32-byte big-endian SEC1
+    /// encoding (roadmap item 8: CPace itself never serializes scalars, so
+    /// only a direct contract test constrains this trait method).
+    #[test]
+    fn scalar_to_bytes_roundtrips_canonical_encoding() {
+        let mut wide = [0u8; 64];
+        wide[63] = 5; // 5 < group order: reduction is the identity
+        let scalar = <P256Group as CpaceGroup>::scalar_from_wide_bytes(&wide).unwrap();
+        let bytes = <P256Group as CpaceGroup>::scalar_to_bytes(&scalar);
+        let mut expected = [0u8; 32];
+        expected[31] = 5;
+        assert_eq!(bytes, expected);
+    }
+
+    /// Known-answer test for the wide reduction with a non-zero high half
+    /// (roadmap item 8: with high = 0, `high * R + low` is insensitive to
+    /// the operators and to R — mutants on both survived). Expected value is
+    /// (0xABAB...AB, 512 bits) mod n, computed independently.
+    #[test]
+    fn scalar_from_wide_bytes_reduces_high_half() {
+        let wide = [0xABu8; 64];
+        let scalar = <P256Group as CpaceGroup>::scalar_from_wide_bytes(&wide).unwrap();
+        let bytes = <P256Group as CpaceGroup>::scalar_to_bytes(&scalar);
+        let expected = [
+            0x48, 0x00, 0x69, 0xDC, 0x58, 0x3A, 0x66, 0xEE, 0x6C, 0x52, 0xE0, 0xED, 0x1D, 0x1E,
+            0x35, 0x14, 0xB6, 0x15, 0x4E, 0x79, 0xE8, 0x1E, 0xEF, 0x5F, 0x27, 0x9C, 0x08, 0x90,
+            0xE0, 0x10, 0xAC, 0x82,
+        ];
+        assert_eq!(bytes, expected);
+    }
+}

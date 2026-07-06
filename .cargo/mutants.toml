@@ -1,0 +1,85 @@
+# cargo-mutants configuration (SECURITY_TESTING_ROADMAP.md item 8).
+#
+# Integration tests live in `pakery-tests`, so mutants in the protocol /
+# crypto crates are only killable if that crate's tests run for every mutant.
+# All workspace members are listed (integration tests + every crate's own
+# unit tests). `test_workspace = true` is NOT used: it injects `--workspace`
+# into the per-mutant cargo commands, which would collide with the
+# `--workspace` in `additional_cargo_args` below (cargo rejects the flag
+# twice), and it leaves the baseline build selecting only the mutated
+# crates, where the feature names below do not resolve.
+test_package = [
+    "pakery-core",
+    "pakery-cpace",
+    "pakery-opaque",
+    "pakery-spake2",
+    "pakery-spake2plus",
+    "pakery-crypto",
+    "pakery-tests",
+]
+
+# Feature set — a deliberate completeness/time balance:
+# - `p256`: covers the P-256 halves of pakery-crypto and pakery-tests.
+# - `argon2`: compiles the Argon2id KSF (pakery-crypto/src/ksf.rs); without
+#   it that file is cfg'd out and its mutants would build unchanged and be
+#   reported as false survivors. Its killing tests (in-crate unit tests +
+#   argon2 OPAQUE vectors) add only a few seconds per mutant run.
+# - `differential`: byte-compares OPAQUE against opaque-ke v4 — the
+#   strongest oracle we have for pakery-opaque mutants. opaque-ke is a
+#   dependency, built once, never rebuilt per mutant.
+# - `__ctgrind` is deliberately NOT enabled: it is a CI-private Valgrind
+#   instrumentation feature (ct.yml); under it the ct helpers emit client
+#   requests that are meaningless (or panic-prone) outside Valgrind.
+features = ["p256", "argon2", "differential"]
+
+# The baseline phase builds `--package=<mutated crates>` (the `test_package`
+# list above is not applied there), and the feature names above live in
+# pakery-crypto / pakery-tests — cargo refuses `--features` naming features
+# of unselected packages. `--workspace` widens every cargo invocation so
+# feature resolution matches the CI test runs.
+additional_cargo_args = ["--workspace"]
+
+# Cap rustc lints so lint-sensitive mutants (unused variables etc.) are
+# tested rather than reported unviable.
+cap_lints = true
+
+# `pakery-tests` itself is test scaffolding (mock RNGs, vector loaders), not
+# product code — mutating it only produces noise.
+exclude_globs = ["pakery-tests/**"]
+
+exclude_re = [
+    # pakery-core/src/ct.rs: `mark_secret` / `declassify` / `is_active` are
+    # compile-time no-ops without the `__ctgrind` feature (see above), so
+    # replacing their bodies is equivalent code by construction — guaranteed
+    # false survivors. Their armed (Valgrind) semantics are verified by
+    # ct.yml instead. `declassify_choice` is real production logic and stays
+    # in scope.
+    # `in <fn>` covers operator mutants inside the `cfg(feature =
+    # "__ctgrind")` blocks (e.g. the VALGRIND_VERSION sentinel comparison in
+    # `is_active`), which are compiled out entirely in this configuration.
+    # The trailing space in `replace declassify ` keeps `declassify_choice`
+    # (real production logic, fully testable) in scope.
+    "ct\\.rs.*replace mark_secret",
+    "ct\\.rs.*replace declassify ",
+    "ct\\.rs.*replace is_active",
+    "ct\\.rs.*in is_active",
+    "ct\\.rs.*in mark_secret",
+    "ct\\.rs.*in declassify$",
+    # pakery-core/src/encoding.rs `o_cat`: `a > b` -> `a >= b` is provably
+    # equivalent — the branches differ only when `a == b`, and for equal
+    # slices `a||b` and `b||a` are byte-identical (first-run survivor,
+    # 2026-07-06).
+    "encoding\\.rs.*replace > with >= in o_cat",
+    # pakery-spake2plus manual `Drop` impls delegate to `self.zeroize()`,
+    # which is itself covered by live-value zeroize tests (roadmap item 7).
+    # Deleting the drop body is untestable from safe Rust: observing memory
+    # after drop is UB — the documented item-7 scope decision. Verified by
+    # inspection; the delegation is one line.
+    "replace <impl Drop for (KeySchedule|VerifierState)>::drop with \\(\\)",
+]
+
+# Floor on the auto-computed per-mutant test timeout. Mutants that break the
+# rejection-sampling loops (e.g. p256 scalar sampling) hang forever and are
+# killed by the timeout; proptest shrinking on a caught mutant can also run
+# well past the baseline test time.
+minimum_test_timeout = 120

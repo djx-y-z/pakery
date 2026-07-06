@@ -71,3 +71,80 @@ impl From<OpaqueError> for pakery_core::PakeError {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alloc::string::ToString;
+    use pakery_core::PakeError;
+
+    #[test]
+    fn display_output_per_variant() {
+        assert_eq!(
+            OpaqueError::ServerAuthenticationError.to_string(),
+            "server authentication failed"
+        );
+        assert_eq!(
+            OpaqueError::ClientAuthenticationError.to_string(),
+            "client authentication failed"
+        );
+        assert_eq!(
+            OpaqueError::EnvelopeRecoveryError.to_string(),
+            "envelope recovery failed"
+        );
+        assert_eq!(OpaqueError::InvalidMac.to_string(), "invalid MAC");
+        assert_eq!(
+            OpaqueError::DeserializationError.to_string(),
+            "deserialization error"
+        );
+        assert_eq!(
+            OpaqueError::InternalError("oprf").to_string(),
+            "internal error: oprf"
+        );
+        assert_eq!(
+            OpaqueError::InvalidInput("length").to_string(),
+            "invalid input: length"
+        );
+    }
+
+    #[test]
+    fn from_pake_error_maps_every_variant() {
+        assert!(matches!(
+            OpaqueError::from(PakeError::InvalidInput("x")),
+            OpaqueError::InvalidInput("x")
+        ));
+        assert!(matches!(
+            OpaqueError::from(PakeError::InvalidPoint),
+            OpaqueError::InternalError("invalid point")
+        ));
+        assert!(matches!(
+            OpaqueError::from(PakeError::IdentityPoint),
+            OpaqueError::InternalError("identity point")
+        ));
+        assert!(matches!(
+            OpaqueError::from(PakeError::ProtocolError("x")),
+            OpaqueError::InternalError("x")
+        ));
+    }
+
+    #[test]
+    fn into_pake_error_maps_every_variant() {
+        assert!(matches!(
+            PakeError::from(OpaqueError::InvalidInput("x")),
+            PakeError::InvalidInput("x")
+        ));
+        for e in [
+            OpaqueError::ServerAuthenticationError,
+            OpaqueError::ClientAuthenticationError,
+            OpaqueError::EnvelopeRecoveryError,
+            OpaqueError::InvalidMac,
+            OpaqueError::DeserializationError,
+            OpaqueError::InternalError("x"),
+        ] {
+            assert!(matches!(
+                PakeError::from(e),
+                PakeError::ProtocolError("OPAQUE error")
+            ));
+        }
+    }
+}

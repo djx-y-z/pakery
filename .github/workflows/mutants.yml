@@ -1,0 +1,150 @@
+name: Mutants
+
+# Mutation testing (SECURITY_TESTING_ROADMAP.md item 8). Two modes:
+# - weekly scheduled full run over the whole workspace, sharded so each
+#   shard fits comfortably in a runner (survivors open/update a GitHub
+#   issue — advisory, never a PR gate);
+# - incremental advisory run on PRs, restricted to mutants in the changed
+#   code (`--in-diff`), `continue-on-error` so it never blocks a merge.
+# Configuration (features, test packages, exclusions with justifications)
+# lives in .cargo/mutants.toml.
+
+on:
+  schedule:
+    # Weekly full run (Monday 05:37 UTC, staggered after fuzz-long 03:17
+    # and dudect 04:47).
+    - cron: '37 5 * * 1'
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  issues: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  incremental:
+    name: Incremental (PR diff, advisory)
+    if: github.event_name == 'pull_request'
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-mutants
+      - name: Compute PR diff
+        run: |
+          git diff "$(git merge-base "origin/${{ github.base_ref }}" HEAD)" HEAD > pr.diff
+          wc -l pr.diff
+      - name: Run mutants on changed code
+        run: cargo mutants --in-diff pr.diff -j 2
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mutants-incremental
+          path: mutants.out
+          if-no-files-found: ignore
+
+  full:
+    name: Full (shard ${{ matrix.shard }})
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-mutants
+      - name: Run mutants shard
+        run: cargo mutants --shard ${{ matrix.shard }}/8 -j 2
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mutants-shard-${{ matrix.shard }}
+          path: mutants.out
+          if-no-files-found: ignore
+
+  # Aggregates the shard outcomes; fails (and opens/updates an issue) when
+  # any mutant survived. Kept separate from the shards so a single flaky
+  # shard failure is distinguishable from "survivors found".
+  summarize:
+    name: Summarize survivors
+    needs: full
+    if: github.event_name != 'pull_request' && always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Download shard results
+        uses: actions/download-artifact@v4
+        with:
+          pattern: mutants-shard-*
+          path: shards
+      - name: Collect missed mutants
+        id: collect
+        run: |
+          cat shards/*/missed.txt > missed-all.txt 2>/dev/null || true
+          touch missed-all.txt
+          sort -o missed-all.txt missed-all.txt
+          count=$(grep -c . missed-all.txt || true)
+          echo "count=$count" >> "$GITHUB_OUTPUT"
+          echo "== $count missed mutants =="
+          cat missed-all.txt
+      - name: Upload aggregated list
+        uses: actions/upload-artifact@v4
+        with:
+          name: mutants-missed-all
+          path: missed-all.txt
+      - name: Open or update GitHub issue
+        if: steps.collect.outputs.count != '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          title="Scheduled mutants run: surviving mutants"
+          run_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          count="${{ steps.collect.outputs.count }}"
+          body=$(cat <<EOF
+          The weekly mutation-testing run found $count surviving mutant(s).
+
+          - Run: $run_url
+          - Full list: \`mutants-missed-all\` artifact on that run.
+
+          First survivors:
+
+          \`\`\`
+          $(head -n 20 missed-all.txt)
+          \`\`\`
+
+          Each survivor is either a missing test (add one) or provably
+          equivalent code (document it in \`.cargo/mutants.toml\`
+          \`exclude_re\` with a justification). See
+          SECURITY_TESTING_ROADMAP.md item 8.
+          EOF
+          )
+          number=$(gh issue list --state open --search "\"$title\" in:title" \
+            --json number --jq '.[0].number // empty')
+          if [ -n "$number" ]; then
+            gh issue comment "$number" --body "$body"
+          else
+            gh issue create --title "$title" --body "$body"
+          fi
+      - name: Fail on survivors
+        if: steps.collect.outputs.count != '0'
+        run: |
+          echo "::error::${{ steps.collect.outputs.count }} surviving mutants (see mutants-missed-all artifact)"
+          exit 1

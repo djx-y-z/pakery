@@ -472,4 +472,67 @@ mod tests {
         assert!(resp.envelope.nonce.is_empty());
         assert!(resp.envelope.auth_tag.is_empty());
     }
+
+    /// Every message Debug impl must redact its cryptographic fields
+    /// (security convention; roadmap item 8 caught the redaction being
+    /// unasserted for all eight impls).
+    #[test]
+    fn debug_impls_redact_all_fields() {
+        let envelope = || Envelope {
+            nonce: vec![0xAB; 4],
+            auth_tag: vec![0xAB; 4],
+        };
+        let rendered = alloc::format!(
+            "{:?}|{:?}|{:?}|{:?}|{:?}|{:?}|{:?}|{:?}",
+            RegistrationRequest {
+                blinded_message: vec![0xAB; 4],
+            },
+            RegistrationResponse {
+                evaluated_message: vec![0xAB; 4],
+                server_public_key: vec![0xAB; 4],
+            },
+            envelope(),
+            RegistrationRecord {
+                client_public_key: vec![0xAB; 4],
+                masking_key: vec![0xAB; 4],
+                envelope: envelope(),
+            },
+            KE1 {
+                blinded_message: vec![0xAB; 4],
+                client_nonce: vec![0xAB; 4],
+                client_keyshare: vec![0xAB; 4],
+            },
+            CredentialResponse {
+                server_public_key: vec![0xAB; 4],
+                envelope: envelope(),
+            },
+            KE2 {
+                evaluated_message: vec![0xAB; 4],
+                masking_nonce: vec![0xAB; 4],
+                masked_response: vec![0xAB; 4],
+                server_nonce: vec![0xAB; 4],
+                server_keyshare: vec![0xAB; 4],
+                server_mac: vec![0xAB; 4],
+            },
+            KE3 {
+                client_mac: vec![0xAB; 4],
+            },
+        );
+        // Every struct renders its name, every field is redacted, and no
+        // byte value leaks (0xAB = 171 would render as "171" in Vec Debug).
+        for name in [
+            "RegistrationRequest",
+            "RegistrationResponse",
+            "Envelope",
+            "RegistrationRecord",
+            "KE1",
+            "CredentialResponse",
+            "KE2",
+            "KE3",
+        ] {
+            assert!(rendered.contains(name), "missing {name} in {rendered}");
+        }
+        assert!(rendered.contains("[REDACTED]"));
+        assert!(!rendered.contains("171"), "leaked bytes: {rendered}");
+    }
 }

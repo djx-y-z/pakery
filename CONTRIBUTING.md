@@ -41,6 +41,28 @@ cargo fmt --all -- --check
 RUSTDOCFLAGS=-Dwarnings cargo doc --workspace --all-features --no-deps
 ```
 
+### Mutation testing (advisory)
+
+CI runs [cargo-mutants](https://mutants.rs) weekly over the whole workspace
+(sharded) and incrementally on PR diffs (advisory, never a merge gate); see
+`.github/workflows/mutants.yml`. Configuration — the feature set, the
+test-package list, and every exclusion with its justification — lives in
+`.cargo/mutants.toml`.
+
+```bash
+cargo install cargo-mutants
+
+# Mutants in code you changed (fast):
+git diff main | cargo mutants --in-diff /dev/stdin
+
+# Full run (hours; -j 4 on an 8-core machine):
+cargo mutants -j 4
+```
+
+Results land in `mutants.out/` (`missed.txt` is the list that matters). Every
+surviving mutant is either a missing test — add one — or provably equivalent
+code — document it in `.cargo/mutants.toml` `exclude_re` with a justification.
+
 ### Project structure
 
 | Crate | Description |

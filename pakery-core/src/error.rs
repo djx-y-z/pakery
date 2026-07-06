@@ -28,3 +28,29 @@ impl fmt::Display for PakeError {
 
 #[cfg(feature = "std")]
 impl std::error::Error for PakeError {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alloc::string::ToString;
+
+    #[test]
+    fn display_output_per_variant() {
+        assert_eq!(
+            PakeError::InvalidPoint.to_string(),
+            "invalid point encoding"
+        );
+        assert_eq!(
+            PakeError::IdentityPoint.to_string(),
+            "identity point encountered"
+        );
+        assert_eq!(
+            PakeError::InvalidInput("bad length").to_string(),
+            "invalid input: bad length"
+        );
+        assert_eq!(
+            PakeError::ProtocolError("mac mismatch").to_string(),
+            "protocol error: mac mismatch"
+        );
+    }
+}
