@@ -69,3 +69,20 @@ pub fn derive_oprf_key<C: OpaqueCiphersuite>(
     // Use OPRF DeriveKeyPair to get the actual scalar key
     Ok(C::Oprf::derive_key(&seed, b"OPAQUE-DeriveKeyPair")?)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_mocks::{MockOprfClientState, MockSuite};
+
+    /// Calling `.zeroize()` on a live value must clear every secret field
+    /// (roadmap item 7: catches a future field added without zeroization).
+    #[test]
+    fn zeroize_clears_all_secret_fields() {
+        let mut state = OprfClientState::<MockSuite> {
+            state: MockOprfClientState { blind: [0xAA; 32] },
+        };
+        state.zeroize();
+        assert_eq!(state.state.blind, [0u8; 32]);
+    }
+}

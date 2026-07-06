@@ -150,3 +150,24 @@ impl<C: OpaqueCiphersuite> ServerRegistration<C> {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_mocks::{MockOprfClientState, MockSuite};
+
+    /// Calling `.zeroize()` on a live value must clear every secret field
+    /// (roadmap item 7: catches a future field added without zeroization).
+    #[test]
+    fn zeroize_clears_all_secret_fields() {
+        let mut state = ClientRegistrationState::<MockSuite> {
+            oprf_state: OprfClientState {
+                state: MockOprfClientState { blind: [0xAA; 32] },
+            },
+            password: vec![0xBB; 16],
+        };
+        state.zeroize();
+        assert_eq!(state.oprf_state.state.blind, [0u8; 32]);
+        assert!(state.password.is_empty());
+    }
+}

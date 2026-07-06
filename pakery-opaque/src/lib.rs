@@ -19,6 +19,8 @@ pub mod messages;
 pub mod oprf;
 pub mod registration;
 pub mod server_setup;
+#[cfg(test)]
+pub(crate) mod test_mocks;
 
 pub use ciphersuite::OpaqueCiphersuite;
 pub use error::OpaqueError;

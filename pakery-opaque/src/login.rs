@@ -575,3 +575,40 @@ impl ServerLoginState {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_mocks::{MockOprfClientState, MockSuite};
+
+    /// Calling `.zeroize()` on a live value must clear every secret field
+    /// (roadmap item 7: catches a future field added without zeroization).
+    #[test]
+    fn client_state_zeroize_clears_all_secret_fields() {
+        let mut state = ClientLoginState::<MockSuite> {
+            oprf_state: OprfClientState {
+                state: MockOprfClientState { blind: [0xAA; 32] },
+            },
+            password: vec![0xBB; 16],
+            client_eph_sk: vec![0xCC; 32],
+            ke1_bytes: vec![0xDD; 96],
+            _marker: core::marker::PhantomData,
+        };
+        state.zeroize();
+        assert_eq!(state.oprf_state.state.blind, [0u8; 32]);
+        assert!(state.password.is_empty());
+        assert!(state.client_eph_sk.is_empty());
+        assert!(state.ke1_bytes.is_empty());
+    }
+
+    #[test]
+    fn server_state_zeroize_clears_all_secret_fields() {
+        let mut state = ServerLoginState {
+            expected_client_mac: vec![0xAA; 64],
+            session_key: vec![0xBB; 64],
+        };
+        state.zeroize();
+        assert!(state.expected_client_mac.is_empty());
+        assert!(state.session_key.is_empty());
+    }
+}

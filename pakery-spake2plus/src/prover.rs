@@ -247,3 +247,48 @@ impl<C: Spake2PlusCiphersuite> ProverState<C> {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_mocks::MockSuite;
+    use alloc::vec;
+
+    /// Calling `.zeroize()` on a live value must clear every secret field
+    /// (roadmap item 7: catches a future field added without zeroization).
+    #[test]
+    fn state_zeroize_clears_all_secret_fields() {
+        let mut state = ProverState::<MockSuite> {
+            x: [0xAA; 32],
+            w0: [0xBB; 32],
+            w1: [0xCC; 32],
+            share_p_bytes: vec![0xDD; 32],
+            context: vec![0xEE; 8],
+            id_prover: vec![0xFF; 8],
+            id_verifier: vec![0x11; 8],
+            _marker: core::marker::PhantomData,
+        };
+        state.zeroize();
+        assert_eq!(state.x, [0u8; 32]);
+        assert_eq!(state.w0, [0u8; 32]);
+        assert_eq!(state.w1, [0u8; 32]);
+        assert!(state.share_p_bytes.is_empty());
+        assert!(state.context.is_empty());
+        assert!(state.id_prover.is_empty());
+        assert!(state.id_verifier.is_empty());
+    }
+
+    /// `session_key` is `#[zeroize(skip)]` by design: `SharedSecret` zeroizes
+    /// itself on its own drop, so it must survive the struct-level call.
+    #[test]
+    fn output_zeroize_clears_all_secret_fields() {
+        let mut output = ProverOutput {
+            session_key: SharedSecret::new(vec![0xAA; 32]),
+            confirm_p: vec![0xBB; 64],
+        };
+        output.zeroize();
+        assert!(output.confirm_p.is_empty());
+        // Skipped field is untouched (self-zeroizing on its own drop).
+        assert_eq!(output.session_key.as_bytes(), &[0xAA; 32]);
+    }
+}

@@ -15,6 +15,8 @@ pub mod encoding;
 pub mod error;
 pub mod prover;
 pub mod registration;
+#[cfg(test)]
+pub(crate) mod test_mocks;
 pub mod transcript;
 pub mod verifier;
 

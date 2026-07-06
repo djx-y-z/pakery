@@ -382,7 +382,46 @@ list (if any) documented with justification.
 
 ## Item 7 — Hygiene bundle: zeroize assert-tests, scoped Miri, dudect advisory
 
-**Status:** [ ] not started
+**Status:** [x] done (2026-07-06, on main). (1) **Zeroize tests:** 20 in-crate
+unit tests (private fields force this placement) covering every
+`Zeroize`/`ZeroizeOnDrop` struct in all 6 crates; generic protocol states are
+constructed via `#[cfg(test)] test_mocks` ciphersuites whose `Scalar`/OPRF
+state is a plain `[u8; 32]`, so post-`zeroize()` bytes are directly
+inspectable. The two manual `Drop` impls (`spake2plus::KeySchedule`,
+`spake2plus::VerifierState`) were refactored to a manual `impl Zeroize` with
+`Drop` delegating to `self.zeroize()` — semantically identical, but now
+testable on a live value (and their `zeroize()` also clears `session_key`,
+keeping the impl exhaustive). `#[zeroize(skip)]`-ed `SharedSecret` fields are
+asserted *untouched* by the struct-level call, documenting the intent (they
+self-zeroize on their own drop). Drop-time memory forensics stayed out of
+scope as planned. (2) **Scoped Miri:** new `miri` job in ci.yml — pinned
+`nightly-2026-07-04` + miri component, `MIRIFLAGS=-Zmiri-strict-provenance`,
+`cargo miri test -p pakery-core --lib` (13 tests). Default features only: the
+private `__ctgrind` feature would emit Valgrind client requests Miri cannot
+interpret; protocol crates not attempted (dalek under Miri impractical, as
+planned). Verified locally on macOS/aarch64. (3) **dudect advisory:**
+dudect-bencher 0.7.0 re-verified current (published 2026-03-23; MSRV 1.85,
+edition-2021 manifest, deps clap 2 / ctrlc 3 / rand 0.10). Of the three
+MSRV-conflict options the roadmap listed, **isolation** won: standalone
+`dudect/` workspace excluded from the root one (fuzz/ pattern), so the MSRV
+1.79 / minimal-versions / audit jobs never see its clap-2-era tree and the
+workflow just uses current stable (≥ 1.85) — no toolchain gymnastics, no
+version pin. Three benches in `dudect/src/main.rs`: `spake2_confirm_verify`
+(`Spake2Output::verify_peer_confirmation`, correct-vs-random peer MAC),
+`hmac_verify` (`Mac::verify`, the primitive under the SPAKE2+/OPAQUE
+confirmation paths — their state machines consume `self` and cannot be
+re-measured in a loop; documented in `dudect/README.md`), and
+`shared_secret_eq`. New `dudect.yml`: weekly (Mon 04:47 UTC) +
+`workflow_dispatch`, `continue-on-error: true`, fails only on |t| > 5 (parsed
+from bencher output; parser verified against both passing and synthetic
+failing output). Local run on macOS: all |t| ≤ 2.7 (proves nothing — that is
+the point of the advisory framing). Full local CI set green: check / test
+(314 passed, 0 failed, `--all-features` and default) / clippy `-D warnings`
+(workspace + dudect) / fmt / doc `-Dwarnings`, MSRV 1.79 check,
+minimal-versions check; actionlint clean on ci.yml + dudect.yml.
+**Deferred acceptance:** the miri job and the weekly dudect firing on real
+ubuntu-latest can only be observed after push — re-check on the first CI run
+before calling this fully closed.
 
 Three small independent tasks, one PR:
 1. **Zeroize unit tests:** for every struct deriving `Zeroize`/`ZeroizeOnDrop` (and

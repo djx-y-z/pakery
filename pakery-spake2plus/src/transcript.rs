@@ -38,11 +38,19 @@ pub(crate) struct KeySchedule {
     pub session_key: SharedSecret,
 }
 
-impl Drop for KeySchedule {
-    fn drop(&mut self) {
+impl Zeroize for KeySchedule {
+    fn zeroize(&mut self) {
         self.confirm_p.zeroize();
         self.confirm_v.zeroize();
-        // session_key has its own ZeroizeOnDrop via SharedSecret
+        // SharedSecret also zeroizes on its own drop; clearing it here keeps
+        // `zeroize()` exhaustive over every secret field.
+        self.session_key.zeroize();
+    }
+}
+
+impl Drop for KeySchedule {
+    fn drop(&mut self) {
+        self.zeroize();
     }
 }
 
@@ -88,4 +96,39 @@ pub(crate) fn derive_key_schedule<C: Spake2PlusCiphersuite>(
         confirm_v,
         session_key: SharedSecret::new(core::mem::take(&mut *k_shared)),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alloc::vec;
+
+    /// Calling `.zeroize()` on a live value must clear every secret field
+    /// (roadmap item 7: catches a future field added without zeroization).
+    /// `session_key` is `#[zeroize(skip)]` by design: `SharedSecret` zeroizes
+    /// itself on its own drop, so it must survive the struct-level call.
+    #[test]
+    fn output_zeroize_leaves_self_zeroizing_session_key() {
+        let mut output = Spake2PlusOutput {
+            session_key: SharedSecret::new(vec![0xAA; 32]),
+        };
+        output.zeroize();
+        // Skipped field is untouched (self-zeroizing on its own drop).
+        assert_eq!(output.session_key.as_bytes(), &[0xAA; 32]);
+    }
+
+    /// The manual `Zeroize` impl (called from `Drop`) must clear every
+    /// secret field of the key schedule.
+    #[test]
+    fn key_schedule_zeroize_clears_all_secret_fields() {
+        let mut ks = KeySchedule {
+            confirm_p: vec![0xAA; 64],
+            confirm_v: vec![0xBB; 64],
+            session_key: SharedSecret::new(vec![0xCC; 32]),
+        };
+        ks.zeroize();
+        assert!(ks.confirm_p.is_empty());
+        assert!(ks.confirm_v.is_empty());
+        assert!(ks.session_key.as_bytes().is_empty());
+    }
 }

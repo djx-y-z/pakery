@@ -422,3 +422,54 @@ impl fmt::Debug for KE3 {
             .finish()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alloc::vec;
+
+    /// Calling `.zeroize()` on a live value must clear every secret field
+    /// (roadmap item 7: catches a future field added without zeroization).
+    #[test]
+    fn envelope_zeroize_clears_all_secret_fields() {
+        let mut env = Envelope {
+            nonce: vec![0xAA; 32],
+            auth_tag: vec![0xBB; 64],
+        };
+        env.zeroize();
+        assert!(env.nonce.is_empty());
+        assert!(env.auth_tag.is_empty());
+    }
+
+    #[test]
+    fn registration_record_zeroize_clears_all_secret_fields() {
+        let mut record = RegistrationRecord {
+            client_public_key: vec![0xAA; 32],
+            masking_key: vec![0xBB; 64],
+            envelope: Envelope {
+                nonce: vec![0xCC; 32],
+                auth_tag: vec![0xDD; 64],
+            },
+        };
+        record.zeroize();
+        assert!(record.client_public_key.is_empty());
+        assert!(record.masking_key.is_empty());
+        assert!(record.envelope.nonce.is_empty());
+        assert!(record.envelope.auth_tag.is_empty());
+    }
+
+    #[test]
+    fn credential_response_zeroize_clears_all_secret_fields() {
+        let mut resp = CredentialResponse {
+            server_public_key: vec![0xAA; 32],
+            envelope: Envelope {
+                nonce: vec![0xBB; 32],
+                auth_tag: vec![0xCC; 64],
+            },
+        };
+        resp.zeroize();
+        assert!(resp.server_public_key.is_empty());
+        assert!(resp.envelope.nonce.is_empty());
+        assert!(resp.envelope.auth_tag.is_empty());
+    }
+}

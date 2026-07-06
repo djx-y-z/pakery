@@ -54,3 +54,18 @@ impl core::fmt::Debug for SharedSecret {
             .finish()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alloc::vec;
+
+    /// Calling `.zeroize()` on a live value must clear every secret field
+    /// (roadmap item 7: catches a future field added without zeroization).
+    #[test]
+    fn zeroize_clears_all_secret_fields() {
+        let mut secret = SharedSecret::new(vec![0xAA; 32]);
+        secret.zeroize();
+        assert!(secret.bytes.is_empty());
+    }
+}

@@ -125,3 +125,98 @@ impl<C: CpaceCiphersuite> InitiatorState<C> {
         Ok(CpaceOutput { isk, session_id })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alloc::vec;
+    use pakery_core::PakeError;
+
+    /// Minimal mock group: only the associated `Scalar` type matters for
+    /// constructing an `InitiatorState`; no group operation is ever called.
+    #[derive(Clone, PartialEq)]
+    struct MockPoint;
+
+    impl CpaceGroup for MockPoint {
+        type Scalar = [u8; 32];
+
+        fn scalar_mul(&self, _scalar: &Self::Scalar) -> Self {
+            unimplemented!()
+        }
+        fn is_identity(&self) -> bool {
+            unimplemented!()
+        }
+        fn to_bytes(&self) -> Vec<u8> {
+            unimplemented!()
+        }
+        fn from_bytes(_bytes: &[u8]) -> Result<Self, PakeError> {
+            unimplemented!()
+        }
+        fn from_uniform_bytes(_bytes: &[u8]) -> Result<Self, PakeError> {
+            unimplemented!()
+        }
+        fn random_scalar(_rng: &mut impl CryptoRng) -> Self::Scalar {
+            unimplemented!()
+        }
+        fn add(&self, _other: &Self) -> Self {
+            unimplemented!()
+        }
+        fn negate(&self) -> Self {
+            unimplemented!()
+        }
+        fn basepoint_mul(_scalar: &Self::Scalar) -> Self {
+            unimplemented!()
+        }
+        fn scalar_from_wide_bytes(_bytes: &[u8]) -> Result<Self::Scalar, PakeError> {
+            unimplemented!()
+        }
+        fn scalar_to_bytes(_scalar: &Self::Scalar) -> Vec<u8> {
+            unimplemented!()
+        }
+    }
+
+    #[derive(Clone)]
+    struct MockHash;
+
+    impl pakery_core::crypto::Hash for MockHash {
+        const OUTPUT_SIZE: usize = 64;
+
+        fn new() -> Self {
+            unimplemented!()
+        }
+        fn update(&mut self, _data: &[u8]) {
+            unimplemented!()
+        }
+        fn finalize(self) -> Vec<u8> {
+            unimplemented!()
+        }
+    }
+
+    struct MockSuite;
+
+    impl CpaceCiphersuite for MockSuite {
+        type Group = MockPoint;
+        type Hash = MockHash;
+        const DSI: &'static [u8] = b"CPaceMock";
+        const HASH_BLOCK_SIZE: usize = 128;
+        const FIELD_SIZE_BYTES: usize = 32;
+    }
+
+    /// Calling `.zeroize()` on a live value must clear every secret field
+    /// (roadmap item 7: catches a future field added without zeroization).
+    #[test]
+    fn zeroize_clears_all_secret_fields() {
+        let mut state = InitiatorState::<MockSuite> {
+            scalar: [0xAA; 32],
+            ya_bytes: vec![0xBB; 32],
+            ad_a: vec![0xCC; 8],
+            sid: vec![0xDD; 16],
+            _marker: core::marker::PhantomData,
+        };
+        state.zeroize();
+        assert_eq!(state.scalar, [0u8; 32]);
+        assert!(state.ya_bytes.is_empty());
+        assert!(state.ad_a.is_empty());
+        assert!(state.sid.is_empty());
+    }
+}

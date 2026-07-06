@@ -1,0 +1,38 @@
+name: dudect
+
+# Advisory statistical constant-time testing (SECURITY_TESTING_ROADMAP.md,
+# item 7; orion pattern). Timing statistics on shared runners are noisy:
+# |t| > 5 is strong evidence of a timing leak and fails the job; t < 5 proves
+# nothing. Deterministic CT verification is ct.yml's job — this workflow is
+# weekly, non-blocking, and never a PR gate.
+
+on:
+  schedule:
+    # Weekly, Monday 04:47 UTC (offset from fuzz-long's Monday 03:17).
+    - cron: "47 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  dudect:
+    name: dudect advisory (non-blocking)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Run dudect benches
+        working-directory: dudect
+        shell: bash
+        run: cargo run --release 2>&1 | tee dudect-output.txt
+      - name: Evaluate t-values (|t| > 5 fails)
+        working-directory: dudect
+        run: |
+          grep 'max t =' dudect-output.txt
+          grep -o 'max t = [+-][0-9.]*' dudect-output.txt \
+            | awk '{ t = $4 + 0; if (t < 0) t = -t; if (t > 5) bad = 1 } END { exit bad }'

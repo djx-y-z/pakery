@@ -1,0 +1,29 @@
+[package]
+name = "pakery-dudect"
+version = "0.0.0"
+publish = false
+edition = "2021"
+# dudect-bencher 0.7 has MSRV 1.85 (> workspace 1.79). This crate is a
+# standalone workspace precisely so the root MSRV job never sees it; the
+# dudect.yml workflow runs it on current stable.
+rust-version = "1.85"
+
+[dependencies]
+dudect-bencher = "0.7"
+rand_core = { version = "0.9", features = ["os_rng"] }
+
+pakery-core = { path = "../pakery-core" }
+pakery-spake2 = { path = "../pakery-spake2" }
+pakery-crypto = { path = "../pakery-crypto", features = ["ristretto255", "spake2"] }
+
+# This is a standalone workspace, deliberately excluded from the root one so
+# the MSRV / no_std / minimal-versions / wasm / audit CI jobs never see
+# dudect-bencher's dependency tree (clap 2 era).
+[workspace]
+
+[[bin]]
+name = "dudect_ct"
+path = "src/main.rs"
+test = false
+doc = false
+bench = false

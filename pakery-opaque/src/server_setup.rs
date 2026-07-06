@@ -72,3 +72,27 @@ impl<C: OpaqueCiphersuite> ServerSetup<C> {
         &self.server_public_key
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_mocks::MockSuite;
+
+    /// Calling `.zeroize()` on a live value must clear every secret field
+    /// (roadmap item 7: catches a future field added without zeroization).
+    /// The public key is not secret, but it is not skipped either — the
+    /// derive clears it along with the rest.
+    #[test]
+    fn zeroize_clears_all_secret_fields() {
+        let mut setup = ServerSetup::<MockSuite> {
+            oprf_seed: vec![0xAA; 64],
+            server_private_key: vec![0xBB; 32],
+            server_public_key: vec![0xCC; 32],
+            _marker: core::marker::PhantomData,
+        };
+        setup.zeroize();
+        assert!(setup.oprf_seed.is_empty());
+        assert!(setup.server_private_key.is_empty());
+        assert!(setup.server_public_key.is_empty());
+    }
+}

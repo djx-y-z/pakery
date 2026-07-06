@@ -141,3 +141,32 @@ impl<C: Spake2Ciphersuite> PartyBState<C> {
         derive_key_schedule::<C>(&tt, &self.aad, false)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_mocks::MockSuite;
+    use alloc::vec;
+
+    /// Calling `.zeroize()` on a live value must clear every secret field
+    /// (roadmap item 7: catches a future field added without zeroization).
+    #[test]
+    fn zeroize_clears_all_secret_fields() {
+        let mut state = PartyBState::<MockSuite> {
+            y: [0xAA; 32],
+            w: [0xBB; 32],
+            pb_bytes: vec![0xCC; 32],
+            identity_a: vec![0xDD; 8],
+            identity_b: vec![0xEE; 8],
+            aad: vec![0xFF; 8],
+            _marker: core::marker::PhantomData,
+        };
+        state.zeroize();
+        assert_eq!(state.y, [0u8; 32]);
+        assert_eq!(state.w, [0u8; 32]);
+        assert!(state.pb_bytes.is_empty());
+        assert!(state.identity_a.is_empty());
+        assert!(state.identity_b.is_empty());
+        assert!(state.aad.is_empty());
+    }
+}

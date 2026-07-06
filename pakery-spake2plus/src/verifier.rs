@@ -22,10 +22,18 @@ pub struct VerifierState {
     session_key: SharedSecret,
 }
 
+impl Zeroize for VerifierState {
+    fn zeroize(&mut self) {
+        self.expected_confirm_p.zeroize();
+        // SharedSecret also zeroizes on its own drop; clearing it here keeps
+        // `zeroize()` exhaustive over every secret field.
+        self.session_key.zeroize();
+    }
+}
+
 impl Drop for VerifierState {
     fn drop(&mut self) {
-        self.expected_confirm_p.zeroize();
-        // session_key has its own ZeroizeOnDrop via SharedSecret
+        self.zeroize();
     }
 }
 
@@ -199,5 +207,24 @@ impl<C: Spake2PlusCiphersuite> Verifier<C> {
         // expected confirmP stays secret until compared.
         pakery_core::ct::declassify(&confirm_v);
         Ok((share_v_bytes, confirm_v, state))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The manual `Zeroize` impl (called from `Drop`) must clear every
+    /// secret field (roadmap item 7: catches a future field added without
+    /// zeroization).
+    #[test]
+    fn zeroize_clears_all_secret_fields() {
+        let mut state = VerifierState {
+            expected_confirm_p: alloc::vec![0xAA; 64],
+            session_key: SharedSecret::new(alloc::vec![0xBB; 32]),
+        };
+        state.zeroize();
+        assert!(state.expected_confirm_p.is_empty());
+        assert!(state.session_key.as_bytes().is_empty());
     }
 }

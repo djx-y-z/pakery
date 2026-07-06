@@ -13,6 +13,8 @@ pub mod encoding;
 pub mod error;
 pub mod party_a;
 pub mod party_b;
+#[cfg(test)]
+pub(crate) mod test_mocks;
 pub mod transcript;
 
 pub use ciphersuite::Spake2Ciphersuite;

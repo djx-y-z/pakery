@@ -403,6 +403,15 @@ mod tests {
         assert!(state.finalize(b"test", &[0u8; 64]).is_err());
     }
 
+    /// Calling `.zeroize()` on a live value must clear every secret field
+    /// (roadmap item 7: catches a future field added without zeroization).
+    #[test]
+    fn zeroize_clears_all_secret_fields() {
+        let mut state = Ristretto255OprfClientState { blind: [0xAA; 32] };
+        state.zeroize();
+        assert_eq!(state.blind, [0u8; 32]);
+    }
+
     #[test]
     fn invalid_evaluation_element_not_on_curve() {
         let state = Ristretto255OprfClientState {

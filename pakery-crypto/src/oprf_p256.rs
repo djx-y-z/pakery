@@ -248,6 +248,15 @@ mod tests {
         assert_eq!(*sk, hex(SK_SM));
     }
 
+    /// Calling `.zeroize()` on a live value must clear every secret field
+    /// (roadmap item 7: catches a future field added without zeroization).
+    #[test]
+    fn zeroize_clears_all_secret_fields() {
+        let mut state = P256OprfClientState { blind: [0xAA; 32] };
+        state.zeroize();
+        assert_eq!(state.blind, [0u8; 32]);
+    }
+
     #[test]
     fn test_vector_1() {
         let input = hex("00");

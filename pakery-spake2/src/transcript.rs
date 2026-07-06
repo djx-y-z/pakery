@@ -123,3 +123,27 @@ pub fn derive_key_schedule<C: Spake2Ciphersuite>(
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alloc::vec;
+
+    /// Calling `.zeroize()` on a live value must clear every secret field
+    /// (roadmap item 7: catches a future field added without zeroization).
+    /// `session_key` is `#[zeroize(skip)]` by design: `SharedSecret` zeroizes
+    /// itself on its own drop, so it must survive the struct-level call.
+    #[test]
+    fn zeroize_clears_all_secret_fields() {
+        let mut output = Spake2Output {
+            session_key: SharedSecret::new(vec![0xAA; 32]),
+            confirmation_mac: vec![0xBB; 64],
+            expected_peer_mac: vec![0xCC; 64],
+        };
+        output.zeroize();
+        assert!(output.confirmation_mac.is_empty());
+        assert!(output.expected_peer_mac.is_empty());
+        // Skipped field is untouched (self-zeroizing on its own drop).
+        assert_eq!(output.session_key.as_bytes(), &[0xAA; 32]);
+    }
+}

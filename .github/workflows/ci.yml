@@ -68,6 +68,25 @@ jobs:
           toolchain: "1.79"
       - run: cargo check --workspace
 
+  # Scoped Miri (roadmap item 7, crypto-bigint pattern): pakery-core only —
+  # protocol crates pull curve25519-dalek, which is impractically slow under
+  # Miri. Default features only: the private `__ctgrind` feature would emit
+  # Valgrind client requests Miri cannot interpret. Nightly is pinned so Miri
+  # behavior changes only deliberately; bump it consciously.
+  miri:
+    name: Miri (pakery-core)
+    runs-on: ubuntu-latest
+    env:
+      MIRIFLAGS: -Zmiri-strict-provenance
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: nightly-2026-07-04
+          components: miri
+      - run: cargo miri setup
+      - run: cargo miri test -p pakery-core --lib
+
   no-std:
     name: no_std
     runs-on: ubuntu-latest
