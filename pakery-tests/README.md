@@ -11,6 +11,7 @@ vectors, property-based tests, and differential testing. Not published.
 | Negative vectors (official CPace + home-grown sweep) | `negative_vectors.rs`, `cpace*_vectors.rs`, `vectors/negative_vectors.json` | yes |
 | Property-based tests (proptest) | `prop_*.rs` | yes |
 | Differential testing vs opaque-ke | `differential_opaque.rs` | no — `differential` feature |
+| Constant-time harness (ctgrind) | `ct_flows.rs` | no — `__ctgrind` feature |
 
 ## Feature flags
 
@@ -22,9 +23,25 @@ vectors, property-based tests, and differential testing. Not published.
   through the `--all-features` jobs. opaque-ke 4 has MSRV 1.85 and an
   edition-2024 manifest, so this feature must stay off for the MSRV (1.79) job
   (`cargo check --workspace` without features — verified working).
+- `__ctgrind` (private) — enables the constant-time verification harness
+  (`ct_flows.rs`) and turns `pakery_core::ct`'s helpers into Valgrind
+  memcheck client requests via [crabgrind](https://crates.io/crates/crabgrind).
+  The `ct.yml` workflow runs it under
+  `valgrind --track-origins=yes --error-exitcode=99` in debug and release;
+  secret-dependent branches or memory indexing fail the run. Outside Valgrind
+  (or when crabgrind was built without real Valgrind headers, e.g. on macOS)
+  the marks are no-ops, so `--all-features` runs stay harmless. The marking
+  and declassification policy — including the accepted dependency-boundary
+  laundering of dalek/p256 scalar canonicity checks — is documented in
+  `pakery_core::ct`'s module docs and at each `ctgrind:` call-site comment.
 
 ```bash
 cargo test -p pakery-tests --features differential --test differential_opaque
+
+# Constant-time harness (Linux with valgrind installed):
+CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER="valgrind --track-origins=yes --error-exitcode=99 --quiet" \
+  PAKERY_CT_EXPECT_ARMED=1 \
+  cargo test -p pakery-tests --features __ctgrind,p256 --test ct_flows -- --test-threads=1
 ```
 
 ## The differential oracle and its limits

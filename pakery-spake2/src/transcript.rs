@@ -27,7 +27,9 @@ pub struct Spake2Output {
 impl Spake2Output {
     /// Verify the peer's confirmation MAC in constant time.
     pub fn verify_peer_confirmation(&self, peer_mac: &[u8]) -> Result<(), Spake2Error> {
-        if self.expected_peer_mac.ct_eq(peer_mac).into() {
+        // ctgrind: the verification outcome is a public accept/reject
+        // decision; the comparison itself stays constant-time.
+        if pakery_core::ct::declassify_choice(self.expected_peer_mac.ct_eq(peer_mac)) {
             Ok(())
         } else {
             Err(Spake2Error::ConfirmationFailed)
@@ -102,12 +104,18 @@ pub fn derive_key_schedule<C: Spake2Ciphersuite>(
     let session_key = SharedSecret::new(ke.to_vec());
 
     if is_party_a {
+        // ctgrind: our confirmation MAC goes on the wire — public once sent.
+        // The expected peer MAC stays secret until compared.
+        pakery_core::ct::declassify(&mac_a);
         Ok(Spake2Output {
             session_key,
             confirmation_mac: mac_a,
             expected_peer_mac: mac_b,
         })
     } else {
+        // ctgrind: our confirmation MAC goes on the wire — public once sent.
+        // The expected peer MAC stays secret until compared.
+        pakery_core::ct::declassify(&mac_b);
         Ok(Spake2Output {
             session_key,
             confirmation_mac: mac_b,

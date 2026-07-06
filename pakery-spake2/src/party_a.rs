@@ -79,6 +79,8 @@ impl<C: Spake2Ciphersuite> PartyA<C> {
         let pa = x_g.add(&w_m);
 
         let pa_bytes = pa.to_bytes();
+        // ctgrind: pA is the wire key share — public by protocol design.
+        pakery_core::ct::declassify(&pa_bytes);
 
         let state = PartyAState {
             x,
@@ -120,6 +122,11 @@ impl<C: Spake2Ciphersuite> PartyAState<C> {
 
         let k_bytes = Zeroizing::new(k.to_bytes());
         let w_bytes = Zeroizing::new(C::Group::scalar_to_bytes(&self.w));
+        // ctgrind: the raw group element K and the password scalar w are
+        // secret transcript inputs (P-256 group ops launder taint through
+        // the scalar parse, so re-mark at the byte boundary).
+        pakery_core::ct::mark_secret(&k_bytes);
+        pakery_core::ct::mark_secret(&w_bytes);
 
         // Build transcript
         let tt = build_transcript(

@@ -16,6 +16,13 @@ argon2 = ["pakery-crypto/argon2"]
 # Pulls a large dependency tree — deliberately not a default feature; enabled
 # in CI via --all-features. Covers both suites, hence implies `p256`.
 differential = ["dep:opaque-ke", "dep:sha2", "p256", "p256/voprf"]
+# PRIVATE (roadmap item 6): constant-time verification harness (ctgrind
+# pattern). Turns pakery-core's `ct` helpers into real Valgrind memcheck
+# client requests and enables the `ct_flows` integration test, which ct.yml
+# runs under `valgrind --track-origins=yes --error-exitcode=99` in debug and
+# release. Outside Valgrind the marks are runtime no-ops, so this feature is
+# safe (if pointless) in ordinary `--all-features` test runs.
+__ctgrind = ["pakery-core/__ctgrind"]
 
 [dependencies]
 pakery-core = { workspace = true, default-features = true }

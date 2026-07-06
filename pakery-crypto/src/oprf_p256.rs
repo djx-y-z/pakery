@@ -115,7 +115,13 @@ impl OprfClientState for P256OprfClientState {
             }
         }
 
-        let blind_scalar = scalar_from_bytes(&self.blind)?;
+        // ctgrind: launder the scalar validity check on a local copy — the
+        // blind is our own canonical encoding, so its validity is public;
+        // p256's `from_repr` would otherwise branch on a CtOption
+        // discriminant. The OPRF output stays tainted via the password.
+        let blind_copy = Zeroizing::new(self.blind);
+        pakery_core::ct::declassify(&*blind_copy);
+        let blind_scalar = scalar_from_bytes(&*blind_copy)?;
         let r_inv = blind_scalar.invert();
         if bool::from(r_inv.is_none()) {
             return Err(PakeError::ProtocolError("blind scalar has no inverse"));
@@ -145,6 +151,10 @@ impl Oprf for P256Oprf {
         // 9807 test-vector compatibility (blind values are 32-byte big-endian
         // canonical scalars). We can't call `Scalar::random` directly because it
         // is tied to rand_core 0.6 and incompatible with our 0.9 RNG bound.
+        //
+        // ctgrind: candidate bytes are deliberately NOT marked secret —
+        // rejection sampling branches on each candidate's validity (a public
+        // retry decision). The accepted blind is marked secret below.
         let mut r = loop {
             let mut bytes = Zeroizing::new([0u8; 32]);
             rng.fill_bytes(&mut *bytes);
@@ -160,14 +170,26 @@ impl Oprf for P256Oprf {
 
         let t = hash_to_group(password)?;
         let blinded = t * r;
-        let blind = r.to_repr().into();
+        let blind: [u8; 32] = r.to_repr().into();
         r.zeroize();
 
-        Ok((P256OprfClientState { blind }, point_to_bytes(&blinded)))
+        // ctgrind: the accepted blind is secret key material (taint enters
+        // here rather than in the rejection loop above).
+        pakery_core::ct::mark_secret(&blind);
+        let blinded_bytes = point_to_bytes(&blinded);
+        // ctgrind: the blinded element is the OPRF wire message — public by
+        // protocol design (blinding hides the password).
+        pakery_core::ct::declassify(&blinded_bytes);
+        Ok((P256OprfClientState { blind }, blinded_bytes))
     }
 
     fn server_evaluate(oprf_key: &[u8], blinded_bytes: &[u8]) -> Result<Vec<u8>, PakeError> {
-        let sk = scalar_from_bytes(oprf_key)?;
+        // ctgrind: launder the scalar validity check (public for an honestly
+        // derived OPRF key) on a local copy; the caller's slice stays marked.
+        // The evaluated element goes on the wire, so no re-mark is needed.
+        let sk_copy = Zeroizing::new(oprf_key.to_vec());
+        pakery_core::ct::declassify(&sk_copy);
+        let sk = scalar_from_bytes(&sk_copy)?;
         if bool::from(sk.is_zero()) {
             return Err(PakeError::InvalidInput("OPRF key is zero"));
         }
@@ -191,7 +213,9 @@ impl Oprf for P256Oprf {
         for counter in 0u8..=255 {
             let sk =
                 hash_to_scalar_with_dst(&[seed, &info_len, info, &[counter]], DERIVE_KEYPAIR_DST)?;
-            if !bool::from(sk.is_zero()) {
+            // ctgrind: whether a candidate reduces to zero is public (it only
+            // increments the retry counter).
+            if !pakery_core::ct::declassify_choice(sk.is_zero()) {
                 return Ok(Zeroizing::new(sk.to_repr().to_vec()));
             }
         }

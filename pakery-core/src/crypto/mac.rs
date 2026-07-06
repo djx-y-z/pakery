@@ -12,7 +12,9 @@ pub trait Mac {
     /// Verify a MAC tag in constant time.
     fn verify(key: &[u8], msg: &[u8], tag: &[u8]) -> Result<(), PakeError> {
         let computed = Self::mac(key, msg)?;
-        if computed.ct_eq(tag).into() {
+        // ctgrind: the verification outcome is a public accept/reject
+        // decision; the comparison itself stays constant-time.
+        if crate::ct::declassify_choice(computed.ct_eq(tag)) {
             Ok(())
         } else {
             Err(PakeError::ProtocolError("MAC verification failed"))

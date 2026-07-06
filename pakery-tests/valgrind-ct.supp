@@ -1,0 +1,86 @@
+# Valgrind suppressions for the constant-time harness (ct_flows, ct.yml).
+#
+# Policy (SECURITY_TESTING_ROADMAP.md item 6): a suppression is allowed only
+# for a KNOWN, ACCEPTED pattern inside a dependency that we cannot fix at our
+# boundary, and every entry must carry a justification. Anything not listed
+# here fails the run. Both families below are P-256-only; the
+# curve25519-dalek paths run without any suppression.
+#
+# Verified against curve25519-dalek 4.1.3 / p256 0.13.2 / elliptic-curve
+# 0.13.8 / sec1 0.7.3 / subtle 2.6.1 (Valgrind 3.24, aarch64 + x86_64 Linux,
+# debug and release), 2026-07-06. Re-triage when bumping these crates.
+# Each family is listed for the error kinds observed or plausible across
+# codegen (Cond for flag-based branches, Value4/Value8 for tag-indexed
+# dispatch), same justification.
+#
+# Family 1: p256 hash-to-curve internals branch on subtle::CtOption
+# discriminants that are invariant-true by construction: the OSSWU map's
+# sqrt_ratio always yields a valid root for one of its two candidates, and
+# map_to_curve's affine conversion of the mapped point always succeeds —
+# `CtOption::unwrap` still executes a hard `assert!` on that (tainted)
+# always-true flag. The condition never varies with the secret input, so no
+# timing signal exists; the taint is by design (the hash-to-curve input is
+# the password). Dependency-internal; cannot be declassified at our boundary.
+{
+   p256-hash2curve-invariant-ctoption-asserts-cond
+   Memcheck:Cond
+   ...
+   fun:*hash2curve*hash_from_bytes*
+}
+{
+   p256-hash2curve-invariant-ctoption-asserts-value8
+   Memcheck:Value8
+   ...
+   fun:*hash2curve*hash_from_bytes*
+}
+{
+   p256-hash2curve-invariant-ctoption-asserts-value4
+   Memcheck:Value4
+   ...
+   fun:*hash2curve*hash_from_bytes*
+}
+
+# Family 2: SEC1 point serialization of a secret-derived P-256 point: the
+# sec1 crate dispatches on the encoding's tag byte (`Tag::from_u8` via
+# `EncodedPoint::tag/len/as_bytes`) while the point is being encoded —
+# before our wire-boundary declassify can run. The tag is 0x04 (a
+# compile-time constant) for uncompressed encodings and the y-parity of a
+# wire-bound public element for compressed ones; in both cases the
+# dispatched value is public by protocol design. Anchored at our two
+# serialization helpers so only the encoding path is suppressed.
+{
+   p256-sec1-tag-dispatch-group-to-bytes-cond
+   Memcheck:Cond
+   ...
+   fun:*P256Group*to_bytes*
+}
+{
+   p256-sec1-tag-dispatch-group-to-bytes-value8
+   Memcheck:Value8
+   ...
+   fun:*P256Group*to_bytes*
+}
+{
+   p256-sec1-tag-dispatch-group-to-bytes-value4
+   Memcheck:Value4
+   ...
+   fun:*P256Group*to_bytes*
+}
+{
+   p256-sec1-tag-dispatch-point-to-bytes-cond
+   Memcheck:Cond
+   ...
+   fun:*oprf_p256*point_to_bytes*
+}
+{
+   p256-sec1-tag-dispatch-point-to-bytes-value8
+   Memcheck:Value8
+   ...
+   fun:*oprf_p256*point_to_bytes*
+}
+{
+   p256-sec1-tag-dispatch-point-to-bytes-value4
+   Memcheck:Value4
+   ...
+   fun:*oprf_p256*point_to_bytes*
+}

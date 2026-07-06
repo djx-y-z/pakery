@@ -64,6 +64,8 @@ impl<C: OpaqueCiphersuite> ClientLogin<C> {
         password: &[u8],
         rng: &mut impl CryptoRng,
     ) -> Result<(KE1, ClientLoginState<C>), OpaqueError> {
+        // ctgrind: the password is the protocol's secret input.
+        pakery_core::ct::mark_secret(password);
         let (oprf_state, blinded_message) = oprf::oprf_client_blind::<C>(password, rng)?;
 
         let mut client_nonce = vec![0u8; C::NN];
@@ -170,6 +172,11 @@ impl<C: OpaqueCiphersuite> ClientLoginState<C> {
         }
 
         let cred_resp = CredentialResponse::deserialize::<C>(&cred_resp_bytes)?;
+        // ctgrind: the unmasked server public key is public by value (it is
+        // the server's long-term public key); its SEC1 parser branches on the
+        // encoding tag, so declassify before the point parse in TripleDH.
+        // The envelope contents stay secret.
+        pakery_core::ct::declassify(&cred_resp.server_public_key);
 
         // 4. Recover envelope
         let (client_private_key, _client_public_key, export_key) = envelope::recover::<C>(
@@ -219,7 +226,9 @@ impl<C: OpaqueCiphersuite> ClientLoginState<C> {
         let expected_server_mac = C::Mac::mac(&km2, &preamble_hash)?;
 
         use subtle::ConstantTimeEq;
-        if !bool::from(expected_server_mac.ct_eq(&ke2.server_mac)) {
+        // ctgrind: the verification outcome is a public accept/reject
+        // decision; the comparison itself stays constant-time.
+        if !pakery_core::ct::declassify_choice(expected_server_mac.ct_eq(&ke2.server_mac)) {
             return Err(OpaqueError::ServerAuthenticationError);
         }
 
@@ -231,6 +240,8 @@ impl<C: OpaqueCiphersuite> ClientLoginState<C> {
         transcript2_input.extend_from_slice(&expected_server_mac);
         let transcript2_hash = C::Hash::digest(&transcript2_input);
         let client_mac = C::Mac::mac(&km3, &transcript2_hash)?;
+        // ctgrind: the client MAC goes on the wire — public once sent.
+        pakery_core::ct::declassify(&client_mac);
 
         let ke3 = KE3 { client_mac };
 
@@ -410,6 +421,8 @@ impl<C: OpaqueCiphersuite> ServerLogin<C> {
         // 9. Compute server MAC
         let preamble_hash = C::Hash::digest(&preamble);
         let server_mac = C::Mac::mac(&km2, &preamble_hash)?;
+        // ctgrind: the server MAC goes on the wire — public once sent.
+        pakery_core::ct::declassify(&server_mac);
 
         // 10. Compute dummy expected_client_mac to equalize timing with start_inner.
         // Without this, start_fake is 1 Hash + 1 MAC cheaper, enabling user
@@ -467,6 +480,9 @@ impl<C: OpaqueCiphersuite> ServerLogin<C> {
         for i in 0..cred_resp_size {
             masked_response[i] = cred_resp_bytes[i] ^ pad[i];
         }
+        // ctgrind: the masked response is ciphertext on the wire — public
+        // once sent.
+        pakery_core::ct::declassify(&masked_response);
 
         // 4. Server ephemeral keypair
         let (server_eph_sk, server_eph_pk) = C::Dh::derive_keypair(server_keyshare_seed)?;
@@ -515,6 +531,9 @@ impl<C: OpaqueCiphersuite> ServerLogin<C> {
         // 8. Compute server MAC
         let preamble_hash = C::Hash::digest(&preamble);
         let server_mac = C::Mac::mac(&km2, &preamble_hash)?;
+        // ctgrind: the server MAC goes on the wire — public once sent. The
+        // expected client MAC below stays secret until compared.
+        pakery_core::ct::declassify(&server_mac);
 
         // 9. Compute expected client MAC: MAC(km3, Hash(preamble || server_mac))
         let mut transcript2_input =
@@ -546,7 +565,9 @@ impl ServerLoginState {
     /// Verify the client's MAC and return the session key.
     pub fn finish(mut self, ke3: &KE3) -> Result<SharedSecret, OpaqueError> {
         use subtle::ConstantTimeEq;
-        if self.expected_client_mac.ct_eq(&ke3.client_mac).into() {
+        // ctgrind: the verification outcome is a public accept/reject
+        // decision; the comparison itself stays constant-time.
+        if pakery_core::ct::declassify_choice(self.expected_client_mac.ct_eq(&ke3.client_mac)) {
             let session_key = core::mem::take(&mut self.session_key);
             Ok(SharedSecret::new(session_key))
         } else {

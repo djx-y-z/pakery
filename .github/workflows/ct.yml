@@ -1,0 +1,65 @@
+# Constant-time verification (ctgrind pattern, SECURITY_TESTING_ROADMAP.md
+# item 6): runs the pakery-tests `ct_flows` harness under Valgrind memcheck.
+# Secret material is marked undefined via crabgrind client requests (the
+# private `__ctgrind` feature), so any secret-dependent branch or memory
+# index in the compiled artifact — including what LLVM makes of `subtle` in
+# release mode — fails the job. Deterministic, so per-PR runs are reliable
+# (unlike statistical timing checks); the daily run guards against toolchain
+# drift recompiling the same code into something leaky.
+name: CT
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "47 4 * * *"
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  # Fail the ct_harness_is_armed test if the ct helpers compiled to no-ops
+  # (e.g. crabgrind fell back to its stub headers) instead of going green
+  # without checking anything.
+  PAKERY_CT_EXPECT_ARMED: "1"
+
+jobs:
+  ctgrind:
+    name: ctgrind (${{ matrix.profile }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [debug, release]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install Valgrind
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y valgrind
+          valgrind --version
+      - name: Run CT harness under Valgrind
+        env:
+          # Suppressions: documented, dependency-internal accepted patterns
+          # only — see pakery-tests/valgrind-ct.supp.
+          CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER: >-
+            valgrind --track-origins=yes --error-exitcode=99 --quiet
+            --suppressions=${{ github.workspace }}/pakery-tests/valgrind-ct.supp
+          # The debug leg disables cargo's panic instrumentation: overflow
+          # checks and debug assertions branch on carry/validity flags of
+          # (intentionally tainted) constant-time arithmetic inside
+          # curve25519-dalek / p256, drowning the run in artifacts that no
+          # production build contains. Release has both off by default.
+          CARGO_PROFILE_DEV_OVERFLOW_CHECKS: "false"
+          CARGO_PROFILE_DEV_DEBUG_ASSERTIONS: "false"
+          # Debug info in release (no codegen change): lets Valgrind name
+          # inlined frames, so suppression matching stays robust and any
+          # finding is triageable from the CI log alone.
+          CARGO_PROFILE_RELEASE_DEBUG: "true"
+        run: >-
+          cargo test -p pakery-tests --features __ctgrind,p256
+          --test ct_flows
+          ${{ matrix.profile == 'release' && '--release' || '' }}
+          -- --test-threads=1

@@ -39,7 +39,9 @@ impl ConstantTimeEq for SharedSecret {
 
 impl PartialEq for SharedSecret {
     fn eq(&self, other: &Self) -> bool {
-        self.ct_eq(other).into()
+        // ctgrind: the equality outcome is the caller's public accept/reject
+        // decision; the comparison itself stays constant-time.
+        crate::ct::declassify_choice(self.ct_eq(other))
     }
 }
 

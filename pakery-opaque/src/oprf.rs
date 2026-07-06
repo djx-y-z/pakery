@@ -33,7 +33,11 @@ pub fn oprf_client_finalize<C: OpaqueCiphersuite>(
     password: &[u8],
     evaluated_bytes: &[u8],
 ) -> Result<Zeroizing<Vec<u8>>, OpaqueError> {
-    Ok(state.state.finalize(password, evaluated_bytes)?)
+    let output = state.state.finalize(password, evaluated_bytes)?;
+    // ctgrind: the OPRF output is secret — it seeds the randomized password
+    // and everything derived from it.
+    pakery_core::ct::mark_secret(&output);
+    Ok(output)
 }
 
 /// Server-side OPRF evaluation: evaluate the blinded element with the given key.

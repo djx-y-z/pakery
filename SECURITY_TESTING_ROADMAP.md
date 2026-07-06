@@ -302,7 +302,52 @@ the oracle and its limits.
 
 ## Item 6 — Constant-time CI job (ctgrind pattern: Valgrind + crabgrind)
 
-**Status:** [ ] not started
+**Status:** [x] done (2026-07-06, on main). crabgrind re-verified: 0.3.0
+(published 2026-07-02, days after this roadmap) — safe API ✓, `#![no_std]` ✓,
+MSRV 1.71/edition 2021; its `opt-out` feature was **removed** in 0.3 (no-op
+mode is `default-features = false`), and without real Valgrind headers it
+falls back to stub headers (sentinel version `0xBEDABEDA`) whose client
+requests **panic at runtime**. Hence deviation (1): the `pakery_core::ct`
+helpers guard on `ct::is_active()` (headers-found check) so `--all-features`
+builds on macOS / valgrind-less runners stay no-ops; ct.yml sets
+`PAKERY_CT_EXPECT_ARMED=1` and the harness's `ct_harness_is_armed` test fails
+loudly if the helpers silently disarm. (2) Added `declassify_choice(Choice)`
+beyond the planned slice helpers: converting `Choice → bool` directly
+branches on the tainted byte. It routes the decision byte through memory +
+`core::hint::black_box(&mut _)` — without the black_box, **release** LLVM
+kept the pre-declassify value in a register (declassify takes `&[u8]`,
+assumed non-mutating) and branched on the still-tainted copy; caught by the
+first release Valgrind run, invisible in debug. (3) Secret-scalar parses at
+the dalek/p256 boundary are laundered (declassify a local copy before
+`from_canonical_bytes`/`from_repr`, whose CtOption validity checks branch by
+design — canonicity of an honestly generated key is public), and group-op
+results are re-marked secret (DH outputs in the `DhGroup` impls; K/w/Z/V/w0
+byte encodings in the protocol crates) so taint stays end-to-end. (4) P-256
+rejection sampling is deliberately not tainted mid-loop (retry decision is
+public; taint enters at the accepted value / byte boundaries); ristretto's
+wide-reduction sampling is tainted directly (branch-free). (5) ct.yml's debug
+leg sets `CARGO_PROFILE_DEV_{OVERFLOW_CHECKS,DEBUG_ASSERTIONS}=false`:
+cargo's panic instrumentation branches on carry/validity flags of
+intentionally-tainted CT arithmetic inside dalek/p256 — thousands of
+artifacts no production build contains (first debug run hit memcheck's
+1000-error cap inside CPace alone, masking everything after it).
+Suppressions (`pakery-tests/valgrind-ct.supp`, each entry justified): two
+P-256-only dependency-internal families — invariant-true CtOption asserts in
+p256 hash2curve (osswu sqrt / map_to_curve), and sec1 tag-byte dispatch while
+encoding wire-bound points (`P256Group::to_bytes` /
+`oprf_p256::point_to_bytes`). **curve25519-dalek needs zero suppressions**
+(clean in debug and release, including Elligator on tainted input and scalar
+mult with tainted scalars). OPAQUE harness uses the identity-KSF suites
+(Argon2id is data-dependent by design per RFC 9106 — documented exclusion).
+Minimal-versions job repaired via never-built
+`[target.'cfg(any())'.dependencies]` floor-bumps in pakery-core (pkg-config
+0.3.18, rustversion 1.0.15 — crabgrind under-declares build-dep minimums:
+its 0.3.0 floors miss APIs or no longer compile). MSRV 1.79 job unaffected
+(verified). Verified locally in Linux Docker (valgrind 3.24): full flows ×
+4 protocols × both groups green in debug **and** release on aarch64; x86_64
+(the CI arch) checked via emulation. **Deferred acceptance:** ct.yml green on
+real ubuntu-latest can only be observed after push — re-check on the first CI
+run (incl. daily cron) before calling this fully closed.
 
 **Goal:** deterministic CT verification in CI — the graviola pattern (its
 `ctgrind.yml` runs daily + per-PR on ubuntu-latest). This checks secret-dependent

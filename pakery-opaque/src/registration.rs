@@ -31,6 +31,8 @@ impl<C: OpaqueCiphersuite> ClientRegistration<C> {
         password: &[u8],
         rng: &mut impl CryptoRng,
     ) -> Result<(RegistrationRequest, ClientRegistrationState<C>), OpaqueError> {
+        // ctgrind: the password is the protocol's secret input.
+        pakery_core::ct::mark_secret(password);
         let (oprf_state, blinded_message) = oprf::oprf_client_blind::<C>(password, rng)?;
 
         let request = RegistrationRequest { blinded_message };

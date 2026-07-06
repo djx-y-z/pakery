@@ -49,7 +49,13 @@ impl OprfClientState for Ristretto255OprfClientState {
             }
         }
 
-        let blind_scalar = Scalar::from_canonical_bytes(self.blind)
+        // ctgrind: launder the canonicity check on a local copy — the blind
+        // is our own canonical encoding, so its validity is public; dalek's
+        // `from_canonical_bytes` would otherwise branch on a CtOption
+        // discriminant. The OPRF output stays tainted via the password.
+        let blind_copy = Zeroizing::new(self.blind);
+        pakery_core::ct::declassify(&*blind_copy);
+        let blind_scalar = Scalar::from_canonical_bytes(*blind_copy)
             .into_option()
             .ok_or(PakeError::ProtocolError("invalid blind scalar"))?;
         if bool::from(blind_scalar.ct_eq(&Scalar::ZERO)) {
@@ -105,8 +111,13 @@ impl Oprf for Ristretto255Oprf {
         let mut r = loop {
             let mut wide = Zeroizing::new([0u8; 64]);
             rng.fill_bytes(&mut *wide);
+            // ctgrind: fresh blind material is secret; the wide reduction is
+            // branch-free, so taint flows into the scalar.
+            pakery_core::ct::mark_secret(&*wide);
             let s = Scalar::from_bytes_mod_order_wide(&wide);
-            if !bool::from(s.ct_eq(&Scalar::ZERO)) {
+            // ctgrind: whether a candidate reduces to zero is public (it only
+            // triggers a retry).
+            if !pakery_core::ct::declassify_choice(s.ct_eq(&Scalar::ZERO)) {
                 break s;
             }
         };
@@ -116,17 +127,23 @@ impl Oprf for Ristretto255Oprf {
         let blind = r.to_bytes();
         r.zeroize();
 
-        Ok((
-            Ristretto255OprfClientState { blind },
-            blinded.compress().to_bytes().to_vec(),
-        ))
+        let blinded_bytes = blinded.compress().to_bytes().to_vec();
+        // ctgrind: the blinded element is the OPRF wire message — public by
+        // protocol design (blinding hides the password).
+        pakery_core::ct::declassify(&blinded_bytes);
+        Ok((Ristretto255OprfClientState { blind }, blinded_bytes))
     }
 
     fn server_evaluate(oprf_key: &[u8], blinded_bytes: &[u8]) -> Result<Vec<u8>, PakeError> {
         let sk_bytes: [u8; 32] = oprf_key
             .try_into()
             .map_err(|_| PakeError::InvalidInput("invalid OPRF key length"))?;
-        let sk = Scalar::from_canonical_bytes(sk_bytes)
+        // ctgrind: launder the canonicity check (public for an honestly
+        // derived OPRF key) on a local copy; the caller's slice stays marked.
+        // The evaluated element goes on the wire, so no re-mark is needed.
+        let sk_bytes = Zeroizing::new(sk_bytes);
+        pakery_core::ct::declassify(&*sk_bytes);
+        let sk = Scalar::from_canonical_bytes(*sk_bytes)
             .into_option()
             .ok_or(PakeError::InvalidInput("invalid OPRF key"))?;
         if bool::from(sk.ct_eq(&Scalar::ZERO)) {
@@ -159,7 +176,9 @@ impl Oprf for Ristretto255Oprf {
         for counter in 0u8..=255 {
             let sk =
                 hash_to_scalar_with_dst(&[seed, &info_len, info, &[counter]], DERIVE_KEYPAIR_DST)?;
-            if !bool::from(sk.ct_eq(&Scalar::ZERO)) {
+            // ctgrind: whether a candidate reduces to zero is public (it only
+            // increments the retry counter).
+            if !pakery_core::ct::declassify_choice(sk.ct_eq(&Scalar::ZERO)) {
                 return Ok(Zeroizing::new(sk.to_bytes().to_vec()));
             }
         }

@@ -32,7 +32,9 @@ impl Drop for VerifierState {
 impl VerifierState {
     /// Finish the SPAKE2+ protocol by verifying the Prover's confirmation MAC.
     pub fn finish(mut self, confirm_p: &[u8]) -> Result<Spake2PlusOutput, Spake2PlusError> {
-        if !bool::from(self.expected_confirm_p.ct_eq(confirm_p)) {
+        // ctgrind: the verification outcome is a public accept/reject
+        // decision; the comparison itself stays constant-time.
+        if !pakery_core::ct::declassify_choice(self.expected_confirm_p.ct_eq(confirm_p)) {
             return Err(Spake2PlusError::ConfirmationFailed);
         }
 
@@ -134,6 +136,8 @@ impl<C: Spake2PlusCiphersuite> Verifier<C> {
         let share_v = y_g.add(&w0_n);
 
         let share_v_bytes = share_v.to_bytes();
+        // ctgrind: shareV is the wire key share — public by protocol design.
+        pakery_core::ct::declassify(&share_v_bytes);
 
         // tmp = shareP - w0*M (= x*G)
         let w0_m = m.scalar_mul(w0);
@@ -156,6 +160,12 @@ impl<C: Spake2PlusCiphersuite> Verifier<C> {
         let z_bytes = Zeroizing::new(z.to_bytes());
         let v_bytes = Zeroizing::new(v.to_bytes());
         let w0_bytes = Zeroizing::new(C::Group::scalar_to_bytes(w0));
+        // ctgrind: Z, V, and w0 are secret transcript inputs (P-256 group
+        // ops launder taint through the scalar parse, so re-mark at the
+        // byte boundary).
+        pakery_core::ct::mark_secret(&z_bytes);
+        pakery_core::ct::mark_secret(&v_bytes);
+        pakery_core::ct::mark_secret(&w0_bytes);
 
         // Use canonical group element encoding for M and N in the transcript
         // (same encoding as all other group elements, e.g. uncompressed for P-256).
@@ -184,6 +194,10 @@ impl<C: Spake2PlusCiphersuite> Verifier<C> {
             session_key: core::mem::replace(&mut ks.session_key, SharedSecret::new(Vec::new())),
         };
 
-        Ok((share_v_bytes, core::mem::take(&mut ks.confirm_v), state))
+        let confirm_v = core::mem::take(&mut ks.confirm_v);
+        // ctgrind: confirmV goes on the wire — public once sent. The
+        // expected confirmP stays secret until compared.
+        pakery_core::ct::declassify(&confirm_v);
+        Ok((share_v_bytes, confirm_v, state))
     }
 }

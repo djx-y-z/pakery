@@ -16,9 +16,25 @@ categories = ["cryptography", "no-std::no-alloc", "authentication"]
 default = ["std"]
 std = ["rand_core/std"]
 os_rng = ["rand_core/os_rng"]
+# PRIVATE (exempt from semver): wires the `ct` module's helpers to Valgrind
+# memcheck client requests for the constant-time CI job (ct.yml, roadmap
+# item 6). Without it the helpers compile to no-ops. Never enable in
+# production builds.
+__ctgrind = ["dep:crabgrind"]
 
 [dependencies]
 zeroize = { workspace = true }
 zeroize_derive = { workspace = true }
 subtle = { workspace = true }
 rand_core = { workspace = true }
+crabgrind = { version = "0.3", optional = true }
+
+# Never built (`cfg(any())` is always false): these entries only lift the
+# `-Z minimal-versions` resolution of crabgrind 0.3.0's build-dependency tree
+# past under-declared minimums whose floor versions no longer compile or lack
+# APIs its build.rs uses (pkg-config < 0.3.18 has no `print_system_cflags`;
+# rustversion < 1.0.15 lacks the `cfg!` form used). Verified empirically
+# 2026-07-06; drop when crabgrind fixes its declared minimums.
+[target.'cfg(any())'.dependencies]
+pkg-config = "0.3.18"
+rustversion = "1.0.15"

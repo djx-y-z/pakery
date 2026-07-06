@@ -16,5 +16,10 @@ use crate::ciphersuite::Spake2PlusCiphersuite;
 pub fn compute_verifier<C: Spake2PlusCiphersuite>(
     w1: &<C::Group as CpaceGroup>::Scalar,
 ) -> Vec<u8> {
-    C::Group::basepoint_mul(w1).to_bytes()
+    let l_bytes = C::Group::basepoint_mul(w1).to_bytes();
+    // ctgrind: L is transmitted to the Verifier at registration — treated as
+    // public wire data for constant-time purposes (its secrecy is a storage
+    // concern, not a timing one).
+    pakery_core::ct::declassify(&l_bytes);
+    l_bytes
 }

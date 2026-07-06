@@ -31,7 +31,8 @@ impl CpaceGroup for P256Group {
 
     fn is_identity(&self) -> bool {
         use subtle::ConstantTimeEq;
-        bool::from(self.point.ct_eq(&ProjectivePoint::IDENTITY))
+        // ctgrind: the identity-rejection outcome is a public protocol abort.
+        pakery_core::ct::declassify_choice(self.point.ct_eq(&ProjectivePoint::IDENTITY))
     }
 
     fn to_bytes(&self) -> Vec<u8> {
@@ -74,6 +75,12 @@ impl CpaceGroup for P256Group {
         // protocols that pass deterministic 32-byte scalars via test RNGs. We
         // can't call `Scalar::random` directly because it is tied to rand_core
         // 0.6 and incompatible with our 0.9 RNG bound.
+        //
+        // ctgrind: candidate bytes are deliberately NOT marked secret here —
+        // rejection sampling branches on each candidate's validity (a public
+        // retry decision), which memcheck would flag inside p256's CtOption.
+        // Taint enters downstream at byte boundaries instead (the protocol
+        // crates mark K/w/Z/V byte encodings secret).
         loop {
             let mut bytes = Zeroizing::new([0u8; 32]);
             rng.fill_bytes(&mut *bytes);

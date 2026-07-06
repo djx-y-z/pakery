@@ -38,12 +38,16 @@ impl<C: CpaceCiphersuite> CpaceResponder<C> {
         }
 
         // Calculate generator
+        // ctgrind: the password is the protocol's secret input.
+        pakery_core::ct::mark_secret(password);
         let g = calculate_generator::<C>(password, ci, sid)?;
 
         // Sample yb, compute Yb = yb * g
         let mut yb_scalar = C::Group::random_scalar(rng);
         let yb_point = g.scalar_mul(&yb_scalar);
         let yb_bytes = yb_point.to_bytes();
+        // ctgrind: Yb is the wire key share — public by protocol design.
+        pakery_core::ct::declassify(&yb_bytes);
 
         // K = yb * Ya
         let k = ya.scalar_mul(&yb_scalar);
@@ -55,6 +59,10 @@ impl<C: CpaceCiphersuite> CpaceResponder<C> {
         }
 
         let k_bytes = Zeroizing::new(k.to_bytes());
+        // ctgrind: the raw DH result K is secret key material (P-256 group
+        // ops launder taint through the scalar parse, so re-mark at the byte
+        // boundary).
+        pakery_core::ct::mark_secret(&k_bytes);
 
         // Derive ISK
         let isk = derive_isk::<C>(

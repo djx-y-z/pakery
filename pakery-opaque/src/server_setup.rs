@@ -24,6 +24,8 @@ impl<C: OpaqueCiphersuite> ServerSetup<C> {
         // oprf_seed must be Nh bytes per the spec (not Nseed)
         let mut oprf_seed = vec![0u8; C::NH];
         rng.fill_bytes(&mut oprf_seed);
+        // ctgrind: the OPRF seed is the server's long-term secret.
+        pakery_core::ct::mark_secret(&oprf_seed);
 
         let (mut server_private_key, server_public_key) = C::Dh::generate_keypair(rng)?;
 

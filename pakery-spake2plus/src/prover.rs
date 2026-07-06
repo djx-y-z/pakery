@@ -139,6 +139,8 @@ impl<C: Spake2PlusCiphersuite> Prover<C> {
         let share_p = x_g.add(&w0_m);
 
         let share_p_bytes = share_p.to_bytes();
+        // ctgrind: shareP is the wire key share — public by protocol design.
+        pakery_core::ct::declassify(&share_p_bytes);
 
         let state = ProverState {
             x,
@@ -196,6 +198,12 @@ impl<C: Spake2PlusCiphersuite> ProverState<C> {
         let z_bytes = Zeroizing::new(z.to_bytes());
         let v_bytes = Zeroizing::new(v.to_bytes());
         let w0_bytes = Zeroizing::new(C::Group::scalar_to_bytes(&self.w0));
+        // ctgrind: Z, V, and w0 are secret transcript inputs (P-256 group
+        // ops launder taint through the scalar parse, so re-mark at the
+        // byte boundary).
+        pakery_core::ct::mark_secret(&z_bytes);
+        pakery_core::ct::mark_secret(&v_bytes);
+        pakery_core::ct::mark_secret(&w0_bytes);
 
         // Decode M and N to get canonical group element encoding for transcript.
         // This ensures M/N use the same encoding as other group elements (e.g.
@@ -224,13 +232,18 @@ impl<C: Spake2PlusCiphersuite> ProverState<C> {
         let mut ks = derive_key_schedule::<C>(&tt, &self.share_p_bytes, share_v_bytes)?;
 
         // Verify confirmV: MAC(K_confirmV, shareP)
-        if !bool::from(ks.confirm_v.ct_eq(confirm_v)) {
+        // ctgrind: the verification outcome is a public accept/reject
+        // decision; the comparison itself stays constant-time.
+        if !pakery_core::ct::declassify_choice(ks.confirm_v.ct_eq(confirm_v)) {
             return Err(Spake2PlusError::ConfirmationFailed);
         }
 
+        let confirm_p = core::mem::take(&mut ks.confirm_p);
+        // ctgrind: confirmP goes on the wire — public once sent.
+        pakery_core::ct::declassify(&confirm_p);
         Ok(ProverOutput {
             session_key: core::mem::replace(&mut ks.session_key, SharedSecret::new(Vec::new())),
-            confirm_p: core::mem::take(&mut ks.confirm_p),
+            confirm_p,
         })
     }
 }

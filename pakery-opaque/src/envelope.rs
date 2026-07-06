@@ -105,6 +105,9 @@ pub fn store<C: OpaqueCiphersuite>(
     mac_input.extend_from_slice(nonce);
     mac_input.extend_from_slice(&cleartext_creds);
     let auth_tag = C::Mac::mac(&auth_key, &mac_input)?;
+    // ctgrind: the envelope auth tag is transmitted (inside the registration
+    // record and the masked credential response) — public once sent.
+    pakery_core::ct::declassify(&auth_tag);
 
     let envelope = Envelope {
         nonce: nonce.to_vec(),

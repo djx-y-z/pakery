@@ -10,6 +10,7 @@
 extern crate alloc;
 
 pub mod crypto;
+pub mod ct;
 pub mod encoding;
 pub mod error;
 pub mod secret;
