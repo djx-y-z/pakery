@@ -17,6 +17,11 @@ on:
     - cron: "47 4 * * *"
   workflow_dispatch:
 
+# Least privilege: this workflow only checks out and runs Valgrind; it never
+# uses the token to write issues or upload artifacts.
+permissions:
+  contents: read
+
 env:
   CARGO_TERM_COLOR: always
   # Fail the ct_harness_is_armed test if the ct helpers compiled to no-ops

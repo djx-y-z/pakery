@@ -8,12 +8,17 @@ name: dudect
 
 on:
   schedule:
-    # Weekly, Monday 04:47 UTC (offset from fuzz-long's Monday 03:17).
-    - cron: "47 4 * * 1"
+    # Weekly, Monday 04:52 UTC. Staggered clear of the other scheduled jobs:
+    # fuzz-long (Mon 03:17), mutants (Mon 05:37), and ct.yml's *daily* 04:47.
+    - cron: "52 4 * * 1"
   workflow_dispatch:
 
+# `issues: write` lets the failure step open/update a leak-report issue; the
+# job stays non-blocking (continue-on-error below), matching item 7's advisory
+# design, but a real |t| > 5 detection is now surfaced instead of buried.
 permissions:
   contents: read
+  issues: write
 
 env:
   CARGO_TERM_COLOR: always
@@ -36,3 +41,42 @@ jobs:
           grep 'max t =' dudect-output.txt
           grep -o 'max t = [+-][0-9.]*' dudect-output.txt \
             | awk '{ t = $4 + 0; if (t < 0) t = -t; if (t > 5) bad = 1 } END { exit bad }'
+      # The job is continue-on-error (workflow run stays green), so this fires
+      # on a |t| > 5 detection without gating anything — mirroring the
+      # issue-open path fuzz-long and mutants already use, so an advisory leak
+      # signal is not buried in a step annotation.
+      - name: Open or update GitHub issue
+        if: failure()
+        working-directory: dudect
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          title="Scheduled dudect timing leak"
+          run_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          leaks=$(grep 'max t =' dudect-output.txt || true)
+          number=$(gh issue list --state open --search "\"$title\" in:title" \
+            --json number --jq '.[0].number // empty')
+          if [ -n "$number" ]; then
+            gh issue comment "$number" --body "Detected again in a later scheduled run: $run_url"$'\n\n'"$leaks"
+          else
+            body=$(cat <<EOF
+          The weekly dudect advisory run measured \`|t| > 5\` for at least one
+          bench, which is strong (but statistical — shared runners are noisy)
+          evidence of a data-dependent timing difference.
+
+          - Run: $run_url
+
+          Per-bench t-values:
+
+          \`\`\`
+          $leaks
+          \`\`\`
+
+          Triage: re-run \`workflow_dispatch\` to check the signal reproduces
+          (a single shared-runner spike is likely noise); if it persists,
+          investigate the flagged path. Deterministic CT coverage lives in
+          ct.yml. See dudect/README.md.
+          EOF
+            )
+            gh issue create --title "$title" --body "$body"
+          fi
