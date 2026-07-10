@@ -175,8 +175,18 @@ jobs:
           for t in opaque_deserialize group_decode cpace_flow spake2_flow spake2plus_flow opaque_flow; do
             mkdir -p "fuzz/corpus/$t"
             cargo fuzz coverage --target "$triple" "$t" "fuzz/corpus/$t" "fuzz/seeds/$t" -s none
+            # Locate the instrumented binary instead of hardcoding the path:
+            # cargo-fuzz nests it as target/<its-own-default-triple>/coverage/
+            # <--target-triple>/release/<t> — the OUTER segment is the triple
+            # of the (prebuilt, musl-static) cargo-fuzz binary, not --target,
+            # so a fixed "target/$triple/coverage/$triple/..." misses it.
+            bin=$(find target -type f -path "*/coverage/*/release/$t" -name "$t" 2>/dev/null | head -1)
+            if [ -z "$bin" ]; then
+              echo "::warning::coverage binary for $t not found under target/*/coverage" >&2
+              continue
+            fi
             "$llvm_cov" report \
-              "target/$triple/coverage/$triple/release/$t" \
+              "$bin" \
               -instr-profile="fuzz/coverage/$t/coverage.profdata" \
               -ignore-filename-regex='(\.cargo/registry|\.rustup|/rustc/)' \
               > "coverage-reports/$t.txt"
