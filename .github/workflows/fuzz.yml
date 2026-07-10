@@ -40,9 +40,14 @@ jobs:
           restore-keys: |
             fuzz-corpus-${{ matrix.target }}-
       - name: Fuzz 60s
+        # Pin the target explicitly: cargo-fuzz installed as a prebuilt
+        # (musl-static) binary defaults --target to its own build triple
+        # (x86_64-unknown-linux-musl), whose std is not on the gnu runner
+        # (E0463: can't find crate for `core`). gnu is the runner's host and
+        # the triple the coverage job assumes.
         run: |
           mkdir -p fuzz/corpus/${{ matrix.target }}
-          cargo fuzz run ${{ matrix.target }} \
+          cargo fuzz run --target x86_64-unknown-linux-gnu ${{ matrix.target }} \
             fuzz/corpus/${{ matrix.target }} fuzz/seeds/${{ matrix.target }} \
             -s none -- -max_total_time=60
       - name: Upload crash artifacts

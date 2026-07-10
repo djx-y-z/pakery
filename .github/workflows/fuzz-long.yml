@@ -51,10 +51,14 @@ jobs:
       # (cargo-fuzz 0.13 has no --stop-after-first-failure flag; this is the
       # libFuzzer equivalent). -s none: the workspace is forbid(unsafe_code),
       # sanitizers were rejected in SECURITY_TESTING_ROADMAP.md.
+      # --target pinned to gnu (the runner host): a prebuilt musl-static
+      # cargo-fuzz otherwise defaults --target to its own build triple, whose
+      # std is absent on the runner (E0463). Must match the coverage job's
+      # triple below.
       - name: Fuzz (fork mode, stop on first failure)
         run: |
           mkdir -p fuzz/corpus/${{ matrix.target }}
-          cargo fuzz run ${{ matrix.target }} \
+          cargo fuzz run --target x86_64-unknown-linux-gnu ${{ matrix.target }} \
             fuzz/corpus/${{ matrix.target }} fuzz/seeds/${{ matrix.target }} \
             -s none -- \
             -fork="$(nproc)" \
@@ -64,7 +68,7 @@ jobs:
       # the actions/cache post step skips saving on job failure, so a
       # crashing run never pollutes the shared corpus.
       - name: Minimize corpus
-        run: cargo fuzz cmin ${{ matrix.target }} -s none
+        run: cargo fuzz cmin --target x86_64-unknown-linux-gnu ${{ matrix.target }} -s none
       - name: Upload crash artifacts
         if: failure()
         uses: actions/upload-artifact@v4
@@ -170,7 +174,7 @@ jobs:
           mkdir -p coverage-reports
           for t in opaque_deserialize group_decode cpace_flow spake2_flow spake2plus_flow opaque_flow; do
             mkdir -p "fuzz/corpus/$t"
-            cargo fuzz coverage "$t" "fuzz/corpus/$t" "fuzz/seeds/$t" -s none
+            cargo fuzz coverage --target "$triple" "$t" "fuzz/corpus/$t" "fuzz/seeds/$t" -s none
             "$llvm_cov" report \
               "target/$triple/coverage/$triple/release/$t" \
               -instr-profile="fuzz/coverage/$t/coverage.profdata" \
