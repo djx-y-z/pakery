@@ -71,7 +71,7 @@ jobs:
         run: cargo fuzz cmin --target x86_64-unknown-linux-gnu ${{ matrix.target }} -s none
       - name: Upload crash artifacts
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: fuzz-artifacts-${{ matrix.target }}
           path: fuzz/artifacts/${{ matrix.target }}
@@ -193,7 +193,7 @@ jobs:
             tail -n 2 "coverage-reports/$t.txt"
           done
       - name: Upload coverage reports
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: fuzz-coverage-reports
           path: coverage-reports/
