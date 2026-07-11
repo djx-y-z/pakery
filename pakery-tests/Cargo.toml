@@ -52,4 +52,4 @@ sha2 = { workspace = true, optional = true }
 # dev-dependencies and proptest's manifest is edition 2021, so 1.79 parses it.
 # Verified locally with `cargo +1.79 check --workspace`.
 proptest = "1"
-rand_chacha = "0.9"
+rand_chacha = "0.10"
