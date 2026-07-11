@@ -41,7 +41,7 @@ jobs:
         with:
           tool: cargo-fuzz
       - name: Restore corpus
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: fuzz/corpus/${{ matrix.target }}
           key: fuzz-corpus-${{ matrix.target }}-${{ github.run_id }}
@@ -126,42 +126,42 @@ jobs:
         with:
           tool: cargo-fuzz
       - name: Restore corpus (opaque_deserialize)
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: fuzz/corpus/opaque_deserialize
           key: fuzz-corpus-opaque_deserialize-${{ github.run_id }}
           restore-keys: |
             fuzz-corpus-opaque_deserialize-
       - name: Restore corpus (group_decode)
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: fuzz/corpus/group_decode
           key: fuzz-corpus-group_decode-${{ github.run_id }}
           restore-keys: |
             fuzz-corpus-group_decode-
       - name: Restore corpus (cpace_flow)
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: fuzz/corpus/cpace_flow
           key: fuzz-corpus-cpace_flow-${{ github.run_id }}
           restore-keys: |
             fuzz-corpus-cpace_flow-
       - name: Restore corpus (spake2_flow)
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: fuzz/corpus/spake2_flow
           key: fuzz-corpus-spake2_flow-${{ github.run_id }}
           restore-keys: |
             fuzz-corpus-spake2_flow-
       - name: Restore corpus (spake2plus_flow)
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: fuzz/corpus/spake2plus_flow
           key: fuzz-corpus-spake2plus_flow-${{ github.run_id }}
           restore-keys: |
             fuzz-corpus-spake2plus_flow-
       - name: Restore corpus (opaque_flow)
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: fuzz/corpus/opaque_flow
           key: fuzz-corpus-opaque_flow-${{ github.run_id }}
