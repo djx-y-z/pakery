@@ -44,8 +44,12 @@ jobs:
         run: |
           git diff "$(git merge-base "origin/${{ github.base_ref }}" HEAD)" HEAD > pr.diff
           wc -l pr.diff
+      # `-j 1` for the same memory reason as the full shard job below: peak
+      # footprint is set by the number of concurrent build+test scenarios, not
+      # by the mutant count, so even this small `--in-diff` set carries the same
+      # `-j 2` OOM risk. Serial keeps it at the proven baseline footprint.
       - name: Run mutants on changed code
-        run: cargo mutants --in-diff pr.diff -j 2
+        run: cargo mutants --in-diff pr.diff -j 1
       - name: Upload results
         if: always()
         uses: actions/upload-artifact@v7
@@ -69,8 +73,22 @@ jobs:
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-mutants
+      # `-j 1` (serial scenarios), not `-j 2`. With `-j 2` shard 0 was reclaimed
+      # by the host ~4-5 min into the mutant phase (exit 143 / "runner has
+      # received a shutdown signal", with both a Build and a Test scenario in
+      # flight) on two dispatched runs — resource pressure (memory and/or disk;
+      # the logs carry no explicit OOM/disk-full line) tipping the GitHub-hosted
+      # VM over, not a survivor and not a single pathological mutant (mutants are
+      # shuffled by default, so the two runs died at different offsets). Two
+      # concurrent full-workspace build+test cycles — two target dirs, two
+      # rustc/link steps, plus 64 MiB-per-hash Argon2id tests across every core —
+      # peak too high together. `-j 1` collapses the footprint to one build + one
+      # test at a time, i.e. the *baseline* profile (which completes on every
+      # run), shrinking both the memory and the disk envelope. Worst observed
+      # shard was 51 min at `-j 2`; ~2x serial still leaves wide margin under the
+      # 300-min job timeout, so no need to raise the shard count.
       - name: Run mutants shard
-        run: cargo mutants --shard ${{ matrix.shard }}/8 -j 2
+        run: cargo mutants --shard ${{ matrix.shard }}/8 -j 1
       - name: Upload results
         if: always()
         uses: actions/upload-artifact@v7
