@@ -4,7 +4,7 @@ use alloc::vec::Vec;
 use p256::elliptic_curve::ff::PrimeField;
 use p256::elliptic_curve::hash2curve::{ExpandMsgXmd, GroupDigest};
 use p256::elliptic_curve::ops::Reduce;
-use p256::elliptic_curve::sec1::{FromEncodedPoint, ToEncodedPoint};
+use p256::elliptic_curve::sec1::{FromEncodedPoint, Tag, ToEncodedPoint};
 use p256::{AffinePoint, EncodedPoint, NistP256, ProjectivePoint, Scalar};
 use pakery_core::crypto::group::CpaceGroup;
 use pakery_core::PakeError;
@@ -45,8 +45,15 @@ impl CpaceGroup for P256Group {
     }
 
     fn from_bytes(bytes: &[u8]) -> Result<Self, PakeError> {
-        // Accept both compressed (33 bytes) and uncompressed (65 bytes) SEC1
+        // Accept compressed (33 bytes) and uncompressed (65 bytes) SEC1 only.
+        // Identity (0x00) and compact (0x05) SEC1 tags are rejected: compact
+        // in particular is a second, malleable encoding of a compressed point
+        // (same x, tag 0x05) that `AffinePoint::from_encoded_point` would
+        // otherwise happily decompact.
         let encoded = EncodedPoint::from_bytes(bytes).map_err(|_| PakeError::InvalidPoint)?;
+        if !encoded.is_compressed() && encoded.tag() != Tag::Uncompressed {
+            return Err(PakeError::InvalidPoint);
+        }
         let affine = AffinePoint::from_encoded_point(&encoded);
         if affine.is_none().into() {
             return Err(PakeError::InvalidPoint);
@@ -152,6 +159,34 @@ fn r_constant() -> Scalar {
 mod tests {
     use super::*;
     use pakery_core::crypto::CpaceGroup;
+
+    /// `from_bytes` accepts compressed and uncompressed SEC1 but must reject
+    /// the identity (`0x00`) and compact (`0x05`) tags — compact is a second,
+    /// malleable encoding of a compressed point (cf. issue #13, where the
+    /// sibling OPAQUE parser accepted a decompactable tag flip).
+    #[test]
+    fn from_bytes_rejects_identity_and_compact_sec1() {
+        let uncompressed = P256Group {
+            point: ProjectivePoint::GENERATOR,
+        }
+        .to_bytes();
+        assert_eq!(uncompressed.len(), 65);
+        assert!(P256Group::from_bytes(&uncompressed).is_ok());
+
+        let compressed = ProjectivePoint::GENERATOR
+            .to_affine()
+            .to_encoded_point(true)
+            .as_bytes()
+            .to_vec();
+        assert_eq!(compressed.len(), 33);
+        assert!(P256Group::from_bytes(&compressed).is_ok());
+
+        let mut compact = compressed;
+        compact[0] = 0x05;
+        assert!(P256Group::from_bytes(&compact).is_err());
+
+        assert!(P256Group::from_bytes(&[0x00]).is_err());
+    }
 
     /// `scalar_to_bytes` must produce the canonical 32-byte big-endian SEC1
     /// encoding (roadmap item 8: CPace itself never serializes scalars, so

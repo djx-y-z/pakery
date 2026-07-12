@@ -204,6 +204,11 @@
         "reason": "invalid SEC1 tag byte 0x05"
       },
       {
+        "name": "compact_tag_valid_x",
+        "hex": "056b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c296",
+        "reason": "33-byte SEC1 compact encoding (tag 0x05) of the generator x: decompactable second encoding of a compressed point, must be rejected as malleable (fuzz finding, issue #13)"
+      },
+      {
         "name": "zero_point_uncompressed",
         "hex": "0400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
         "reason": "(0,0) is not on the curve (b != 0)"

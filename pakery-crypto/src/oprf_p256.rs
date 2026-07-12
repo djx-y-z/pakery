@@ -43,9 +43,17 @@ pub(crate) fn point_to_bytes(point: &ProjectivePoint) -> Vec<u8> {
 }
 
 /// Deserialize a compressed SEC1 point.
+///
+/// Only the compressed form (tag `0x02`/`0x03`, 33 bytes) is accepted —
+/// identity (`0x00`), uncompressed (`0x04`), and compact (`0x05`) SEC1
+/// encodings are rejected so every group element has exactly one valid
+/// byte representation (encoding non-malleability).
 pub(crate) fn point_from_bytes(bytes: &[u8]) -> Result<ProjectivePoint, PakeError> {
     let encoded = EncodedPoint::from_bytes(bytes)
         .map_err(|_| PakeError::InvalidInput("invalid point encoding"))?;
+    if !encoded.is_compressed() {
+        return Err(PakeError::InvalidInput("invalid point encoding"));
+    }
     let affine = AffinePoint::from_encoded_point(&encoded);
     if affine.is_none().into() {
         return Err(PakeError::InvalidInput("invalid P-256 point"));
@@ -241,6 +249,36 @@ mod tests {
     const SEED: &str = "a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3";
     const KEY_INFO: &str = "74657374206b6579";
     const SK_SM: &str = "159749d750713afe245d2d39ccfaae8381c53ce92d098a9375ee70739c7ac0bf";
+
+    /// `point_from_bytes` must accept only the canonical compressed SEC1
+    /// form. The SEC1 compact tag (`0x05`) is a second encoding of the same
+    /// x-coordinate that p256 would silently decompact, making point
+    /// encodings malleable (found by the `opaque_flow` fuzzer, issue #13:
+    /// flipping a stored `RegistrationRecord` public-key tag 0x02 -> 0x05
+    /// decoded to the same point and login still completed).
+    #[test]
+    fn point_from_bytes_rejects_non_compressed_sec1() {
+        let compressed = point_to_bytes(&ProjectivePoint::GENERATOR);
+        assert_eq!(compressed.len(), 33);
+        assert!(point_from_bytes(&compressed).is_ok());
+
+        // Compact tag 0x05 (same length, same x) must be rejected.
+        let mut compact = compressed.clone();
+        compact[0] = 0x05;
+        assert!(point_from_bytes(&compact).is_err());
+
+        // Uncompressed tag 0x04 (65 bytes) must be rejected.
+        let uncompressed = ProjectivePoint::GENERATOR
+            .to_affine()
+            .to_encoded_point(false)
+            .as_bytes()
+            .to_vec();
+        assert_eq!(uncompressed.len(), 65);
+        assert!(point_from_bytes(&uncompressed).is_err());
+
+        // SEC1 identity encoding (single 0x00 byte) must be rejected.
+        assert!(point_from_bytes(&[0x00]).is_err());
+    }
 
     #[test]
     fn derive_key_pair() {

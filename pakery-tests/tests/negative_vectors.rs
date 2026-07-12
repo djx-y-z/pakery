@@ -25,7 +25,8 @@
 //! - SPAKE2+ `Verifier::start` (bad prover share) and `Prover::finish`
 //!   (bad verifier share);
 //! - OPAQUE registration and login step functions (bad blinded/evaluated
-//!   elements and bad key shares inside otherwise-valid messages).
+//!   elements and bad key shares inside otherwise-valid messages, plus a
+//!   bad client public key inside a stored registration record).
 //!
 //! Identity ("neutral element") encodings are *valid* encodings, so
 //! `from_bytes` may accept them — but every protocol entry point must
@@ -325,6 +326,32 @@ fn sweep_opaque<C: pakery_opaque::OpaqueCiphersuite>(v: &GroupVectors) {
                 .finish(&ke2, context, server_id, client_id)
                 .is_err(),
             "OPAQUE client must reject KE2 server key share {}: {}",
+            e.name,
+            e.reason
+        );
+
+        // Stored record with a bad client public key. The record is server
+        // state rather than a wire message, but its public key feeds the
+        // server's 3DH, so a non-canonical encoding must still be rejected
+        // (the opaque_flow fuzzer hit this via the SEC1 compact tag: a
+        // decompactable 0x05-tag copy of the stored key let a tampered
+        // record complete a login with agreeing keys — issue #13).
+        let (ke1, _) = ClientLogin::<C>::start(password, &mut rng).unwrap();
+        let mut bad_record = record.clone();
+        bad_record.client_public_key = bad.clone();
+        assert!(
+            ServerLogin::<C>::start(
+                &setup,
+                &bad_record,
+                &ke1,
+                cred_id,
+                context,
+                server_id,
+                client_id,
+                &mut rng,
+            )
+            .is_err(),
+            "OPAQUE server must reject record client public key {}: {}",
             e.name,
             e.reason
         );
