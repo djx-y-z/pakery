@@ -70,6 +70,22 @@ exclude_re = [
     # slices `a||b` and `b||a` are byte-identical (first-run survivor,
     # 2026-07-06).
     "encoding\\.rs.*replace > with >= in o_cat",
+    # pakery-core/src/encoding.rs `leb128_encode`: `if value == 0 { break }`
+    # -> `if value != 0 { break }`. NOT an equivalent mutant — it is a genuine
+    # behavioural change, but an un-recordable one: `value` reaches 0 after the
+    # `value >>= 7` shifts, so the flipped break condition never fires and the
+    # `loop { result.push(byte) }` appends forever, growing the output `Vec`
+    # without bound. Every leb128 test drives it (confirmed: `test_leb128_zero`
+    # hit ~2 GB RSS in ~12 s, ~160 MB/s and climbing). On a GitHub-hosted runner
+    # it exhausts memory in ~40-100 s and the VM is reclaimed (SIGTERM 143,
+    # "runner has received a shutdown signal") *before* cargo-mutants' ~360 s
+    # wall-clock timeout can fire — so the kill is real but unrecordable without
+    # a per-process memory sandbox, which the CI runner does not provide. This
+    # was the true cause of the shard-0 failures (see SECURITY_FOLLOWUPS.md
+    # follow-up 2), not `-j 2` concurrency. The sibling `>>= with <<=` mutant on
+    # the same loop stays IN scope: left-shifting drains `value` to 0 within
+    # ~10 iterations, so it terminates with wrong output and is caught normally.
+    "encoding\\.rs.*replace == with != in leb128_encode",
     # pakery-spake2plus manual `Drop` impls delegate to `self.zeroize()`,
     # which is itself covered by live-value zeroize tests (roadmap item 7).
     # Deleting the drop body is untestable from safe Rust: observing memory
