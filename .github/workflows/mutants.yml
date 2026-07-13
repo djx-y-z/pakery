@@ -44,8 +44,20 @@ jobs:
         run: |
           git diff "$(git merge-base "origin/${{ github.base_ref }}" HEAD)" HEAD > pr.diff
           wc -l pr.diff
+      # Same exit-code handling as the full-shard step below: cargo-mutants
+      # exit 3 means "timeouts only", and a timed-out mutant is a KILL, not a
+      # survivor — so a red job on exit 3 would be a false alarm even though
+      # this job is advisory (`continue-on-error`). Survivors (exit 2) and
+      # build/infra errors still propagate and turn the job red.
       - name: Run mutants on changed code
-        run: cargo mutants --in-diff pr.diff -j 2
+        run: |
+          code=0
+          cargo mutants --in-diff pr.diff -j 2 || code=$?
+          if [ "$code" -eq 3 ]; then
+            echo "::notice::cargo-mutants exit 3 (timeouts only) — timed-out mutants are kills. Treating as success."
+            exit 0
+          fi
+          exit "$code"
       - name: Upload results
         if: always()
         uses: actions/upload-artifact@v7
