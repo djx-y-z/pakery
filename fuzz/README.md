@@ -38,7 +38,7 @@ cargo +nightly fuzz run opaque_deserialize \
 ```
 
 `-s none` disables ASan: the whole workspace is `#![forbid(unsafe_code)]`
-(sanitizers were evaluated and rejected in SECURITY_TESTING_ROADMAP.md), and
+(sanitizers were evaluated and rejected in SECURITY_TESTING.md), and
 running without it roughly doubles throughput. The oracles are panics,
 overflow checks, debug assertions, and the per-target invariants above.
 

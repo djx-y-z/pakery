@@ -1,4 +1,4 @@
-# cargo-mutants configuration (SECURITY_TESTING_ROADMAP.md item 8).
+# cargo-mutants configuration (see SECURITY_TESTING.md, "Mutation testing").
 #
 # Integration tests live in `pakery-tests`, so mutants in the protocol /
 # crypto crates are only killable if that crate's tests run for every mutant.

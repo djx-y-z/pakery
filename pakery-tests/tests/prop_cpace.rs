@@ -5,7 +5,7 @@
 //! proptest-generated `u64`, so every case is reproducible from the
 //! proptest seed.
 //!
-//! Properties (SECURITY_TESTING_ROADMAP.md, item 1):
+//! Properties (see SECURITY_TESTING.md, "Property-based tests"):
 //! 1. Agreement: identical password/CI/sid/AD on both sides, in both modes,
 //!    yields an identical ISK and session id.
 //! 2. Mismatch: any single differing transcript input (password, CI, sid,

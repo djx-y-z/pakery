@@ -1,5 +1,5 @@
-# Constant-time verification (ctgrind pattern, SECURITY_TESTING_ROADMAP.md
-# item 6): runs the pakery-tests `ct_flows` harness under Valgrind memcheck.
+# Constant-time verification (ctgrind pattern, see SECURITY_TESTING.md
+# "Constant-time verification"): runs the pakery-tests `ct_flows` harness under Valgrind memcheck.
 # Secret material is marked undefined via crabgrind client requests (the
 # private `__ctgrind` feature), so any secret-dependent branch or memory
 # index in the compiled artifact — including what LLVM makes of `subtle` in

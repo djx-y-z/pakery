@@ -6,7 +6,7 @@
 //! randomness is driven through a `ChaCha20Rng` seeded from a
 //! proptest-generated `u64`.
 //!
-//! Properties (SECURITY_TESTING_ROADMAP.md, item 1):
+//! Properties (see SECURITY_TESTING.md, "Property-based tests"):
 //! 1. Agreement: identical password/identities/aad on both sides yields an
 //!    identical session key and mutually valid confirmation MACs.
 //! 2. Mismatch: a single differing input (password, idA, idB, aad) makes

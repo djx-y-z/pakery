@@ -37,7 +37,7 @@ serde_json = "1"
 rand_core = { workspace = true, features = ["os_rng"] }
 curve25519-dalek = { workspace = true }
 p256 = { workspace = true, optional = true }
-# Differential-testing deps (Item 5 of SECURITY_TESTING_ROADMAP.md). Cargo does
+# Differential-testing deps (see SECURITY_TESTING.md, "Differential testing"). Cargo does
 # not support optional dev-dependencies, so these live in [dependencies] behind
 # the `differential` feature (this crate is publish = false and test-only, so
 # the distinction is immaterial). opaque-ke 4 is on the rand 0.8 wave; the RNG

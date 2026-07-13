@@ -1,5 +1,5 @@
 //! Negative-vector sweep for OPAQUE, SPAKE2 and SPAKE2+
-//! (SECURITY_TESTING_ROADMAP.md item 2).
+//! (see SECURITY_TESTING.md, "Negative test vectors").
 //!
 //! RFC 9807 (OPAQUE), RFC 9382 (SPAKE2) and RFC 9383 (SPAKE2+) ship no
 //! negative test vectors, so `vectors/negative_vectors.json` carries

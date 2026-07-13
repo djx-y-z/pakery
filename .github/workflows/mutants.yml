@@ -1,6 +1,6 @@
 name: Mutants
 
-# Mutation testing (SECURITY_TESTING_ROADMAP.md item 8). Two modes:
+# Mutation testing (see SECURITY_TESTING.md, "Mutation testing"). Two modes:
 # - weekly scheduled full run over the whole workspace, sharded so each
 #   shard fits comfortably in a runner (survivors open/update a GitHub
 #   issue — advisory, never a PR gate);
@@ -170,7 +170,7 @@ jobs:
           Each survivor is either a missing test (add one) or provably
           equivalent code (document it in \`.cargo/mutants.toml\`
           \`exclude_re\` with a justification). See
-          SECURITY_TESTING_ROADMAP.md item 8.
+          SECURITY_TESTING.md, "Mutation testing".
           EOF
           )
           number=$(gh issue list --state open --search "\"$title\" in:title" \

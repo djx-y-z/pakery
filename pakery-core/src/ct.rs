@@ -31,7 +31,7 @@
 //!   memcheck would flag inside the dependency. Canonicity of an honestly
 //!   generated key is public information, and constant-time verification of
 //!   dependency-internal primitives is out of scope here (tracked upstream;
-//!   see SECURITY_TESTING_ROADMAP.md item 6). Where a parse is laundered
+//!   see SECURITY_TESTING.md, "Constant-time verification"). Where a parse is laundered
 //!   this way, the *result* of the following group operation is re-marked
 //!   secret so taint stays end-to-end.
 

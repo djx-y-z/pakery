@@ -1,6 +1,6 @@
 //! Differential testing of pakery-opaque against opaque-ke v4 (RFC 9807).
 //!
-//! Item 5 of SECURITY_TESTING_ROADMAP.md: opaque-ke v4 implements RFC 9807
+//! Differential testing (see SECURITY_TESTING.md): opaque-ke v4 implements RFC 9807
 //! final and is the one same-spec peer implementation available for a
 //! cross-implementation oracle. Both implementations are driven on identical
 //! deterministic inputs and every protocol artifact is compared byte-for-byte:

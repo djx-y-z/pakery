@@ -7,7 +7,7 @@
 //! All randomness is driven through a `ChaCha20Rng` seeded from a
 //! proptest-generated `u64`.
 //!
-//! Properties (SECURITY_TESTING_ROADMAP.md, item 1):
+//! Properties (see SECURITY_TESTING.md, "Property-based tests"):
 //! 1. Agreement: registration followed by an honest login yields identical
 //!    session keys on prover and verifier.
 //! 2. Mismatch: a wrong prover password, or a differing context/idProver/

@@ -50,7 +50,7 @@ jobs:
       # -ignore_crashes=0 makes the fork server exit on the first failure
       # (cargo-fuzz 0.13 has no --stop-after-first-failure flag; this is the
       # libFuzzer equivalent). -s none: the workspace is forbid(unsafe_code),
-      # sanitizers were rejected in SECURITY_TESTING_ROADMAP.md.
+      # sanitizers were rejected in SECURITY_TESTING.md.
       # --target pinned to gnu (the runner host): a prebuilt musl-static
       # cargo-fuzz otherwise defaults --target to its own build triple, whose
       # std is absent on the runner (E0463). Must match the coverage job's

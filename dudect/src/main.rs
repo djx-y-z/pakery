@@ -1,4 +1,4 @@
-//! dudect advisory timing harness (SECURITY_TESTING_ROADMAP.md, item 7).
+//! dudect advisory timing harness (see SECURITY_TESTING.md, "Hygiene").
 //!
 //! Statistical constant-time testing of the secret-comparison paths, per the
 //! DudeCT methodology (fixed-vs-random input classes, Welch's t-test):

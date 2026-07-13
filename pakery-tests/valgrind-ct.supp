@@ -1,6 +1,6 @@
 # Valgrind suppressions for the constant-time harness (ct_flows, ct.yml).
 #
-# Policy (SECURITY_TESTING_ROADMAP.md item 6): a suppression is allowed only
+# Policy (see SECURITY_TESTING.md, "Constant-time verification"): a suppression is allowed only
 # for a KNOWN, ACCEPTED pattern inside a dependency that we cannot fix at our
 # boundary, and every entry must carry a justification. Anything not listed
 # here fails the run. Both families below are P-256-only; the

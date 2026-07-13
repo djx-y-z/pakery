@@ -5,7 +5,7 @@
 //! randomness is driven through a `ChaCha20Rng` seeded from a
 //! proptest-generated `u64`.
 //!
-//! Properties (SECURITY_TESTING_ROADMAP.md, item 1):
+//! Properties (see SECURITY_TESTING.md, "Property-based tests"):
 //! 1. Agreement: registration + login with the same password derives equal
 //!    session keys on both sides and the same export key at registration
 //!    and login.
