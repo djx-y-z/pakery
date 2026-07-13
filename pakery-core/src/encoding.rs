@@ -21,6 +21,17 @@ pub fn leb128_encode(mut value: usize) -> Vec<u8> {
     result
 }
 
+/// Return the number of bytes `leb128_encode` produces for `value`.
+pub fn leb128_len(mut value: usize) -> usize {
+    let mut len = 1;
+    value >>= 7;
+    while value != 0 {
+        len += 1;
+        value >>= 7;
+    }
+    len
+}
+
 /// Prepend the LEB128-encoded length of `data` to `data`.
 ///
 /// Returns `len(data) || data` where `len()` uses unsigned LEB128.
