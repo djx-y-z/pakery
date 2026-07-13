@@ -69,18 +69,33 @@ jobs:
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-mutants
-      # `-j 2` is fine here. The earlier shard-0 host reclaims (exit 143) were
-      # NOT a `-j 2` concurrency/memory problem — an interim `-j 1` build shipped
-      # to test that theory and shard 0 still died, at `-j 1`, at the same point.
-      # The real cause was a single OOM mutant: `encoding.rs` `leb128_encode`
-      # with its `if value == 0 { break }` flipped to `!= ` loops forever pushing
-      # bytes, exhausting the runner's memory in ~40-100 s (before cargo-mutants'
-      # timeout can fire). It is now excluded in .cargo/mutants.toml with a
-      # justification, so no shard OOMs at `-j 2`. See SECURITY_FOLLOWUPS.md
-      # follow-up 2 for the full arc. Shards 1-7 already run green at `-j 2`
-      # (20-51 min), well under the 300-min timeout.
+      # `-j 2` is fine: the earlier shard-0 host reclaims (exit 143) were a single
+      # OOM mutant (`encoding.rs` leb128_encode), now excluded in
+      # .cargo/mutants.toml — not a `-j 2` concurrency problem. See
+      # SECURITY_FOLLOWUPS.md follow-up 2 for the full arc.
+      #
+      # Exit-code handling: cargo-mutants exits 3 when a mutant TIMES OUT. A
+      # timeout is a KILL, not a survivor — the rejection-sampling loops (e.g.
+      # `delete ! in client_blind`, oprf_p256.rs:173 / oprf_ristretto.rs:120)
+      # spin forever when their accept condition is inverted, and
+      # `minimum_test_timeout` in .cargo/mutants.toml exists precisely to catch
+      # them. Survivors (exit 2) are gated independently by the `summarize` job,
+      # which reads each shard's `missed.txt` (uploaded `if: always()` below), so
+      # a real survivor can never slip through whichever code cargo-mutants
+      # returns. So swallow ONLY exit 3; propagate 0 (clean), 2 (survivors), and
+      # any build/infra error. NB GitHub runs `run:` under `bash -eo pipefail`,
+      # so capture with `|| code=$?` — a bare invocation would abort on exit 3
+      # before this logic runs. Robust to reshuffle: this shared step handles a
+      # timeout mutant landing in any shard.
       - name: Run mutants shard
-        run: cargo mutants --shard ${{ matrix.shard }}/8 -j 2
+        run: |
+          code=0
+          cargo mutants --shard ${{ matrix.shard }}/8 -j 2 || code=$?
+          if [ "$code" -eq 3 ]; then
+            echo "::notice::cargo-mutants exit 3 (timeouts only) — timed-out mutants are kills; survivors are gated by the summarize job. Treating as success."
+            exit 0
+          fi
+          exit "$code"
       - name: Upload results
         if: always()
         uses: actions/upload-artifact@v7
