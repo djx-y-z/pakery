@@ -34,7 +34,8 @@ pub fn prepend_len(data: &[u8]) -> Vec<u8> {
 pub fn lv_cat(args: &[&[u8]]) -> Vec<u8> {
     let mut result = Vec::new();
     for arg in args {
-        result.extend_from_slice(&prepend_len(arg));
+        let encoded = prepend_len(arg);
+        result.extend_from_slice(&encoded);
     }
     result
 }
