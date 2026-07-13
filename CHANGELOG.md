@@ -1,3 +1,14 @@
+## [0.2.1] - 2026-07-13
+
+### Security
+
+- **`pakery-crypto` (P-256): reject malleable SEC1 point encodings.** P-256 point deserialization previously accepted the SEC1 *compact* tag (`0x05`): `sec1`/`primeorder` would decompact a 33-byte `0x05 || x` string to the same group element as its compressed (`0x02`/`0x03`) form, so two distinct byte strings mapped to one point — a non-canonical, malleable encoding. `oprf_p256` point parsing is now compressed-SEC1-only (tags `0x02`/`0x03`), rejecting identity, uncompressed, and compact encodings. `P256Group::from_bytes` (CPace / SPAKE2) still accepts compressed and uncompressed forms but now rejects the identity (`0x00`) and compact (`0x05`) tags. Ristretto255 was never affected (its encoding is already canonical). No effect on honest clients, which emit compressed keys.
+- **`pakery-crypto` (OPRF, both suites): reject an identity evaluation element in `finalize`.** The OPRF client `finalize` now returns an error instead of proceeding when the server-supplied evaluated element is the group identity — closing a defense-in-depth gap in both the Ristretto255 and P-256 OPRF used by OPAQUE.
+
+### Added
+
+- `pakery-spake2plus`: `KeySchedule` and `VerifierState` now implement `zeroize::Zeroize` publicly. Behaviour is unchanged — their `Drop` impls delegate to `zeroize()` as before — but the trait is now callable directly on a live value.
+
 ## [0.2.0] - 2026-05-03
 
 ### Changed

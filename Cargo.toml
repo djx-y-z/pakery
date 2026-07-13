@@ -8,7 +8,7 @@ members = ["pakery-core", "pakery-cpace", "pakery-crypto", "pakery-opaque", "pak
 exclude = ["fuzz", "dudect"]
 
 [workspace.package]
-version = "0.2.0"
+version = "0.2.1"
 edition = "2021"
 rust-version = "1.79"
 license = "MIT OR Apache-2.0"
@@ -16,12 +16,12 @@ repository = "https://github.com/djx-y-z/pakery"
 authors = ["pakery contributors"]
 
 [workspace.dependencies]
-pakery-core = { version = "0.2.0", path = "pakery-core", default-features = false }
-pakery-cpace = { version = "0.2.0", path = "pakery-cpace" }
-pakery-opaque = { version = "0.2.0", path = "pakery-opaque" }
-pakery-spake2 = { version = "0.2.0", path = "pakery-spake2" }
-pakery-spake2plus = { version = "0.2.0", path = "pakery-spake2plus" }
-pakery-crypto = { version = "0.2.0", path = "pakery-crypto" }
+pakery-core = { version = "0.2.1", path = "pakery-core", default-features = false }
+pakery-cpace = { version = "0.2.1", path = "pakery-cpace" }
+pakery-opaque = { version = "0.2.1", path = "pakery-opaque" }
+pakery-spake2 = { version = "0.2.1", path = "pakery-spake2" }
+pakery-spake2plus = { version = "0.2.1", path = "pakery-spake2plus" }
+pakery-crypto = { version = "0.2.1", path = "pakery-crypto" }
 group = "0.13"
 ff = "0.13"
 digest = "0.10"
