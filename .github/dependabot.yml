@@ -9,6 +9,22 @@ updates:
       - dependencies
     commit-message:
       prefix: "deps"
+    groups:
+      # Coupled digest-0.11 / elliptic-curve-0.14 wave — held until the whole
+      # group is stable (argon2 0.6 / blake2 0.11), then landed as one release.
+      # Never merge partial bumps of these crates individually.
+      crypto-stack:
+        patterns:
+          - "digest"
+          - "sha2"
+          - "hmac"
+          - "hkdf"
+          - "curve25519-dalek"
+          - "p256"
+          - "argon2"
+          - "group"
+          - "ff"
+          - "generic-array"
 
   - package-ecosystem: github-actions
     directory: /
@@ -18,3 +34,8 @@ updates:
       - ci
     commit-message:
       prefix: "ci"
+    groups:
+      # One PR for all action bumps instead of one per action.
+      github-actions:
+        patterns:
+          - "*"
