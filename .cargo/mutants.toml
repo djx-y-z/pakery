@@ -55,7 +55,7 @@ exclude_re = [
     # ct.yml instead. `declassify_choice` is real production logic and stays
     # in scope.
     # `in <fn>` covers operator mutants inside the `cfg(feature =
-    # "__ctgrind")` blocks (e.g. the VALGRIND_VERSION sentinel comparison in
+    # "__ctgrind")` blocks (e.g. the `crabgrind::VALGRIND_AVAILABLE` gate in
     # `is_active`), which are compiled out entirely in this configuration.
     # The trailing space in `replace declassify ` keeps `declassify_choice`
     # (real production logic, fully testable) in scope.

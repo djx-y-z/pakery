@@ -40,16 +40,17 @@
 /// True only when the `__ctgrind` feature is on **and** crabgrind was built
 /// against real Valgrind headers. Without headers (e.g. a `--all-features`
 /// build on macOS or a runner without Valgrind installed) crabgrind falls
-/// back to stub headers whose version is the sentinel `0xBEDABEDA`, and
-/// every client request would panic at runtime — so the helpers downgrade
-/// to no-ops instead. `ct.yml` asserts this returns true (via the harness's
-/// `ct_harness_is_armed` test) to rule out a silently disarmed run.
+/// back to stub headers and every client request would panic at runtime — so
+/// we gate on crabgrind's public `VALGRIND_AVAILABLE` const, which is `false`
+/// on such a stub-header build, and the helpers downgrade to no-ops instead.
+/// `ct.yml` asserts this returns true (via the harness's `ct_harness_is_armed`
+/// test) to rule out a silently disarmed run.
 #[inline(always)]
 #[must_use]
 pub fn is_active() -> bool {
     #[cfg(feature = "__ctgrind")]
     {
-        crabgrind::VALGRIND_VERSION.0 != 0xBEDA_BEDA
+        crabgrind::VALGRIND_AVAILABLE
     }
     #[cfg(not(feature = "__ctgrind"))]
     false
