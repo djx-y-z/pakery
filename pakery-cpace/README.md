@@ -14,8 +14,8 @@ CPace is a balanced (symmetric) PAKE: both parties share the same password and d
 
 ```toml
 [dependencies]
-pakery-cpace = "0.1"
-pakery-crypto = { version = "0.1", features = ["ristretto255"] }
+pakery-cpace = "0.3"
+pakery-crypto = { version = "0.3", features = ["ristretto255"] }
 ```
 
 ## Example

@@ -14,8 +14,8 @@ SPAKE2 is a balanced (symmetric) PAKE with mutual explicit key confirmation. Bot
 
 ```toml
 [dependencies]
-pakery-spake2 = "0.1"
-pakery-crypto = { version = "0.1", features = ["ristretto255"] }
+pakery-spake2 = "0.3"
+pakery-crypto = { version = "0.3", features = ["ristretto255"] }
 ```
 
 ## Example

@@ -12,7 +12,7 @@ This crate provides implementations of the traits defined in [`pakery-core`](htt
 
 ```toml
 [dependencies]
-pakery-crypto = { version = "0.1", features = ["ristretto255"] }
+pakery-crypto = { version = "0.3", features = ["ristretto255"] }
 ```
 
 ## Available types

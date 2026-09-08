@@ -14,8 +14,8 @@ SPAKE2+ is an augmented (asymmetric) PAKE: the server stores a verifier derived 
 
 ```toml
 [dependencies]
-pakery-spake2plus = "0.1"
-pakery-crypto = { version = "0.1", features = ["ristretto255"] }
+pakery-spake2plus = "0.3"
+pakery-crypto = { version = "0.3", features = ["ristretto255"] }
 ```
 
 ## Example

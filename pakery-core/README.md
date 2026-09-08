@@ -24,7 +24,7 @@ This crate defines the cryptographic trait abstractions that all protocol crates
 
 ```toml
 [dependencies]
-pakery-core = "0.1"
+pakery-core = "0.3"
 ```
 
 ```rust

@@ -14,8 +14,8 @@ OPAQUE is an augmented (asymmetric) PAKE: the server stores a password verifier 
 
 ```toml
 [dependencies]
-pakery-opaque = "0.1"
-pakery-crypto = { version = "0.1", features = ["ristretto255"] }
+pakery-opaque = "0.3"
+pakery-crypto = { version = "0.3", features = ["ristretto255"] }
 ```
 
 ## Example
