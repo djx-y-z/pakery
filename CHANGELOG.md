@@ -1,3 +1,31 @@
+## [Unreleased]
+
+### Changed
+
+- **Breaking (MSRV): the minimum supported Rust version is now `1.85`** (was `1.79`). Every crate in the coupled RustCrypto group below declares `rust-version = 1.85` and most ship edition-2024 manifests, so the bump is a precondition rather than a choice. Raising the MSRV is semver-relevant for downstream users; it is deliberately paid once, here, for the whole group.
+- **Breaking (public dependencies): `p256` and `curve25519-dalek` are public dependencies of `pakery-crypto`.** `CpaceGroup::Scalar` is bound to `p256::Scalar` / `curve25519_dalek::Scalar`, and those types reach default-feature public signatures (e.g. `pakery_spake2::PartyA::start`, `pakery_cpace::CpaceInitiator`). Independently of the MSRV, a downstream crate that names `p256::Scalar` or `curve25519_dalek::Scalar` must move to `p256` 0.14 / `curve25519-dalek` 5.0 in lockstep, or it will get two incompatible copies of the same type in its tree.
+- **Coherent dependency group bump.** These were held back together — see the `0.2.0` note about `digest 0.11` — until every member had a stable release. All are now landed in one release:
+  - `curve25519-dalek` `4.1` → `5.0`
+  - `p256` `0.13` → `0.14` (hash-to-curve moved to the standalone `hash2curve` `0.14` crate, re-exported as `p256::hash2curve`)
+  - `digest` `0.10` → `0.11`, `sha2` `0.10` → `0.11`, `hmac` `0.12` → `0.13`, `hkdf` `0.12` → `0.13`
+  - `argon2` `0.5` → `0.6` (pulls `blake2` `0.11` and `password-hash` `0.6` transitively)
+  - `zeroize` `1.8` → `1.9`, `zeroize_derive` `1.3` → `1.5`
+- **No protocol output changes.** All RFC test vectors pass bit-exactly across the bump: RFC 9497 P-256 OPRF (`test_vector_1`/`test_vector_2`, `derive_key_pair`), RFC 9380 `expand_message_xmd`, and the CPace / SPAKE2 / SPAKE2+ / OPAQUE vector suites. The Argon2id KSF output is unchanged too — `Argon2idKsf::stretch` still matches its pinned byte vector (captured from the `v0.2.0` alias, with `v0.1.0` equivalence inferred from per-parameter assertions; see `TODO.md`). `argon2` `0.6` also leaves `Params::new`'s accept/reject bounds untouched, so no existing downstream cost configuration stops being accepted. The OPAQUE differential suite against `opaque-ke` v4 (which stays on the previous RustCrypto wave) continues to agree byte-for-byte on both suites.
+- `pakery-crypto`'s hand-rolled scalar sampling is unchanged and remains deliberate: `p256`'s and `curve25519-dalek`'s own `Scalar::random` now take a `rand_core 0.10` RNG, while this workspace's public bound stays `rand_core 0.9`. The 32-byte (P-256) / 64-byte-wide (ristretto255) consumption pattern is a fixed contract the RFC vector tests depend on.
+
+### Removed
+
+- `curve25519-dalek`'s `group` feature is no longer enabled. It had been on since the first commit but was never used — this crate reaches ristretto255 through dalek's own inherent API. Dropping it keeps `group` `0.14`, `ff` `0.14` and a second `rand_core` out of the *default* (`ristretto255`) dependency tree. It does **not** remove them from a `p256` build: `elliptic-curve` `0.14` pulls `group` `0.14` / `ff` `0.14`, and `rand_core` `0.10` arrives independently via `crypto-bigint` `0.7` and `crypto-common` `0.2`. Downstream code that relied on feature unification to get the `group`/`ff` trait impls for `RistrettoPoint` must now enable that feature itself.
+- Dead `[workspace.dependencies]` entries `group`, `ff` and `generic-array`, which no member crate inherited.
+
+### Notes
+
+- `rand_core` stays at `0.9`. `rand_core 0.10` ships **no** Cargo features at all, so the `os_rng` (and `std`) features that all six published crates forward to it would have to be removed from their public API — a separate breaking decision, tracked in `TODO.md`.
+- The `MSRV` CI job now runs `cargo check --workspace --all-features` rather than a bare `cargo check --workspace`. The bare form never compiled non-default optional features, so a user-reachable feature (`pakery-crypto/argon2`) could silently require a newer toolchain than the declared `rust-version`.
+- `pakery-crypto` now selects `p256`'s `group-digest` feature instead of `hash2curve`. This is **not** a rename — `p256` `0.14` has both, with `group-digest = ["hash2curve", "sha2"]` — and the wider one is required because `impl GroupDigest for NistP256` is gated on it (the impl needs `sha2` for its `type ExpandMsg = ExpandMsgXmd<Sha256>`). No downstream effect: `pakery-crypto` pins `p256`'s features itself and forwards none of them. Relatedly, `p256/voprf` disappeared from `pakery-tests`' `differential` feature because `p256` `0.14` no longer has a `voprf` feature; `opaque-ke`'s requirement is now satisfied by the `p256-013` alias.
+- Internal note for anyone diffing intermediates: `hash_to_curve` output is unchanged, but `p256`'s `OsswuMap::osswu()` is **not** interchangeable across `0.13`/`0.14`. The `c2` constant changed from `sqrt(-Z^3)` to the RFC 9380 F.2.1.2-literal `sqrt(-Z)`, compensated by `map_to_curve` no longer re-deriving `y` through `decompress`. The composed result is identical (verified against the RFC 9380 J.1.1 vectors); the raw `osswu()` `y` differs for roughly half of inputs.
+- `pakery-tests` now pulls `p256 0.13` and `sha2 0.10` under renamed aliases, solely so the `opaque-ke` v4 differential suite keeps compiling: `opaque-ke` names concrete types in its `CipherSuite` associated types and is still on the previous wave. That crate is `publish = false`, so this does not affect published dependency trees.
+
 ## [0.2.1] - 2026-07-13
 
 ### Security

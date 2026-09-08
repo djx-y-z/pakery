@@ -10,7 +10,7 @@ pub struct HmacSha256;
 
 impl Mac for HmacSha256 {
     fn mac(key: &[u8], msg: &[u8]) -> Result<Vec<u8>, PakeError> {
-        use hmac::Mac as _;
+        use hmac::{KeyInit as _, Mac as _};
         let mut mac = <Hmac<sha2::Sha256>>::new_from_slice(key)
             .map_err(|_| PakeError::InvalidInput("HMAC key rejected"))?;
         mac.update(msg);

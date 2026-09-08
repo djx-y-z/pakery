@@ -3,9 +3,9 @@ name = "pakery-dudect"
 version = "0.0.0"
 publish = false
 edition = "2021"
-# dudect-bencher 0.7 has MSRV 1.85 (> workspace 1.79). This crate is a
-# standalone workspace precisely so the root MSRV job never sees it; the
-# dudect.yml workflow runs it on current stable.
+# Matches the workspace MSRV (1.85). This crate stays a standalone workspace
+# for its dependency tree (clap 2 era), not for its MSRV; the dudect.yml
+# workflow runs it on current stable.
 rust-version = "1.85"
 
 [dependencies]

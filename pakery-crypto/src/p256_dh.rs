@@ -2,7 +2,7 @@
 
 use alloc::vec::Vec;
 
-use p256::elliptic_curve::sec1::ToEncodedPoint;
+use p256::elliptic_curve::sec1::ToSec1Point;
 use p256::ProjectivePoint;
 use pakery_core::crypto::dh::DhGroup;
 use pakery_core::PakeError;
@@ -59,11 +59,7 @@ impl DhGroup for P256Dh {
         pakery_core::ct::declassify(&sk_copy);
         let scalar = scalar_from_bytes(&sk_copy)?;
         let pk_point = ProjectivePoint::GENERATOR * scalar;
-        let pk = pk_point
-            .to_affine()
-            .to_encoded_point(true)
-            .as_bytes()
-            .to_vec();
+        let pk = pk_point.to_affine().to_sec1_point(true).as_bytes().to_vec();
         Ok((sk_bytes, pk))
     }
 
@@ -86,11 +82,7 @@ impl DhGroup for P256Dh {
         pakery_core::ct::declassify(&sk_copy);
         let scalar = scalar_from_bytes(&sk_copy)?;
         let pk_point = ProjectivePoint::GENERATOR * scalar;
-        let pk = pk_point
-            .to_affine()
-            .to_encoded_point(true)
-            .as_bytes()
-            .to_vec();
+        let pk = pk_point.to_affine().to_sec1_point(true).as_bytes().to_vec();
         Ok(pk)
     }
 }

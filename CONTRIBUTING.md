@@ -5,7 +5,7 @@ Thank you for considering contributing to pakery!
 ## Getting started
 
 1. Fork the repository and clone it locally
-2. Install Rust 1.79+ via [rustup](https://rustup.rs/)
+2. Install Rust 1.85+ via [rustup](https://rustup.rs/)
 3. Enable the pre-commit hook:
 
 ```bash

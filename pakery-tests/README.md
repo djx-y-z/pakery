@@ -20,9 +20,9 @@ vectors, property-based tests, and differential testing. Not published.
 - `differential` — enables the OPAQUE differential suite against
   [opaque-ke](https://crates.io/crates/opaque-ke) v4. Implies `p256`. Kept out
   of default runs because opaque-ke pulls a large dependency tree; CI covers it
-  through the `--all-features` jobs. opaque-ke 4 has MSRV 1.85 and an
-  edition-2024 manifest, so this feature must stay off for the MSRV (1.79) job
-  (`cargo check --workspace` without features — verified working).
+  through the `--all-features` jobs — including the MSRV job, which runs
+  `cargo check --workspace --all-features` on 1.85 (opaque-ke 4 declares the
+  same MSRV; verified working).
 - `__ctgrind` (private) — enables the constant-time verification harness
   (`ct_flows.rs`) and turns `pakery_core::ct`'s helpers into Valgrind
   memcheck client requests via [crabgrind](https://crates.io/crates/crabgrind).

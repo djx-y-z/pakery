@@ -3,7 +3,7 @@
 use alloc::vec;
 use alloc::vec::Vec;
 
-use digest::core_api::BlockSizeUser;
+use digest::block_api::BlockSizeUser;
 use digest::Digest;
 use pakery_core::PakeError;
 
@@ -205,7 +205,7 @@ mod tests {
     fn rfc9380_sha256_xmd_a512_32() {
         let mut msg = Vec::with_capacity(517);
         msg.extend_from_slice(b"a512_");
-        msg.extend(core::iter::repeat(b'a').take(512));
+        msg.extend(core::iter::repeat_n(b'a', 512));
         let result = expand_message_xmd::<sha2::Sha256>(&[&msg], SHA256_DST, 0x20).unwrap();
         assert_eq!(
             result,
@@ -298,7 +298,7 @@ mod tests {
     fn rfc9380_sha512_xmd_a512_128() {
         let mut msg = Vec::with_capacity(517);
         msg.extend_from_slice(b"a512_");
-        msg.extend(core::iter::repeat(b'a').take(512));
+        msg.extend(core::iter::repeat_n(b'a', 512));
         let result = expand_message_xmd::<sha2::Sha512>(&[&msg], SHA512_DST, 0x80).unwrap();
         assert_eq!(
             result,

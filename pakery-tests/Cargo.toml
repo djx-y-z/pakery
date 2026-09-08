@@ -15,7 +15,7 @@ argon2 = ["pakery-crypto/argon2"]
 # Differential testing against opaque-ke v4 (RFC 9807 peer implementation).
 # Pulls a large dependency tree — deliberately not a default feature; enabled
 # in CI via --all-features. Covers both suites, hence implies `p256`.
-differential = ["dep:opaque-ke", "dep:sha2", "p256", "p256/voprf"]
+differential = ["dep:opaque-ke", "dep:sha2-010", "dep:p256-013", "p256"]
 # PRIVATE (roadmap item 6): constant-time verification harness (ctgrind
 # pattern). Turns pakery-core's `ct` helpers into real Valgrind memcheck
 # client requests and enables the `ct_flows` integration test, which ct.yml
@@ -42,14 +42,23 @@ p256 = { workspace = true, optional = true }
 # the `differential` feature (this crate is publish = false and test-only, so
 # the distinction is immaterial). opaque-ke 4 is on the rand 0.8 wave; the RNG
 # traits its API requires are reached through its `opaque_ke::rand` re-export.
-# sha2 is needed to name the hash in opaque-ke's `TripleDh<_, Hash>` parameter.
+#
+# opaque-ke 4.0.1 is pinned to the PREVIOUS RustCrypto wave (digest 0.10,
+# elliptic-curve 0.13, hkdf 0.12, hmac 0.12, curve25519-dalek 4, voprf 0.5),
+# which the workspace left behind in the 1.85 group bump. Its `CipherSuite`
+# associated types are named with concrete crate types
+# (`TripleDh<p256::NistP256, sha2::Sha256>`), so those two types must come from
+# the old wave or the trait bounds do not hold. They are therefore pulled under
+# renamed aliases, side by side with the workspace's 0.14/0.11 versions that the
+# rest of this crate uses. Drop both aliases once opaque-ke ships a release on
+# the new wave.
 opaque-ke = { version = "4", default-features = false, features = ["ristretto255"], optional = true }
-sha2 = { workspace = true, optional = true }
+sha2-010 = { package = "sha2", version = "0.10", default-features = false, optional = true }
+p256-013 = { package = "p256", version = "0.13", default-features = false, features = ["arithmetic", "hash2curve", "voprf"], optional = true }
 
 [dev-dependencies]
-# proptest 1.11+ has MSRV 1.85 (> workspace 1.79) but is a dev-dependency of this
-# test-only crate; the MSRV CI job (`cargo check --workspace`) does not build
-# dev-dependencies and proptest's manifest is edition 2021, so 1.79 parses it.
-# Verified locally with `cargo +1.79 check --workspace`.
+# proptest 1.11+ requires MSRV 1.85, which the workspace now declares, so this
+# needs no pin. (It is also a dev-dependency of a publish = false crate, and
+# the MSRV CI job does not build dev-dependencies.)
 proptest = "1"
 rand_chacha = "0.9"

@@ -6,9 +6,8 @@ paths, using [dudect-bencher](https://crates.io/crates/dudect-bencher) (the
 classes — fixed vs random — and Welch's t-test over runtime distributions).
 
 This directory is a standalone cargo workspace, deliberately excluded from
-the root one: dudect-bencher 0.7 has MSRV 1.85 (the workspace MSRV is 1.79)
-and pulls a clap 2-era dependency tree that would otherwise burden the MSRV,
-minimal-versions, and audit CI jobs.
+the root one: dudect-bencher 0.7 pulls a clap 2-era dependency tree that
+would otherwise burden the MSRV, minimal-versions, and audit CI jobs.
 
 ## Benches
 

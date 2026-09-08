@@ -2,10 +2,10 @@
 
 use alloc::vec::Vec;
 use p256::elliptic_curve::ff::PrimeField;
-use p256::elliptic_curve::hash2curve::{ExpandMsgXmd, GroupDigest};
 use p256::elliptic_curve::ops::Reduce;
-use p256::elliptic_curve::sec1::{FromEncodedPoint, Tag, ToEncodedPoint};
-use p256::{AffinePoint, EncodedPoint, NistP256, ProjectivePoint, Scalar};
+use p256::elliptic_curve::sec1::{FromSec1Point, Tag, ToSec1Point};
+use p256::hash2curve::GroupDigest;
+use p256::{AffinePoint, FieldBytes, NistP256, ProjectivePoint, Scalar, Sec1Point};
 use pakery_core::crypto::group::CpaceGroup;
 use pakery_core::PakeError;
 use rand_core::CryptoRng;
@@ -39,22 +39,28 @@ impl CpaceGroup for P256Group {
         // SEC1 uncompressed encoding (65 bytes, 0x04 prefix)
         self.point
             .to_affine()
-            .to_encoded_point(false)
+            .to_sec1_point(false)
             .as_bytes()
             .to_vec()
     }
 
     fn from_bytes(bytes: &[u8]) -> Result<Self, PakeError> {
         // Accept compressed (33 bytes) and uncompressed (65 bytes) SEC1 only.
-        // Identity (0x00) and compact (0x05) SEC1 tags are rejected: compact
-        // in particular is a second, malleable encoding of a compressed point
-        // (same x, tag 0x05) that `AffinePoint::from_encoded_point` would
-        // otherwise happily decompact.
-        let encoded = EncodedPoint::from_bytes(bytes).map_err(|_| PakeError::InvalidPoint)?;
+        // Identity (0x00) and compact (0x05) SEC1 tags are rejected.
+        //
+        // These two are NOT equally load-bearing, so do not "simplify" this
+        // guard away. Rejecting the identity is defense-in-depth: every
+        // caller re-checks `is_identity()` anyway. Rejecting compact is the
+        // SOLE barrier -- `sec1` 0.8 parses `0x05 || x` happily
+        // (`is_compressed()` is false for `Tag::Compact`), and
+        // `AffinePoint::from_sec1_point` decompacts it straight back to the
+        // same point as `0x02/0x03 || x`. Drop this check and every P-256
+        // group element gains a second, malleable encoding (issue #13).
+        let encoded = Sec1Point::from_bytes(bytes).map_err(|_| PakeError::InvalidPoint)?;
         if !encoded.is_compressed() && encoded.tag() != Tag::Uncompressed {
             return Err(PakeError::InvalidPoint);
         }
-        let affine = AffinePoint::from_encoded_point(&encoded);
+        let affine = AffinePoint::from_sec1_point(&encoded);
         if affine.is_none().into() {
             return Err(PakeError::InvalidPoint);
         }
@@ -69,19 +75,21 @@ impl CpaceGroup for P256Group {
                 "from_uniform_bytes requires 64 bytes",
             ));
         }
-        let point =
-            NistP256::hash_from_bytes::<ExpandMsgXmd<sha2::Sha256>>(&[bytes], &[HASH_TO_CURVE_DST])
-                .map_err(|_| PakeError::ProtocolError("hash-to-curve failed"))?;
+        let point = NistP256::hash_from_bytes(&[bytes], &[HASH_TO_CURVE_DST])
+            .map_err(|_| PakeError::ProtocolError("hash-to-curve failed"))?;
         Ok(Self { point })
     }
 
     fn random_scalar(rng: &mut impl CryptoRng) -> Scalar {
-        // Generate a uniformly-random non-zero scalar via 32-byte rejection
-        // sampling. Matches p256 0.13's `Scalar::random` byte-consumption
-        // pattern, preserving RFC test-vector compatibility for downstream
-        // protocols that pass deterministic 32-byte scalars via test RNGs. We
-        // can't call `Scalar::random` directly because it is tied to rand_core
-        // 0.6 and incompatible with our 0.9 RNG bound.
+        // Generate a uniformly-random non-zero scalar by 32-byte rejection sampling:
+        // draw 32 bytes, accept iff they are a canonical scalar. That
+        // byte-consumption pattern is what the RFC 9497 / RFC 9807 vector tests
+        // depend on — they replay a deterministic 32-byte scalar through a test
+        // RNG — so it is a fixed contract of this function, not an imitation of
+        // whatever `Scalar::random` does internally. (We could not call
+        // `Scalar::random` anyway: it comes from `ff` 0.14's
+        // `Field::random<R: rand_core::Rng>`, i.e. a rand_core 0.10 RNG,
+        // and our bound is rand_core 0.9.)
         //
         // ctgrind: candidate bytes are deliberately NOT marked secret here —
         // rejection sampling branches on each candidate's validity (a public
@@ -91,7 +99,7 @@ impl CpaceGroup for P256Group {
         loop {
             let mut bytes = Zeroizing::new([0u8; 32]);
             rng.fill_bytes(&mut *bytes);
-            let mut fb = p256::FieldBytes::from(*bytes);
+            let mut fb = FieldBytes::from(*bytes);
             let result = Option::<Scalar>::from(Scalar::from_repr(fb));
             fb.zeroize();
             if let Some(s) = result {
@@ -127,12 +135,12 @@ impl CpaceGroup for P256Group {
         // Split into high (first 32 bytes) and low (last 32 bytes).
         // result = reduce(high) * R + reduce(low), where R = 2^256 mod n.
         let high_arr: [u8; 32] = bytes[..32].try_into().expect("first 32 bytes");
-        let high_fb = p256::FieldBytes::from(high_arr);
+        let high_fb = FieldBytes::from(high_arr);
         let low_arr: [u8; 32] = bytes[32..].try_into().expect("last 32 bytes");
-        let low_fb = p256::FieldBytes::from(low_arr);
+        let low_fb = FieldBytes::from(low_arr);
 
-        let high = <Scalar as Reduce<p256::U256>>::reduce_bytes(&high_fb);
-        let low = <Scalar as Reduce<p256::U256>>::reduce_bytes(&low_fb);
+        let high = <Scalar as Reduce<FieldBytes>>::reduce(&high_fb);
+        let low = <Scalar as Reduce<FieldBytes>>::reduce(&low_fb);
 
         Ok(high * r_constant() + low)
     }
@@ -147,7 +155,7 @@ impl CpaceGroup for P256Group {
 /// n = 0xFFFFFFFF00000000FFFFFFFFFFFFFFFFBCE6FAADA7179E84F3B9CAC2FC632551
 /// R = 0x00000000FFFFFFFF00000000000000004319055258E8617B0C46353D039CDAAF
 fn r_constant() -> Scalar {
-    Scalar::from_repr(p256::FieldBytes::from([
+    Scalar::from_repr(FieldBytes::from([
         0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         0x00, 0x43, 0x19, 0x05, 0x52, 0x58, 0xE8, 0x61, 0x7B, 0x0C, 0x46, 0x35, 0x3D, 0x03, 0x9C,
         0xDA, 0xAF,
@@ -175,7 +183,7 @@ mod tests {
 
         let compressed = ProjectivePoint::GENERATOR
             .to_affine()
-            .to_encoded_point(true)
+            .to_sec1_point(true)
             .as_bytes()
             .to_vec();
         assert_eq!(compressed.len(), 33);

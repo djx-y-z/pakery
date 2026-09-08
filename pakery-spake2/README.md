@@ -85,7 +85,7 @@ out_b.verify_peer_confirmation(&out_a.confirmation_mac).unwrap();
 
 ## MSRV
 
-The minimum supported Rust version is **1.79**.
+The minimum supported Rust version is **1.85**.
 
 ## License
 

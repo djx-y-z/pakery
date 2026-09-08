@@ -3,10 +3,10 @@
 use alloc::vec::Vec;
 
 use p256::elliptic_curve::ff::{Field, PrimeField};
-use p256::elliptic_curve::hash2curve::{ExpandMsgXmd, GroupDigest};
 use p256::elliptic_curve::ops::Reduce;
-use p256::elliptic_curve::sec1::{FromEncodedPoint, ToEncodedPoint};
-use p256::{AffinePoint, EncodedPoint, NistP256, ProjectivePoint, Scalar, U256};
+use p256::elliptic_curve::sec1::{FromSec1Point, ToSec1Point};
+use p256::hash2curve::GroupDigest;
+use p256::{AffinePoint, FieldBytes, NistP256, ProjectivePoint, Scalar, Sec1Point};
 use pakery_core::crypto::oprf::{Oprf, OprfClientState};
 use pakery_core::PakeError;
 use rand_core::CryptoRng;
@@ -39,7 +39,7 @@ pub struct P256OprfClientState {
 
 /// Serialize a `ProjectivePoint` as compressed SEC1 (33 bytes).
 pub(crate) fn point_to_bytes(point: &ProjectivePoint) -> Vec<u8> {
-    point.to_affine().to_encoded_point(true).as_bytes().to_vec()
+    point.to_affine().to_sec1_point(true).as_bytes().to_vec()
 }
 
 /// Deserialize a compressed SEC1 point.
@@ -49,12 +49,12 @@ pub(crate) fn point_to_bytes(point: &ProjectivePoint) -> Vec<u8> {
 /// encodings are rejected so every group element has exactly one valid
 /// byte representation (encoding non-malleability).
 pub(crate) fn point_from_bytes(bytes: &[u8]) -> Result<ProjectivePoint, PakeError> {
-    let encoded = EncodedPoint::from_bytes(bytes)
+    let encoded = Sec1Point::from_bytes(bytes)
         .map_err(|_| PakeError::InvalidInput("invalid point encoding"))?;
     if !encoded.is_compressed() {
         return Err(PakeError::InvalidInput("invalid point encoding"));
     }
-    let affine = AffinePoint::from_encoded_point(&encoded);
+    let affine = AffinePoint::from_sec1_point(&encoded);
     if affine.is_none().into() {
         return Err(PakeError::InvalidInput("invalid P-256 point"));
     }
@@ -72,7 +72,7 @@ pub(crate) fn scalar_from_bytes(bytes: &[u8]) -> Result<Scalar, PakeError> {
 
 /// Hash an arbitrary input to a P-256 point (RFC 9380 hash-to-curve).
 fn hash_to_group(input: &[u8]) -> Result<ProjectivePoint, PakeError> {
-    NistP256::hash_from_bytes::<ExpandMsgXmd<Sha256>>(&[input], &[HASH_TO_GROUP_DST])
+    NistP256::hash_from_bytes(&[input], &[HASH_TO_GROUP_DST])
         .map_err(|_| PakeError::ProtocolError("hash-to-group failed"))
 }
 
@@ -93,15 +93,15 @@ fn hash_to_scalar_with_dst(input: &[&[u8]], dst: &[u8]) -> Result<Scalar, PakeEr
 /// Interprets as `high * 2^256 + low` where high is 16 bytes and low is 32 bytes,
 /// then reduces modulo the group order n.
 fn reduce_48_to_scalar(bytes: &[u8; 48]) -> Scalar {
-    let mut high_fb = p256::FieldBytes::default();
+    let mut high_fb = FieldBytes::default();
     high_fb[16..].copy_from_slice(&bytes[..16]);
-    let high = <Scalar as Reduce<U256>>::reduce_bytes(&high_fb);
+    let high = <Scalar as Reduce<FieldBytes>>::reduce(&high_fb);
 
     let low_arr: [u8; 32] = bytes[16..]
         .try_into()
         .expect("bytes[16..] is exactly 32 bytes");
-    let low_fb = p256::FieldBytes::from(low_arr);
-    let low = <Scalar as Reduce<U256>>::reduce_bytes(&low_fb);
+    let low_fb = FieldBytes::from(low_arr);
+    let low = <Scalar as Reduce<FieldBytes>>::reduce(&low_fb);
 
     high * r_constant() + low
 }
@@ -154,11 +154,15 @@ impl Oprf for P256Oprf {
         password: &[u8],
         rng: &mut impl CryptoRng,
     ) -> Result<(Self::ClientState, Vec<u8>), PakeError> {
-        // Generate non-zero random scalar by 32-byte rejection sampling. Matches
-        // p256 0.13's `Scalar::random` byte-consumption pattern, preserving RFC
-        // 9807 test-vector compatibility (blind values are 32-byte big-endian
-        // canonical scalars). We can't call `Scalar::random` directly because it
-        // is tied to rand_core 0.6 and incompatible with our 0.9 RNG bound.
+        // Generate a non-zero random scalar by 32-byte rejection sampling:
+        // draw 32 bytes, accept iff they are a canonical scalar. That
+        // byte-consumption pattern is what the RFC 9497 / RFC 9807 vector tests
+        // depend on — they replay a deterministic 32-byte scalar through a test
+        // RNG — so it is a fixed contract of this function, not an imitation of
+        // whatever `Scalar::random` does internally. (We could not call
+        // `Scalar::random` anyway: it comes from `ff` 0.14's
+        // `Field::random<R: rand_core::Rng>`, i.e. a rand_core 0.10 RNG,
+        // and our bound is rand_core 0.9.)
         //
         // ctgrind: candidate bytes are deliberately NOT marked secret —
         // rejection sampling branches on each candidate's validity (a public
@@ -270,7 +274,7 @@ mod tests {
         // Uncompressed tag 0x04 (65 bytes) must be rejected.
         let uncompressed = ProjectivePoint::GENERATOR
             .to_affine()
-            .to_encoded_point(false)
+            .to_sec1_point(false)
             .as_bytes()
             .to_vec();
         assert_eq!(uncompressed.len(), 65);

@@ -47,7 +47,7 @@ use pakery_core::{PakeError, SharedSecret};
 
 ## MSRV
 
-The minimum supported Rust version is **1.79**.
+The minimum supported Rust version is **1.85**.
 
 ## License
 

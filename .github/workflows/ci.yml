@@ -58,15 +58,22 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo doc --workspace --all-features --no-deps
 
+  # `--all-features` is deliberate: `cargo check --workspace` alone skips every
+  # non-default optional feature, so a published, user-reachable feature could
+  # silently outrun the declared `rust-version` (argon2 0.6 is edition 2024 /
+  # MSRV 1.85 and is an optional feature of pakery-crypto — under a bare
+  # `--workspace` check this job would never compile it). One gap stays by
+  # design: `cargo check` does not build dev-dependencies, so pakery-tests'
+  # proptest is still invisible here — acceptable, that crate is publish = false.
   msrv:
-    name: MSRV (1.79)
+    name: MSRV (1.85)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: "1.79"
-      - run: cargo check --workspace
+          toolchain: "1.85"
+      - run: cargo check --workspace --all-features
 
   # Scoped Miri (roadmap item 7, crypto-bigint pattern): pakery-core only —
   # protocol crates pull curve25519-dalek, which is impractically slow under

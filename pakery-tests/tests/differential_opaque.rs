@@ -102,7 +102,7 @@ struct KeRistretto255;
 
 impl opaque_ke::CipherSuite for KeRistretto255 {
     type OprfCs = opaque_ke::Ristretto255;
-    type KeyExchange = opaque_ke::TripleDh<opaque_ke::Ristretto255, sha2::Sha512>;
+    type KeyExchange = opaque_ke::TripleDh<opaque_ke::Ristretto255, sha2_010::Sha512>;
     type Ksf = opaque_ke::ksf::Identity;
 }
 
@@ -132,8 +132,8 @@ impl OpaqueCiphersuite for OurP256 {
 struct KeP256;
 
 impl opaque_ke::CipherSuite for KeP256 {
-    type OprfCs = p256::NistP256;
-    type KeyExchange = opaque_ke::TripleDh<p256::NistP256, sha2::Sha256>;
+    type OprfCs = p256_013::NistP256;
+    type KeyExchange = opaque_ke::TripleDh<p256_013::NistP256, sha2_010::Sha256>;
     type Ksf = opaque_ke::ksf::Identity;
 }
 

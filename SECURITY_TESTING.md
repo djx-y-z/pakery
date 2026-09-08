@@ -15,7 +15,7 @@ point back to.
 - RFC/draft positive test vectors for all 4 protocols on both groups (145
   integration tests in `pakery-tests`, incl. wrong-password / tampered-MAC /
   garbage-bytes / identity-point negative tests).
-- CI: test, clippy `-D warnings`, fmt, doc, MSRV (1.79), no_std (thumbv7em),
+- CI: test, clippy `-D warnings`, fmt, doc, MSRV (1.85), no_std (thumbv7em),
   wasm, feature-combinations, minimal-versions, coverage; weekly `cargo audit`.
 - Code-level: `#![forbid(unsafe_code)]` everywhere, `subtle::ct_eq` on all
   secret comparisons, `zeroize` discipline, exact-length guards on all 8 OPAQUE
@@ -40,10 +40,9 @@ sweep — per protocol (CPace, SPAKE2, SPAKE2+, OPAQUE) × both groups.
 - **Run:** `cargo test -p pakery-tests --all-features`.
 - **Notes:** randomness is driven through a seeded `rand_chacha` `CryptoRng`
   (no `test-utils` needed); case counts kept modest (32–64) and the identity
-  KSF is used so Argon2 does not dominate runtime. proptest 1.11 is left
-  **unpinned**: its manifest is edition-2021, so `cargo +1.79 check
-  --workspace` still passes with it in the lockfile (dev-deps are not built by
-  the MSRV job).
+  KSF is used so Argon2 does not dominate runtime. proptest is left
+  **unpinned**: since the workspace moved to MSRV 1.85 its 1.11+ releases are
+  within range, and the MSRV job does not build dev-dependencies anyway.
 
 ### Negative test vectors
 
@@ -199,8 +198,9 @@ branches, length guards.
 ## Watch list (tracked elsewhere)
 
 - `cargo deny` CI gate — planned in TODO.md (v1.0 milestone).
-- MSRV 1.85 bump + dep group (dalek 5 / argon2 0.6 / blake2 0.11) — TODO.md;
-  unblocks unpinned proptest 1.11 and dudect-bencher 0.7.
+- MSRV 1.85 bump + dep group (dalek 5 / argon2 0.6 / p256 0.14 / digest 0.11
+  wave) — DONE; see CHANGELOG. Left open: `rand_core` 0.10 (removes the
+  `os_rng` feature from six published crates — a separate breaking decision).
 - LLVM constant-time intrinsics and Rust secret-types RFC 2859 — nothing usable
   from stable Rust yet.
 - Re-verify tool versions periodically (this document's survey is from
