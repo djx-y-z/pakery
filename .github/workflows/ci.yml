@@ -62,9 +62,17 @@ jobs:
   # non-default optional feature, so a published, user-reachable feature could
   # silently outrun the declared `rust-version` (argon2 0.6 is edition 2024 /
   # MSRV 1.85 and is an optional feature of pakery-crypto — under a bare
-  # `--workspace` check this job would never compile it). One gap stays by
-  # design: `cargo check` does not build dev-dependencies, so pakery-tests'
-  # proptest is still invisible here — acceptable, that crate is publish = false.
+  # `--workspace` check this job would never compile it).
+  #
+  # `--exclude pakery-tests` is equally deliberate: this gate protects
+  # *published* crates, and pakery-tests is publish = false. Including it drags
+  # opaque-ke (rust-version 1.85, zero headroom), voprf and the whole previous
+  # RustCrypto wave into the gate, so an opaque-ke patch release raising its
+  # MSRV would redden this job while no published crate is affected. Nothing is
+  # lost: every optional feature is declared on the published crate itself
+  # (pakery-tests' `argon2` is a pass-through to `pakery-crypto/argon2`).
+  # `cargo check` also does not build dev-dependencies, so proptest stays
+  # invisible here either way.
   msrv:
     name: MSRV (1.85)
     runs-on: ubuntu-latest
@@ -73,7 +81,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: "1.85"
-      - run: cargo check --workspace --all-features
+      - run: cargo check --workspace --exclude pakery-tests --all-features
 
   # Scoped Miri (roadmap item 7, crypto-bigint pattern): pakery-core only —
   # protocol crates pull curve25519-dalek, which is impractically slow under

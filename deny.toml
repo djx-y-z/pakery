@@ -1,0 +1,57 @@
+# cargo-deny configuration (see SECURITY_TESTING.md and TODO.md).
+#
+# Standard supply-chain hygiene for a published cryptographic library: catches
+# new advisories on direct and transitive dependencies, license drift, and
+# dependencies pulled from anywhere other than crates.io.
+#
+# Run locally with `cargo deny check`; CI runs the same command (audit.yml).
+# Schema targets cargo-deny 0.19.
+
+[graph]
+# Match what the CI test/check jobs actually compile. Without this, the
+# optional `p256` / `argon2` / `differential` trees are never inspected — and
+# `p256` in particular is where elliptic-curve 0.14 and its transitive set
+# enter the graph.
+all-features = true
+
+[advisories]
+# 0.16+ denies vulnerabilities, unmaintained, unsound and yanked by default;
+# there is no severity threshold knob any more. Nothing is ignored: this
+# workspace has no accepted advisories, and an empty list is a deliberate
+# statement rather than an oversight. Add entries here only with a comment
+# explaining why the advisory does not apply.
+ignore = []
+
+[licenses]
+# The project is `MIT OR Apache-2.0`; this is the set its dependency tree
+# actually resolves to (RustCrypto, curve25519-dalek, and their transitive
+# deps). All are permissive and compatible with both of our own licences.
+allow = [
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "MIT",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Unicode-3.0",
+    "Unlicense",
+    "Zlib",
+    "CC0-1.0",
+]
+confidence-threshold = 0.9
+
+[bans]
+# `warn`, not `deny`: the workspace legitimately carries duplicates today.
+# `pakery-tests` (publish = false) pins the previous RustCrypto wave under
+# renamed aliases so the opaque-ke v4 differential suite keeps compiling, and
+# a `p256` build has both rand_core 0.9 (our public bound) and rand_core 0.10
+# (via elliptic-curve 0.14 / crypto-bigint 0.7). Tighten to "deny" once
+# opaque-ke moves to the new wave and the rand_core decision lands.
+multiple-versions = "warn"
+# A `*` version requirement in a published crate is never intentional here.
+wildcards = "deny"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]

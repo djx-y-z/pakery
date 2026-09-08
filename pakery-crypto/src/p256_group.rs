@@ -210,6 +210,50 @@ mod tests {
         assert_eq!(bytes, expected);
     }
 
+    /// Known-answer test for `from_uniform_bytes` (RFC 9380 hash-to-curve
+    /// with this crate's own `PAKE-P256-HashToCurve-v1` DST).
+    ///
+    /// This function is otherwise **unconstrained** by the suite: the P-256
+    /// CPace tests are round-trip only (our suite deliberately deviates from
+    /// the draft — own DSI, SHA-512 — so no official vector applies), and
+    /// initiator and responder derive the generator the same way, so any
+    /// drift moves both sides together and stays invisible. Without this KAT,
+    /// perturbing `HASH_TO_CURVE_DST` or returning a different point leaves
+    /// the whole suite green.
+    ///
+    /// Provenance: both vectors were computed with the **pre-bump** stack
+    /// (`p256` 0.13.2 + `sha2` 0.10), independently of the code path they
+    /// constrain, and are reproduced bit-exactly by `p256` 0.14 + `sha2` 0.11.
+    #[test]
+    fn from_uniform_bytes_matches_pinned_vectors() {
+        // Input A: 0x00..=0x3F.
+        let sequential: [u8; 64] = core::array::from_fn(|i| i as u8);
+        const EXPECTED_SEQUENTIAL: [u8; 65] = [
+            0x04, 0x73, 0xA2, 0x3B, 0x93, 0x2D, 0x51, 0x59, 0x7A, 0x07, 0xC4, 0xC0, 0xD9, 0xD5,
+            0xE2, 0xD4, 0x7C, 0x54, 0xDB, 0x6A, 0x03, 0x27, 0x85, 0x15, 0x86, 0xB3, 0x36, 0x41,
+            0x5E, 0x9E, 0xBF, 0x0A, 0x39, 0x22, 0xE0, 0xDA, 0xF7, 0xFE, 0x14, 0xA8, 0x46, 0x6C,
+            0x3E, 0x5F, 0xA9, 0xF6, 0xF7, 0x99, 0x79, 0xB7, 0x30, 0xA0, 0xC5, 0x11, 0xFA, 0x9E,
+            0x02, 0x2A, 0x66, 0x20, 0x41, 0xF8, 0x87, 0xF6, 0x9C,
+        ];
+        let point = <P256Group as CpaceGroup>::from_uniform_bytes(&sequential).unwrap();
+        assert_eq!(point.to_bytes(), EXPECTED_SEQUENTIAL);
+
+        // Input B: all 0xFF — a different field element.
+        const EXPECTED_ALL_FF: [u8; 65] = [
+            0x04, 0x81, 0xCE, 0x8C, 0x86, 0xFA, 0x3D, 0xF4, 0x25, 0xB3, 0x3A, 0xB4, 0x7E, 0x0D,
+            0x8F, 0x7F, 0xD2, 0x31, 0x6F, 0xFB, 0x0E, 0xBC, 0x8B, 0x0F, 0x0D, 0x3E, 0x12, 0x04,
+            0x70, 0xC6, 0xDC, 0xEB, 0x61, 0x4C, 0x14, 0x50, 0xA8, 0xDB, 0x47, 0x8F, 0xF3, 0x6D,
+            0x1B, 0x99, 0x70, 0x22, 0xD6, 0x22, 0xFB, 0x67, 0x29, 0xC9, 0x00, 0xDE, 0x54, 0x46,
+            0xC0, 0x23, 0x3B, 0x1B, 0x55, 0x8C, 0x95, 0xC2, 0x89,
+        ];
+        let point = <P256Group as CpaceGroup>::from_uniform_bytes(&[0xFFu8; 64]).unwrap();
+        assert_eq!(point.to_bytes(), EXPECTED_ALL_FF);
+
+        // Length contract.
+        assert!(<P256Group as CpaceGroup>::from_uniform_bytes(&[0u8; 63]).is_err());
+        assert!(<P256Group as CpaceGroup>::from_uniform_bytes(&[0u8; 65]).is_err());
+    }
+
     /// Known-answer test for the wide reduction with a non-zero high half
     /// (roadmap item 8: with high = 0, `high * R + low` is insensitive to
     /// the operators and to R — mutants on both survived). Expected value is

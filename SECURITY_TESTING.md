@@ -16,7 +16,9 @@ point back to.
   integration tests in `pakery-tests`, incl. wrong-password / tampered-MAC /
   garbage-bytes / identity-point negative tests).
 - CI: test, clippy `-D warnings`, fmt, doc, MSRV (1.85), no_std (thumbv7em),
-  wasm, feature-combinations, minimal-versions, coverage; weekly `cargo audit`.
+  wasm, feature-combinations, minimal-versions, coverage; weekly `cargo audit`
+  and `cargo deny check` (advisories, licences, sources, duplicate versions —
+  see `deny.toml`).
 - Code-level: `#![forbid(unsafe_code)]` everywhere, `subtle::ct_eq` on all
   secret comparisons, `zeroize` discipline, exact-length guards on all 8 OPAQUE
   `deserialize` fns, identity-point rejection after every DH/scalar-mult.
@@ -197,7 +199,6 @@ branches, length guards.
 
 ## Watch list (tracked elsewhere)
 
-- `cargo deny` CI gate — planned in TODO.md (v1.0 milestone).
 - MSRV 1.85 bump + dep group (dalek 5 / argon2 0.6 / p256 0.14 / digest 0.11
   wave) — DONE; see CHANGELOG. Left open: `rand_core` 0.10 (removes the
   `os_rng` feature from six published crates — a separate breaking decision).

@@ -18,3 +18,18 @@ jobs:
       - uses: rustsec/audit-check@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+
+  # Complements `cargo audit` (advisories only) with license, source and
+  # duplicate-version checks — see deny.toml, which carries the rationale for
+  # each gate. Runs on the root workspace; `fuzz/` and `dudect/` are separate
+  # workspaces excluded from it by design and are covered by the scheduled
+  # `cargo audit` above.
+  deny:
+    name: cargo-deny
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check

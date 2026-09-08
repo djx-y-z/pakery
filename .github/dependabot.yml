@@ -10,9 +10,17 @@ updates:
     commit-message:
       prefix: "deps"
     groups:
-      # Coupled digest-0.11 / elliptic-curve-0.14 wave — held until the whole
-      # group is stable (argon2 0.6 / blake2 0.11), then landed as one release.
-      # Never merge partial bumps of these crates individually.
+      # Coupled RustCrypto wave. These crates share transitive constraints
+      # (digest / elliptic-curve / crypto-common), so a partial bump either
+      # fails to resolve or silently duplicates a version in published trees.
+      # Never merge partial bumps of these individually — land the group as
+      # one release, the way the digest-0.11 / elliptic-curve-0.14 wave was.
+      #
+      # `group`, `ff` and `generic-array` were dropped from this list when
+      # they stopped being direct dependencies; they now arrive only
+      # transitively via elliptic-curve. `zeroize` / `zeroize_derive` are here
+      # because zeroize_derive pins an exact zeroize version, so the two must
+      # move together.
       crypto-stack:
         patterns:
           - "digest"
@@ -22,9 +30,13 @@ updates:
           - "curve25519-dalek"
           - "p256"
           - "argon2"
-          - "group"
-          - "ff"
-          - "generic-array"
+          - "blake2"
+          - "password-hash"
+          - "elliptic-curve"
+          - "hash2curve"
+          - "crypto-common"
+          - "zeroize"
+          - "zeroize_derive"
 
   - package-ecosystem: github-actions
     directory: /
