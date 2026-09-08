@@ -86,7 +86,7 @@ assert_eq!(client_session_key, server_session_key);
 | Feature | Description |
 |---------|-------------|
 | `std` (default) | Enable `std` support |
-| `getrandom` | Enable OS-backed RNG via `rand_core/getrandom` |
+| `os_rng` | Enable OS-backed RNG via `rand_core/os_rng` |
 | `test-utils` | Expose deterministic constructors for testing |
 
 ## Security

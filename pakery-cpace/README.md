@@ -63,7 +63,7 @@ assert_eq!(init_out.isk.as_bytes(), resp_out.isk.as_bytes());
 | Feature | Description |
 |---------|-------------|
 | `std` (default) | Enable `std` support |
-| `getrandom` | Enable OS-backed RNG via `rand_core/getrandom` |
+| `os_rng` | Enable OS-backed RNG via `rand_core/os_rng` |
 
 ## Security
 

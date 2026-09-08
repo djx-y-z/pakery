@@ -81,7 +81,7 @@ assert_eq!(
 | Feature | Description |
 |---------|-------------|
 | `std` (default) | Enable `std` support |
-| `getrandom` | Enable OS-backed RNG via `rand_core/getrandom` |
+| `os_rng` | Enable OS-backed RNG via `rand_core/os_rng` |
 | `test-utils` | Expose deterministic constructors for testing |
 
 ## Security

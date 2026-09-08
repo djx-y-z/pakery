@@ -74,7 +74,7 @@ impl CpaceCiphersuite for MyCpaceSuite {
 | `ristretto255` (default) | Ristretto255 / SHA-512 primitives |
 | `p256` | P-256 / SHA-256 primitives |
 | `argon2` | Argon2id key-stretching function |
-| `getrandom` | Enable OS-backed RNG via `rand_core/getrandom` |
+| `os_rng` | Enable OS-backed RNG via `rand_core/os_rng` |
 
 ## Security
 
