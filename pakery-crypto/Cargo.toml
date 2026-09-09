@@ -12,6 +12,12 @@ documentation = "https://docs.rs/pakery-crypto"
 keywords = ["pake", "ristretto255", "p256", "cryptography", "no-std"]
 categories = ["cryptography", "no-std"]
 
+# docs.rs renders default features only unless told otherwise. Without this,
+# every optional item is missing from the rendered documentation while the
+# README documents it.
+[package.metadata.docs.rs]
+all-features = true
+
 [features]
 default = ["std", "ristretto255"]
 std = ["pakery-core/std"]

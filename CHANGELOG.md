@@ -1,3 +1,30 @@
+## [0.3.1] - 2026-09-09
+
+Documentation-only release. **No code changes** — the compiled output of every crate is byte-identical to `0.3.0`. The manifests change only in metadata: the `categories` correction and the `[package.metadata.docs.rs]` block, both below.
+
+`0.3.0` was published before its README fixes landed, so its crates.io and docs.rs pages document a Cargo feature that does not exist and show examples that cannot be built. A published version's README can never be amended, and both sites render the *latest* version by default, so this release exists to replace what a new reader sees.
+
+### Fixed
+
+- **Feature tables named a `getrandom` feature that was renamed to `os_rng` in `0.2.0`.** Copying the documented feature name gave `error: the package does not have the feature 'getrandom'`. Affected all seven READMEs.
+- **Install snippets did not declare everything their own examples import.** Every crate example calls `rand_core::OsRng` while no snippet listed `rand_core` (E0433); the `pakery-opaque`, `pakery-spake2` and `pakery-spake2plus` examples import `pakery_core`, and the `pakery-crypto` example imports `pakery_cpace`, none of which were listed (E0432/E0433). Five of the six crate READMEs could not be built by following them.
+- **The root README's example did not compile and had no `[dependencies]` block at all.** It used `rand_core::OsRng` directly, which since `rand_core` 0.9 implements only `TryRngCore` — `error[E0277]: the trait bound OsRng: CryptoRng is not satisfied`. The per-crate READMEs were corrected for this in `0.2.0`; the root one was missed.
+- **The SPAKE2 and SPAKE2+ examples called `Ristretto255Group::scalar_from_wide_bytes` without importing the `CpaceGroup` trait that provides it** (E0599).
+- **`pakery-crypto` documented four of its nine features.** The `cpace`, `spake2`, `spake2plus` and `opaque` features were undocumented (`os_rng` was there under the wrong name, per the first bullet), and with them the entire `suites` module of ten pre-built ciphersuites (`CpaceRistretto255`, `OpaqueP256Argon2`, …) — so the documentation taught spelling out a ciphersuite by hand, length constants and all, and never mentioned the ready-made ones. `SPAKE2_S_COMPRESSED` was likewise missing from the exported-type tables.
+- **The OPAQUE example used `IdentityKsf` without a warning.** `pakery-opaque`'s own introduction sells resistance to offline dictionary attack, which an identity key-stretching function removes. The example now says so and points at `Argon2idKsf` and the Argon2id suites.
+- **`CONTRIBUTING.md` gave the wrong publication order** (`pakery-crypto` second rather than last), which would fail a manual release: `pakery-crypto`'s optional features depend on the four protocol crates, and crates.io requires them to exist on the registry first.
+- Smaller corrections: `pakery-tests/README.md` claimed MSRV-job coverage that `ci.yml` deliberately excludes; `SECURITY_TESTING.md` carried a stale test count and described `cargo audit` / `cargo deny` as weekly when they also run per push and PR; the architecture diagram omitted `Ksf` and Argon2id.
+
+### Changed
+
+- **docs.rs now renders each crate's full API.** No crate declared `[package.metadata.docs.rs]`, so docs.rs built with default features only, hiding most of the public surface. For `pakery-crypto` (`default = ["std", "ristretto255"]`) that meant the rendered documentation contained **no P-256 types, no `Argon2idKsf`, and no `suites` module at all** — while the README documents all of them. Every published crate now pins its docs.rs feature set: `all-features = true`, except `pakery-core`, which is pinned to `["std", "os_rng"]` so the private `__ctgrind` feature (crabgrind, Valgrind client requests) stays out of a documentation build.
+- **crates.io category `no-std::no-alloc` → `no-std`** for all six published crates. Every crate unconditionally declares `extern crate alloc` and uses `Vec<u8>` on protocol paths, so `no-alloc` was never accurate.
+
+### Notes
+
+- These regressions shipped because READMEs were free-form Markdown that nothing compiled and nothing compared against the manifests. `ci/check-docs.py` now gates the repository: feature tables are checked against `[features]` in both directions, version requirements and the stated MSRV against `[workspace.package]`, and every documented example is **built and run** as a standalone crate whose `Cargo.toml` is the snippet the README itself shows. Since `publish.yml` runs the full CI suite, this release is also the first to have its documentation verified before publication.
+- Test-only: `SPAKE2_S_COMPRESSED` is now pinned by a derivation test (it is public API that no ciphersuite consumes, so nothing constrained it), and the Argon2 backward-compatibility vector's provenance was re-captured by running the published `pakery-crypto` `0.1.0` rather than inferred from the `0.2.0` alias.
+
 ## [0.3.0] - 2026-09-08
 
 ### Changed

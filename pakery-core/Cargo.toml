@@ -12,6 +12,13 @@ documentation = "https://docs.rs/pakery-core"
 keywords = ["pake", "cryptography", "password", "key-exchange", "no-std"]
 categories = ["cryptography", "no-std", "authentication"]
 
+# docs.rs renders default features only unless told otherwise, which would
+# hide every optional item. `__ctgrind` is deliberately excluded: it is a
+# private CI-only feature that pulls crabgrind and emits Valgrind client
+# requests.
+[package.metadata.docs.rs]
+features = ["std", "os_rng"]
+
 [features]
 default = ["std"]
 std = ["rand_core/std"]

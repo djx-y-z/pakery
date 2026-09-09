@@ -12,6 +12,12 @@ documentation = "https://docs.rs/pakery-spake2"
 keywords = ["pake", "spake2", "password", "key-exchange", "no-std"]
 categories = ["cryptography", "no-std", "authentication"]
 
+# docs.rs renders default features only unless told otherwise. Without this,
+# every optional item is missing from the rendered documentation while the
+# README documents it.
+[package.metadata.docs.rs]
+all-features = true
+
 [features]
 default = ["std"]
 std = ["pakery-core/std"]
