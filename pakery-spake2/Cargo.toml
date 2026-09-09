@@ -10,7 +10,7 @@ description = "SPAKE2 balanced PAKE protocol (RFC 9382)"
 readme = "README.md"
 documentation = "https://docs.rs/pakery-spake2"
 keywords = ["pake", "spake2", "password", "key-exchange", "no-std"]
-categories = ["cryptography", "no-std::no-alloc", "authentication"]
+categories = ["cryptography", "no-std", "authentication"]
 
 [features]
 default = ["std"]

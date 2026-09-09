@@ -12,13 +12,15 @@ point back to.
 
 ## Baseline (predates the layers below)
 
-- RFC/draft positive test vectors for all 4 protocols on both groups (145
+- RFC/draft positive test vectors for all 4 protocols on both groups (over 200
   integration tests in `pakery-tests`, incl. wrong-password / tampered-MAC /
-  garbage-bytes / identity-point negative tests).
+  garbage-bytes / identity-point negative tests; count them with
+  `cargo test -p pakery-tests --all-features`).
 - CI: test, clippy `-D warnings`, fmt, doc, MSRV (1.85), no_std (thumbv7em),
-  wasm, feature-combinations, minimal-versions, coverage; weekly `cargo audit`
-  and `cargo deny check` (advisories, licences, sources, duplicate versions —
-  see `deny.toml`).
+  wasm, feature-combinations, minimal-versions, coverage, and the
+  documentation gate (`ci/check-docs.py`); `cargo audit` and
+  `cargo deny check` on every push and PR plus a weekly cron (advisories,
+  licences, sources, duplicate versions — see `deny.toml`).
 - Code-level: `#![forbid(unsafe_code)]` everywhere, `subtle::ct_eq` on all
   secret comparisons, `zeroize` discipline, exact-length guards on all 8 OPAQUE
   `deserialize` fns, identity-point rejection after every DH/scalar-mult.

@@ -12,6 +12,7 @@ This crate provides implementations of the traits defined in [`pakery-core`](htt
 
 ```toml
 [dependencies]
+pakery-cpace = "0.3"
 pakery-crypto = { version = "0.3", features = ["ristretto255"] }
 ```
 
@@ -29,6 +30,7 @@ pakery-crypto = { version = "0.3", features = ["ristretto255"] }
 | `HmacSha512` | `Mac` |
 | `SPAKE2_M_COMPRESSED` | SPAKE2 M constant |
 | `SPAKE2_N_COMPRESSED` | SPAKE2 N constant |
+| `SPAKE2_S_COMPRESSED` | SPAKE2 S constant (symmetric mode) |
 
 ### P-256 (`p256` feature)
 
@@ -48,6 +50,29 @@ pakery-crypto = { version = "0.3", features = ["ristretto255"] }
 | Type | Implements |
 |------|-----------|
 | `Argon2idKsf` | `Ksf` |
+
+### Pre-built ciphersuites
+
+Ready-made ciphersuite types, so you do not have to spell out the associated
+types and length constants yourself. Each needs its protocol feature plus the
+group feature.
+
+| Type | Features | Suite |
+|------|----------|-------|
+| `CpaceRistretto255` | `cpace` + `ristretto255` | CPace, Ristretto255 + SHA-512 |
+| `CpaceP256` | `cpace` + `p256` | CPace, P-256 + SHA-512 |
+| `Spake2Ristretto255` | `spake2` + `ristretto255` | SPAKE2, Ristretto255 + SHA-512 |
+| `Spake2P256` | `spake2` + `p256` | SPAKE2, P-256 + SHA-256 |
+| `Spake2PlusRistretto255` | `spake2plus` + `ristretto255` | SPAKE2+, Ristretto255 + SHA-512 |
+| `Spake2PlusP256` | `spake2plus` + `p256` | SPAKE2+, P-256 + SHA-256 |
+| `OpaqueRistretto255` | `opaque` + `ristretto255` | OPAQUE, Ristretto255 + SHA-512, **identity KSF** |
+| `OpaqueP256` | `opaque` + `p256` | OPAQUE, P-256 + SHA-256, **identity KSF** |
+| `OpaqueRistretto255Argon2` | `opaque` + `ristretto255` + `argon2` | OPAQUE, Ristretto255 + SHA-512 + Argon2id |
+| `OpaqueP256Argon2` | `opaque` + `p256` + `argon2` | OPAQUE, P-256 + SHA-256 + Argon2id |
+
+The two identity-KSF OPAQUE suites apply **no password hardening** and exist
+for testing and for matching RFC 9807 test vectors. Production deployments
+want one of the Argon2id suites.
 
 ## Example: defining a ciphersuite
 
@@ -75,6 +100,10 @@ impl CpaceCiphersuite for MyCpaceSuite {
 | `p256` | P-256 / SHA-256 primitives |
 | `argon2` | Argon2id key-stretching function |
 | `os_rng` | Enable OS-backed RNG via `rand_core/os_rng` |
+| `cpace` | Pre-built CPace ciphersuites (pulls in `pakery-cpace`) |
+| `spake2` | Pre-built SPAKE2 ciphersuites (pulls in `pakery-spake2`) |
+| `spake2plus` | Pre-built SPAKE2+ ciphersuites (pulls in `pakery-spake2plus`) |
+| `opaque` | Pre-built OPAQUE ciphersuites (pulls in `pakery-opaque`) |
 
 ## Security
 

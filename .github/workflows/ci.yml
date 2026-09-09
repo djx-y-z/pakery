@@ -58,6 +58,30 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo doc --workspace --all-features --no-deps
 
+  # Documentation gate. The Markdown docs make claims that nothing else in CI
+  # compiles or compares: Cargo feature tables, install snippets, the stated
+  # MSRV, and the examples themselves. Three doc regressions shipped in a row
+  # before this job existed — the `getrandom` feature renamed to `os_rng` in
+  # 0.2.0 but still documented in all seven READMEs, install snippets left on
+  # `pakery-* = "0.1"` through all of 0.2.x (cargo treats 0.1 and 0.3 as
+  # incompatible, so copy-paste silently installed a two-minor-old release),
+  # and a `rand_core::OsRng` example that stopped compiling when rand_core 0.9
+  # made `OsRng` `TryRngCore`-only. All three were found by hand, none by CI.
+  #
+  # The example check is the strong one: it builds AND RUNS each ```rust block
+  # as a standalone crate whose Cargo.toml is the ```toml block the README
+  # itself shows, so an omitted dependency or feature fails here. `pakery-*`
+  # deps are redirected to this checkout via `path` while keeping the declared
+  # `version`, so a stale version requirement is rejected too. See
+  # ci/check-docs.py.
+  docs-check:
+    name: Docs match code
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - run: python3 ci/check-docs.py
+
   # `--all-features` is deliberate: `cargo check --workspace` alone skips every
   # non-default optional feature, so a published, user-reachable feature could
   # silently outrun the declared `rust-version` (argon2 0.6 is edition 2024 /

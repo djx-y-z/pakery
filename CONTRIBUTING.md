@@ -106,9 +106,17 @@ All version numbers are centralized in `Cargo.toml` at the workspace root:
 
 ### Publication order (handled by CI)
 
+Mirrors `.github/workflows/publish.yml`:
+
 1. `pakery-core` (no internal dependencies)
-2. `pakery-crypto` (depends on `pakery-core`)
-3. `pakery-cpace`, `pakery-opaque`, `pakery-spake2`, `pakery-spake2plus` (depend on `pakery-core`)
+2. `pakery-cpace`, `pakery-opaque`, `pakery-spake2`, `pakery-spake2plus` (depend on `pakery-core`)
+3. `pakery-crypto` **last**
+
+`pakery-crypto` must come last, not second: its `cpace` / `spake2` /
+`spake2plus` / `opaque` features declare optional dependencies on the four
+protocol crates. crates.io requires every dependency in a published
+manifest — optional ones included — to already exist on the registry at a
+matching version, so publishing `pakery-crypto` before them is rejected.
 
 ## Reporting security issues
 

@@ -15,7 +15,7 @@ NC='\033[0m'
 
 echo -e "${YELLOW}Running pre-commit checks...${NC}"
 
-echo -e "\n${YELLOW}[1/2] Checking code formatting...${NC}"
+echo -e "\n${YELLOW}[1/3] Checking code formatting...${NC}"
 if cargo fmt --all -- --check; then
     echo -e "${GREEN}Formatting check passed.${NC}"
 else
@@ -24,12 +24,24 @@ else
     exit 1
 fi
 
-echo -e "\n${YELLOW}[2/2] Running clippy...${NC}"
+echo -e "\n${YELLOW}[2/3] Running clippy...${NC}"
 if cargo clippy --workspace --all-targets --all-features -- -D warnings; then
     echo -e "${GREEN}Clippy check passed.${NC}"
 else
     echo -e "${RED}Clippy check failed.${NC}"
     echo -e "${YELLOW}Fix the issues above before committing.${NC}"
+    exit 1
+fi
+
+# Only the two instant checks: feature tables and version/MSRV claims.
+# The example check compiles and runs each README snippet (~20 s) and is left
+# to CI's `docs-check` job so the hook stays fast.
+echo -e "\n${YELLOW}[3/3] Checking docs against code...${NC}"
+if python3 ci/check-docs.py --only features,versions; then
+    echo -e "${GREEN}Docs check passed.${NC}"
+else
+    echo -e "${RED}Docs check failed.${NC}"
+    echo -e "${YELLOW}The documentation claims something the manifests contradict.${NC}"
     exit 1
 fi
 

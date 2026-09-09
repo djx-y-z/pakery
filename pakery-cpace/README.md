@@ -16,6 +16,11 @@ CPace is a balanced (symmetric) PAKE: both parties share the same password and d
 [dependencies]
 pakery-cpace = "0.3"
 pakery-crypto = { version = "0.3", features = ["ristretto255"] }
+# `OsRng` lives in rand_core, so it must be a direct dependency with its
+# `os_rng` feature on. Enabling `os_rng` on any pakery crate turns the
+# same rand_core feature on transitively; naming it here keeps the
+# requirement explicit and independent of feature unification.
+rand_core = { version = "0.9", features = ["os_rng"] }
 ```
 
 ## Example
@@ -34,10 +39,9 @@ impl CpaceCiphersuite for MyCpaceSuite {
     const FIELD_SIZE_BYTES: usize = 32;
 }
 
-// Requires the `os_rng` crate feature. In rand_core 0.9 `OsRng` only
-// implements `TryRngCore`; `UnwrapErr` adapts it to the `CryptoRng`
-// bound used by pakery's API (panics on RNG failure, which never
-// happens on a real OS).
+// In rand_core 0.9 `OsRng` only implements `TryRngCore`; `UnwrapErr`
+// adapts it to the `CryptoRng` bound used by pakery's API (panics on
+// RNG failure, which never happens on a real OS).
 let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
 
 // Initiator starts the exchange

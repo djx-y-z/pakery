@@ -15,10 +15,26 @@ OPAQUE is an augmented (asymmetric) PAKE: the server stores a password verifier 
 ```toml
 [dependencies]
 pakery-opaque = "0.3"
+pakery-core = "0.3"
 pakery-crypto = { version = "0.3", features = ["ristretto255"] }
+# `OsRng` lives in rand_core, so it must be a direct dependency with its
+# `os_rng` feature on. Enabling `os_rng` on any pakery crate turns the
+# same rand_core feature on transitively; naming it here keeps the
+# requirement explicit and independent of feature unification.
+rand_core = { version = "0.9", features = ["os_rng"] }
 ```
 
 ## Example
+
+The suite below uses `IdentityKsf`, which applies **no password hardening** —
+it keeps the example short and matches the RFC 9807 test vectors. That choice
+removes exactly the protection the paragraph above describes: with an identity
+KSF, an attacker who steals the registration record can test password guesses
+at the cost of one OPRF evaluation each. For production, use a real key
+stretching function (`pakery_crypto::Argon2idKsf`, behind the `argon2`
+feature) or the pre-built `pakery_crypto::OpaqueRistretto255Argon2` /
+`OpaqueP256Argon2` suites.
+
 
 ```rust
 use pakery_opaque::*;
@@ -46,10 +62,9 @@ impl OpaqueCiphersuite for MyOpaqueSuite {
     const NX: usize = 64;
 }
 
-// Requires the `os_rng` crate feature. In rand_core 0.9 `OsRng` only
-// implements `TryRngCore`; `UnwrapErr` adapts it to the `CryptoRng`
-// bound used by pakery's API (panics on RNG failure, which never
-// happens on a real OS).
+// In rand_core 0.9 `OsRng` only implements `TryRngCore`; `UnwrapErr`
+// adapts it to the `CryptoRng` bound used by pakery's API (panics on
+// RNG failure, which never happens on a real OS).
 let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
 
 // === Registration ===

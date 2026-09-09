@@ -10,7 +10,7 @@ description = "CPace balanced PAKE protocol (draft-irtf-cfrg-cpace)"
 readme = "README.md"
 documentation = "https://docs.rs/pakery-cpace"
 keywords = ["pake", "cpace", "password", "key-exchange", "no-std"]
-categories = ["cryptography", "no-std::no-alloc", "authentication"]
+categories = ["cryptography", "no-std", "authentication"]
 
 [features]
 default = ["std"]

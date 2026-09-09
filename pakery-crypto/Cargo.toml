@@ -10,7 +10,7 @@ description = "Concrete cryptographic implementations for PAKE protocols"
 readme = "README.md"
 documentation = "https://docs.rs/pakery-crypto"
 keywords = ["pake", "ristretto255", "p256", "cryptography", "no-std"]
-categories = ["cryptography", "no-std::no-alloc"]
+categories = ["cryptography", "no-std"]
 
 [features]
 default = ["std", "ristretto255"]

@@ -10,7 +10,7 @@ description = "Shared utilities for PAKE protocol implementations"
 readme = "README.md"
 documentation = "https://docs.rs/pakery-core"
 keywords = ["pake", "cryptography", "password", "key-exchange", "no-std"]
-categories = ["cryptography", "no-std::no-alloc", "authentication"]
+categories = ["cryptography", "no-std", "authentication"]
 
 [features]
 default = ["std"]

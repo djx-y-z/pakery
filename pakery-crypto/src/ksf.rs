@@ -93,10 +93,13 @@ mod tests {
         assert_eq!(ARGON2_KSF_SALT, b"OPAQUE-Argon2id");
 
         let out = Argon2idKsf::stretch(b"correct horse battery staple").unwrap();
-        // Pinned bit-exact reference, captured from the v0.2.0 alias before
-        // this test was added. The alias uses the same parameter set as the
-        // hardcoded v0.1.x `Argon2idKsf::stretch` impl, so this pin is a
-        // proxy for v0.1.x compatibility.
+        // Pinned bit-exact reference, captured by running the published
+        // `pakery-crypto` v0.1.0 from crates.io in an isolated project
+        // (`Argon2idKsf::stretch(b"correct horse battery staple")`) and
+        // comparing the bytes — not inferred from the v0.2.0 alias. That
+        // v0.1.0 tree resolves argon2 0.5.3 while the workspace is now on
+        // argon2 0.6, so this vector also records cross-version agreement of
+        // the Argon2id output across that bump.
         const EXPECTED: [u8; 64] = [
             0x7d, 0x7d, 0xbc, 0x32, 0x79, 0xd7, 0xca, 0xac, 0xd7, 0x7f, 0x4f, 0x94, 0x07, 0x17,
             0xc1, 0x17, 0x4f, 0x4f, 0x03, 0x68, 0xab, 0x23, 0x8c, 0xb2, 0xf7, 0xef, 0xab, 0x6f,

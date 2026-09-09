@@ -27,20 +27,20 @@ All protocol crates are generic over cryptographic primitives via traits defined
 ## Architecture
 
 ```
-┌──────────────────────────────────────────────────────┐
-│                 Protocol Crates                      │
-│  pakery-cpace  pakery-opaque  pakery-spake2  spake2+ │
-└───────────────────────┬──────────────────────────────┘
+┌────────────────────────────────────────────────────────┐
+│                    Protocol Crates                     │
+│  pakery-cpace  pakery-opaque  pakery-spake2  spake2+   │
+└───────────────────────┬────────────────────────────────┘
                         │ depends on traits
-┌───────────────────────▼──────────────────────────────┐
-│                   pakery-core                        │
-│  Hash · Kdf · Mac · CpaceGroup · DhGroup · Oprf     │
-└───────────────────────▲──────────────────────────────┘
+┌───────────────────────▼────────────────────────────────┐
+│                      pakery-core                       │
+│  Hash · Kdf · Mac · CpaceGroup · DhGroup · Oprf · Ksf  │
+└───────────────────────▲────────────────────────────────┘
                         │ implements traits
-┌───────────────────────┴──────────────────────────────┐
-│                  pakery-crypto                       │
-│  Ristretto255 · P-256 · SHA-2 · HKDF · HMAC         │
-└──────────────────────────────────────────────────────┘
+┌───────────────────────┴────────────────────────────────┐
+│                     pakery-crypto                      │
+│  Ristretto255 · P-256 · SHA-2 · HKDF · HMAC · Argon2id │
+└────────────────────────────────────────────────────────┘
 ```
 
 ## Supported cipher suites
@@ -56,6 +56,17 @@ Optional: `argon2` feature enables Argon2id as a key-stretching function for OPA
 
 CPace key exchange using Ristretto255:
 
+```toml
+[dependencies]
+pakery-cpace = "0.3"
+pakery-crypto = { version = "0.3", features = ["ristretto255"] }
+# `OsRng` lives in rand_core, so the example needs it as a direct dependency
+# with its `os_rng` feature on. Enabling `os_rng` on any pakery crate turns
+# the same rand_core feature on transitively; naming it here keeps the
+# requirement explicit and independent of feature unification.
+rand_core = { version = "0.9", features = ["os_rng"] }
+```
+
 ```rust
 use pakery_cpace::{CpaceCiphersuite, CpaceInitiator, CpaceResponder, CpaceMode};
 use pakery_crypto::{Ristretto255Group, Sha512Hash};
@@ -70,7 +81,10 @@ impl CpaceCiphersuite for MyCpaceSuite {
     const FIELD_SIZE_BYTES: usize = 32;
 }
 
-let mut rng = rand_core::OsRng;
+// In rand_core 0.9 `OsRng` only implements `TryRngCore`; `UnwrapErr` adapts
+// it to the `CryptoRng` bound used by pakery's API (panics on RNG failure,
+// which never happens on a real OS).
+let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
 
 // Initiator starts the exchange
 let (ya, state) = CpaceInitiator::<MyCpaceSuite>::start(
@@ -92,12 +106,16 @@ assert_eq!(init_out.isk.as_bytes(), resp_out.isk.as_bytes());
 
 ## Features
 
-All protocol crates support:
+Features common to *every* protocol crate:
 
 | Feature | Description |
 |---------|-------------|
 | `std` (default) | Enable `std` support |
 | `os_rng` | Enable OS-backed RNG via `rand_core/os_rng` |
+
+Individual crates declare more — `pakery-crypto` gates its primitives and
+pre-built ciphersuites behind features, and the OPAQUE / SPAKE2 / SPAKE2+
+crates offer `test-utils`. See each crate's README.
 
 ## Security
 

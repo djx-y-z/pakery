@@ -15,7 +15,13 @@ SPAKE2+ is an augmented (asymmetric) PAKE: the server stores a verifier derived 
 ```toml
 [dependencies]
 pakery-spake2plus = "0.3"
+pakery-core = "0.3"
 pakery-crypto = { version = "0.3", features = ["ristretto255"] }
+# `OsRng` lives in rand_core, so it must be a direct dependency with its
+# `os_rng` feature on. Enabling `os_rng` on any pakery crate turns the
+# same rand_core feature on transitively; naming it here keeps the
+# requirement explicit and independent of feature unification.
+rand_core = { version = "0.9", features = ["os_rng"] }
 ```
 
 ## Example
@@ -24,7 +30,7 @@ pakery-crypto = { version = "0.3", features = ["ristretto255"] }
 use pakery_spake2plus::{Spake2PlusCiphersuite, Prover, Verifier, compute_verifier};
 use pakery_crypto::{Ristretto255Group, Sha512Hash, HkdfSha512, HmacSha512};
 use pakery_crypto::{SPAKE2_M_COMPRESSED, SPAKE2_N_COMPRESSED};
-use pakery_core::crypto::Hash;
+use pakery_core::crypto::{CpaceGroup, Hash};
 
 struct MySpake2PlusSuite;
 
@@ -38,10 +44,9 @@ impl Spake2PlusCiphersuite for MySpake2PlusSuite {
     const N_BYTES: &'static [u8] = &SPAKE2_N_COMPRESSED;
 }
 
-// Requires the `os_rng` crate feature. In rand_core 0.9 `OsRng` only
-// implements `TryRngCore`; `UnwrapErr` adapts it to the `CryptoRng`
-// bound used by pakery's API (panics on RNG failure, which never
-// happens on a real OS).
+// In rand_core 0.9 `OsRng` only implements `TryRngCore`; `UnwrapErr`
+// adapts it to the `CryptoRng` bound used by pakery's API (panics on
+// RNG failure, which never happens on a real OS).
 let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
 
 // Derive password scalars (w0, w1)

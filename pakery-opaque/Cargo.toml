@@ -10,7 +10,7 @@ description = "OPAQUE augmented PAKE protocol (RFC 9807)"
 readme = "README.md"
 documentation = "https://docs.rs/pakery-opaque"
 keywords = ["pake", "opaque", "password", "key-exchange", "no-std"]
-categories = ["cryptography", "no-std::no-alloc", "authentication"]
+categories = ["cryptography", "no-std", "authentication"]
 
 [features]
 default = ["std"]

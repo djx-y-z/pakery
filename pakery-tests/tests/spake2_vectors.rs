@@ -5,7 +5,8 @@
 
 use pakery_core::crypto::{CpaceGroup, Hash};
 use pakery_crypto::{
-    HkdfSha512, HmacSha512, Ristretto255Group, Sha512Hash, SPAKE2_M_COMPRESSED, SPAKE2_N_COMPRESSED,
+    HkdfSha512, HmacSha512, Ristretto255Group, Sha512Hash, SPAKE2_M_COMPRESSED,
+    SPAKE2_N_COMPRESSED, SPAKE2_S_COMPRESSED,
 };
 use pakery_spake2::{PartyA, PartyB, Spake2Ciphersuite};
 
@@ -53,6 +54,21 @@ fn test_n_constant_derivation() {
     assert_eq!(
         compressed, SPAKE2_N_COMPRESSED,
         "N constant must match derivation from hash-to-curve"
+    );
+}
+
+// `SPAKE2_S_COMPRESSED` is public API but is not consumed anywhere in this
+// workspace (no ciphersuite references it — symmetric SPAKE2 is not
+// implemented here), so nothing else pins its value. Without this test its
+// documented derivation is an unverified claim.
+#[test]
+fn test_s_constant_derivation() {
+    let hash = Sha512Hash::digest(b"symmetric SPAKE2 ristretto255");
+    let point = Ristretto255Group::from_uniform_bytes(&hash).unwrap();
+    let compressed = point.to_bytes();
+    assert_eq!(
+        compressed, SPAKE2_S_COMPRESSED,
+        "S constant must match derivation from hash-to-curve"
     );
 }
 
