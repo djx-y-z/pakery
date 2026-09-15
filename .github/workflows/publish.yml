@@ -35,6 +35,14 @@ jobs:
           fi
           echo "Publishing version $TAG"
 
+      # Before the publish step, deliberately: crates.io cannot be undone,
+      # only yanked. ci/release-notes.py exits non-zero if the tag has no
+      # CHANGELOG section, and under `bash -e` that fails the job here --
+      # while failing still means something -- rather than after six crates
+      # are already on the registry.
+      - name: Verify the tag has release notes
+        run: python3 ci/release-notes.py "$GITHUB_REF_NAME" > "$RUNNER_TEMP/notes.md"
+
       - name: Publish crates
         run: |
           publish() {
@@ -61,7 +69,13 @@ jobs:
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
 
+      # Not `--generate-notes`: it summarises the pull requests merged since
+      # the previous tag, and a release commit pushed straight to `main` has
+      # none. v0.2.1 and v0.3.1 both shipped a couple of hundred characters
+      # crediting an unrelated PR and saying nothing about the release. The
+      # CHANGELOG entry already is the release note; it was extracted and
+      # validated above, before anything was published.
       - name: Create GitHub release
-        run: gh release create "$GITHUB_REF_NAME" --generate-notes
+        run: gh release create "$GITHUB_REF_NAME" --notes-file "$RUNNER_TEMP/notes.md"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
