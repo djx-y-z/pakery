@@ -37,7 +37,7 @@ fi
 # The example check compiles and runs each README snippet (~20 s) and is left
 # to CI's `docs-check` job so the hook stays fast.
 echo -e "\n${YELLOW}[3/3] Checking docs against code...${NC}"
-if python3 ci/check-docs.py --only features,versions; then
+if python3 ci/check-docs.py --only features,versions,docsrs; then
     echo -e "${GREEN}Docs check passed.${NC}"
 else
     echo -e "${RED}Docs check failed.${NC}"

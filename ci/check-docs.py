@@ -15,6 +15,13 @@ actually shipped:
             Regression it would have caught: install snippets pinned to
             `pakery-* = "0.1"` while the workspace shipped 0.2.x / 0.3.0.
 
+  docsrs    `[package.metadata.docs.rs]` vs `[features]`: every public
+            feature of a published crate must be reachable from the feature
+            set docs.rs builds with.
+            Regression it would have caught: pakery-crypto 0.3.0 rendered 6
+            of its 15 modules on docs.rs — no `suites`, no P-256, no
+            `Argon2idKsf` — because it declared no docs.rs metadata.
+
   examples  Every ```rust block is compiled AND run as a standalone crate
             built from the ```toml block that precedes it, with `pakery-*`
             dependencies redirected to this checkout via `path` (the declared
@@ -25,7 +32,13 @@ actually shipped:
             Regression it would have caught: `rand_core::OsRng` used directly
             after rand_core 0.9 made it `TryRngCore`-only.
 
-Usage:  python3 ci/check-docs.py [--only features,versions,examples] [-v]
+Each check is exercised by a break-test in ci/test-check-docs.py, which
+builds a fixture repository per known failure shape and asserts this script
+reports it. Run that after changing anything here: two of these checks have
+failed *open* in the past, printing "all claims verified" because a parse bug
+had stopped them from looking.
+
+Usage:  python3 ci/check-docs.py [--only features,versions,docsrs,examples] [-v]
 Exit code 0 = all checks pass, 1 = at least one finding.
 """
 
@@ -74,12 +87,25 @@ def fail(where: str, msg: str) -> None:
 # Markdown helpers
 # --------------------------------------------------------------------------
 
-FENCE_RE = re.compile(r"^```([A-Za-z0-9_,+-]*)\s*$")
+# CommonMark: a fence is three or more backticks, optionally indented by up
+# to three spaces, and its info string runs to end of line. Matching a
+# narrower character class used to leave ```rust ignore unrecognised as an
+# *opening* fence — spaces separate info-string words as legitimately as
+# commas, and rustdoc treats the two forms alike — while its closing fence
+# still matched. Parity inverted and every block after it became invisible,
+# so the checker went quiet and reported success. This parse must stay
+# permissive: anything it fails to recognise, it fails to check.
+FENCE_RE = re.compile(r"^ {0,3}(`{3,})([^`]*)$")
 
 
-def fenced_blocks(text: str) -> list[tuple[str, int, str]]:
-    """Return [(info_string, start_line_1based, body)] for each fenced block."""
-    out: list[tuple[str, int, str]] = []
+def fenced_blocks(text: str) -> list[tuple[str, list[str], int, str]]:
+    """Return [(lang, flags, start_line_1based, body)] for each fenced block.
+
+    `lang` is the first word of the info string and `flags` the rest, split
+    on commas and whitespace alike, so ```rust,ignore and ```rust ignore are
+    the same block to every caller.
+    """
+    out: list[tuple[str, list[str], int, str]] = []
     lines = text.splitlines()
     i = 0
     while i < len(lines):
@@ -87,21 +113,31 @@ def fenced_blocks(text: str) -> list[tuple[str, int, str]]:
         if not m:
             i += 1
             continue
-        info = m.group(1)
+        ticks, info = m.group(1), m.group(2)
+        tokens = [t for t in re.split(r"[,\s]+", info.strip()) if t]
         start = i + 1
         body: list[str] = []
         i += 1
-        while i < len(lines) and not FENCE_RE.match(lines[i]):
+        while i < len(lines):
+            c = FENCE_RE.match(lines[i])
+            # A closing fence is at least as long and carries no info string.
+            if c and len(c.group(1)) >= len(ticks) and not c.group(2).strip():
+                break
             body.append(lines[i])
             i += 1
-        out.append((info, start, "\n".join(body)))
+        lang = tokens[0] if tokens else ""
+        out.append((lang, tokens[1:], start, "\n".join(body)))
         i += 1
     return out
 
 
-def manifest_features(crate: str) -> dict[str, list[str]]:
+def manifest(crate: str) -> dict:
     with (REPO / crate / "Cargo.toml").open("rb") as fh:
-        return tomllib.load(fh).get("features", {})
+        return tomllib.load(fh)
+
+
+def manifest_features(crate: str) -> dict[str, list[str]]:
+    return manifest(crate).get("features", {})
 
 
 def workspace_meta() -> dict:
@@ -242,8 +278,8 @@ def check_versions() -> None:
             continue
         rel = md.relative_to(REPO)
         text = md.read_text()
-        for info, start, body in fenced_blocks(text):
-            if info.split(",")[0] != "toml":
+        for lang, _flags, start, body in fenced_blocks(text):
+            if lang != "toml":
                 continue
             for off, line in enumerate(body.splitlines(), 1):
                 m = DEP_LINE_RE.match(line)
@@ -287,6 +323,7 @@ def check_versions() -> None:
 # Check 3: compile and run every documented example
 # --------------------------------------------------------------------------
 
+MAIN_FN_RE = re.compile(r"^\s*(pub\s+)?(async\s+)?fn\s+main\s*\(", re.M)
 PATH_REWRITE_TABLE_RE = re.compile(r"^\s*(pakery-[a-z0-9]+)\s*=\s*\{(.*)\}\s*$")
 PATH_REWRITE_BARE_RE = re.compile(r'^\s*(pakery-[a-z0-9]+)\s*=\s*("[^"]+")\s*$')
 
@@ -318,12 +355,10 @@ def example_units(md: Path) -> list[tuple[int, str, str]]:
     """Pair each ```rust block with the nearest preceding ```toml block."""
     units = []
     current_toml = None
-    for info, start, body in fenced_blocks(md.read_text()):
-        kind = info.split(",")[0]
-        flags = info.split(",")[1:]
-        if kind == "toml" and "[dependencies]" in body:
+    for lang, flags, start, body in fenced_blocks(md.read_text()):
+        if lang == "toml" and "[dependencies]" in body:
             current_toml = body
-        elif kind == "rust":
+        elif lang == "rust":
             if "ignore" in flags or "no_check" in flags:
                 continue
             units.append((start, current_toml, body))
@@ -361,9 +396,17 @@ def check_examples(target_dir: Path, verbose: bool) -> None:
                 f"{redirect_to_checkout(dep_block)}\n"
                 f"\n[workspace]\n"
             )
+            # Wrapping a snippet that already spells its own `fn main()`
+            # buries it in a nested function nobody calls: it still compiles,
+            # so the build passes, but nothing in it runs and a false
+            # assertion inside it cannot fail. That silently downgrades this
+            # check from "built and run" to "built". rustdoc draws the same
+            # distinction, so follow it.
+            body = code if MAIN_FN_RE.search(code) else f"fn main() {{\n{code}\n}}"
             (proj / "src" / "main.rs").write_text(
                 "#![allow(unused_imports, unused_variables, unused_mut)]\n"
-                "fn main() {\n" + code + "\n}\n"
+                + body
+                + "\n"
             )
             if verbose:
                 print(f"  building {rel}:{start} -> {name}", file=sys.stderr)
@@ -385,11 +428,84 @@ def check_examples(target_dir: Path, verbose: bool) -> None:
 
 
 # --------------------------------------------------------------------------
+# Check 4: docs.rs renders every public feature
+# --------------------------------------------------------------------------
+
+
+def docs_rs_feature_closure(features: dict, meta: dict) -> set[str]:
+    """The feature set docs.rs actually builds, expanded transitively.
+
+    Mirrors docs.rs' own rules: default features unless `no-default-features`
+    turns them off, plus whatever `features` lists, plus everything those
+    transitively enable.
+    """
+    seed = set(meta.get("features", []))
+    if not meta.get("no-default-features", False) and "default" in features:
+        seed.add("default")
+    seen: set[str] = set()
+    queue = list(seed)
+    while queue:
+        name = queue.pop()
+        if name in seen:
+            continue
+        seen.add(name)
+        # `dep:foo` activates an optional dependency and `foo/bar` a feature
+        # of one; neither names a feature of this crate.
+        queue += [e for e in features.get(name, []) if e in features]
+    return seen
+
+
+def check_docs_rs_features() -> None:
+    """Every public feature must be reachable from what docs.rs builds.
+
+    docs.rs builds default features only unless `[package.metadata.docs.rs]`
+    says otherwise, so an item behind an optional feature is simply absent
+    from the rendered documentation — silently, with the build still green.
+    Regression it would have caught: pakery-crypto 0.3.0 carried no docs.rs
+    metadata and published 6 of its 15 modules, without `suites`, P-256 or
+    `Argon2idKsf`.
+
+    `__`-prefixed features are exempt: excluding them is deliberate.
+    pakery-core keeps `__ctgrind` off docs.rs because it pulls crabgrind and
+    emits Valgrind client requests, which is why this check asks for
+    coverage rather than for `all-features = true`.
+    """
+    for crate in CRATES:
+        man = manifest(crate)
+        pkg = man.get("package", {})
+        if pkg.get("publish") is False:
+            continue
+        features = man.get("features", {})
+        meta = pkg.get("metadata", {}).get("docs", {}).get("rs", {})
+        if meta.get("all-features"):
+            continue
+        public = {
+            f for f in features
+            if f != "default" and not PRIVATE_FEATURE_RE.match(f)
+        }
+        missing = sorted(public - docs_rs_feature_closure(features, meta))
+        if not missing:
+            continue
+        how = (
+            "declares no [package.metadata.docs.rs], so docs.rs builds only "
+            "its default features"
+            if not meta
+            else "[package.metadata.docs.rs] lists a feature set that does "
+            "not reach every public feature"
+        )
+        fail(
+            f"{crate}/Cargo.toml",
+            f"{how}; docs.rs would render nothing gated on {missing}. Add "
+            f"them to `features`, or set `all-features = true`",
+        )
+
+
+# --------------------------------------------------------------------------
 
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--only", default="features,versions,examples")
+    ap.add_argument("--only", default="features,versions,docsrs,examples")
     ap.add_argument("-v", "--verbose", action="store_true")
     ap.add_argument("--target-dir", default=str(REPO / "target" / "doc-check"))
     args = ap.parse_args()
@@ -399,6 +515,8 @@ def main() -> int:
         check_features()
     if "versions" in selected:
         check_versions()
+    if "docsrs" in selected:
+        check_docs_rs_features()
     if "examples" in selected:
         check_examples(Path(args.target_dir), args.verbose)
 

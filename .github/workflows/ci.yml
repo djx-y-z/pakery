@@ -74,12 +74,22 @@ jobs:
   # deps are redirected to this checkout via `path` while keeping the declared
   # `version`, so a stale version requirement is rejected too. See
   # ci/check-docs.py.
+  #
+  # The break-tests run first and are not optional. Two of these checks have
+  # failed *open* — a fence-parsing bug made ```rust ignore invert fence
+  # parity, so every later block in the file went unchecked while the script
+  # printed "all claims verified", and examples carrying their own `fn main()`
+  # were compiled into a nested function nobody called, so they never ran.
+  # A gate whose failure path is never exercised cannot be trusted to have
+  # one; ci/test-check-docs.py rebuilds each shape as a fixture repo and
+  # asserts the checker reports it.
   docs-check:
     name: Docs match code
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
+      - run: python3 ci/test-check-docs.py
       - run: python3 ci/check-docs.py
 
   # `--all-features` is deliberate: `cargo check --workspace` alone skips every

@@ -7,3 +7,7 @@
 .DS_Store
 TODO.md
 .claude/settings.local.json
+
+# Python bytecode from ci/*.py (the docs gate and its break-tests)
+__pycache__/
+*.pyc
