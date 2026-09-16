@@ -34,7 +34,8 @@ pakery-crypto = { workspace = true, features = ["cpace", "spake2", "spake2plus",
 hex = "0.4"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-rand_core = { workspace = true, features = ["os_rng"] }
+rand_core = { workspace = true }
+getrandom = { workspace = true }
 curve25519-dalek = { workspace = true }
 p256 = { workspace = true, optional = true }
 # Differential-testing deps (see SECURITY_TESTING.md, "Differential testing"). Cargo does
@@ -61,4 +62,4 @@ p256-013 = { package = "p256", version = "0.13", default-features = false, featu
 # needs no pin. (It is also a dev-dependency of a publish = false crate, and
 # the MSRV CI job does not build dev-dependencies.)
 proptest = "1"
-rand_chacha = "0.9"
+rand_chacha = "0.10"

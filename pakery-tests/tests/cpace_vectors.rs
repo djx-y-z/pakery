@@ -337,8 +337,8 @@ fn test_empty_password_round_trip() {
     let ad_a = b"";
     let ad_b = b"";
 
-    let mut rng_a = rand_core::UnwrapErr(rand_core::OsRng);
-    let mut rng_b = rand_core::UnwrapErr(rand_core::OsRng);
+    let mut rng_a = rand_core::UnwrapErr(getrandom::SysRng);
+    let mut rng_b = rand_core::UnwrapErr(getrandom::SysRng);
 
     let (ya_bytes, state) =
         CpaceInitiator::<CpaceRistretto255Sha512>::start(b"", &ci, &sid, ad_a, &mut rng_a).unwrap();
@@ -473,14 +473,19 @@ impl FixedScalarRng {
     }
 }
 
-impl rand_core::RngCore for FixedScalarRng {
-    fn next_u32(&mut self) -> u32 {
+// rand_core 0.10 made `Rng` and `CryptoRng` blanket impls over the fallible
+// `TryRng`/`TryCryptoRng`, so a generator is written once, with
+// `Error = Infallible`, and gets the infallible traits for free.
+impl rand_core::TryRng for FixedScalarRng {
+    type Error = rand_core::Infallible;
+
+    fn try_next_u32(&mut self) -> Result<u32, Self::Error> {
         unimplemented!()
     }
-    fn next_u64(&mut self) -> u64 {
+    fn try_next_u64(&mut self) -> Result<u64, Self::Error> {
         unimplemented!()
     }
-    fn fill_bytes(&mut self, dest: &mut [u8]) {
+    fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), Self::Error> {
         if !self.used {
             if dest.len() <= 32 {
                 dest.copy_from_slice(&self.scalar_bytes[..dest.len()]);
@@ -496,10 +501,11 @@ impl rand_core::RngCore for FixedScalarRng {
                 *b = 0;
             }
         }
+        Ok(())
     }
 }
 
-impl rand_core::CryptoRng for FixedScalarRng {}
+impl rand_core::TryCryptoRng for FixedScalarRng {}
 
 #[test]
 fn test_full_protocol_ir() {
@@ -745,7 +751,7 @@ fn test_swapped_shares_produce_different_isk() {
     let sid = b"sid";
     let ad_a = b"initiator";
     let ad_b = b"responder";
-    let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
+    let mut rng = rand_core::UnwrapErr(getrandom::SysRng);
 
     // Normal handshake
     let (ya_bytes, state_a) =

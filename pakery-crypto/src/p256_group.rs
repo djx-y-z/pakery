@@ -86,10 +86,10 @@ impl CpaceGroup for P256Group {
         // byte-consumption pattern is what the RFC 9497 / RFC 9807 vector tests
         // depend on — they replay a deterministic 32-byte scalar through a test
         // RNG — so it is a fixed contract of this function, not an imitation of
-        // whatever `Scalar::random` does internally. (We could not call
-        // `Scalar::random` anyway: it comes from `ff` 0.14's
-        // `Field::random<R: rand_core::Rng>`, i.e. a rand_core 0.10 RNG,
-        // and our bound is rand_core 0.9.)
+        // whatever `Scalar::random` does internally. Until 0.4.0 it was also
+        // out of reach — `ff` 0.14's `Field::random` takes a rand_core 0.10
+        // RNG, and the bound here was rand_core 0.9 — but that is no longer
+        // what stops us: the byte contract above is.
         //
         // ctgrind: candidate bytes are deliberately NOT marked secret here —
         // rejection sampling branches on each candidate's validity (a public

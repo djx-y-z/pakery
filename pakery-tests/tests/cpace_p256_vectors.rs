@@ -40,7 +40,7 @@ fn test_full_round_trip_ir() {
     let ad_a = b"initiator_ad";
     let ad_b = b"responder_ad";
 
-    let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
+    let mut rng = rand_core::UnwrapErr(getrandom::SysRng);
 
     let (ya_bytes, state) =
         CpaceInitiator::<CpaceP256Sha512>::start(prs, ci, sid, ad_a, &mut rng).unwrap();
@@ -83,7 +83,7 @@ fn test_full_round_trip_symmetric() {
     let ad_a = b"ad_alpha";
     let ad_b = b"ad_beta";
 
-    let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
+    let mut rng = rand_core::UnwrapErr(getrandom::SysRng);
 
     let (ya_bytes, state) =
         CpaceInitiator::<CpaceP256Sha512>::start(prs, ci, sid, ad_a, &mut rng).unwrap();
@@ -125,7 +125,7 @@ fn test_wrong_password_fails() {
     let ad_a = b"ad_a";
     let ad_b = b"ad_b";
 
-    let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
+    let mut rng = rand_core::UnwrapErr(getrandom::SysRng);
 
     let (ya_bytes, state) =
         CpaceInitiator::<CpaceP256Sha512>::start(prs_correct, ci, sid, ad_a, &mut rng).unwrap();
@@ -191,7 +191,7 @@ fn test_empty_password_round_trip() {
     let ad_a = b"ad_a";
     let ad_b = b"ad_b";
 
-    let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
+    let mut rng = rand_core::UnwrapErr(getrandom::SysRng);
 
     let (ya_bytes, state) =
         CpaceInitiator::<CpaceP256Sha512>::start(prs, ci, sid, ad_a, &mut rng).unwrap();
@@ -233,7 +233,7 @@ fn test_empty_context_and_identities() {
     let ad_a = b"";
     let ad_b = b"";
 
-    let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
+    let mut rng = rand_core::UnwrapErr(getrandom::SysRng);
 
     let (ya_bytes, state) =
         CpaceInitiator::<CpaceP256Sha512>::start(prs, ci, sid, ad_a, &mut rng).unwrap();
@@ -330,7 +330,7 @@ fn test_invalid_points_abort_protocol() {
     let ad_a = b"ad_a";
     let ad_b = b"ad_b";
 
-    let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
+    let mut rng = rand_core::UnwrapErr(getrandom::SysRng);
 
     for (name, hex) in [("Y_i1", P256_INVALID_Y1_HEX), ("Y_i2", P256_INVALID_Y2_HEX)] {
         let invalid = h(hex);

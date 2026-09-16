@@ -62,20 +62,25 @@ impl SequentialRng {
     }
 }
 
-impl rand_core::RngCore for SequentialRng {
-    fn next_u32(&mut self) -> u32 {
+// rand_core 0.10 made `Rng` and `CryptoRng` blanket impls over the fallible
+// `TryRng`/`TryCryptoRng`, so a generator is written once, with
+// `Error = Infallible`, and gets the infallible traits for free.
+impl rand_core::TryRng for SequentialRng {
+    type Error = rand_core::Infallible;
+
+    fn try_next_u32(&mut self) -> Result<u32, Self::Error> {
         let mut buf = [0u8; 4];
-        self.fill_bytes(&mut buf);
-        u32::from_le_bytes(buf)
+        self.try_fill_bytes(&mut buf)?;
+        Ok(u32::from_le_bytes(buf))
     }
 
-    fn next_u64(&mut self) -> u64 {
+    fn try_next_u64(&mut self) -> Result<u64, Self::Error> {
         let mut buf = [0u8; 8];
-        self.fill_bytes(&mut buf);
-        u64::from_le_bytes(buf)
+        self.try_fill_bytes(&mut buf)?;
+        Ok(u64::from_le_bytes(buf))
     }
 
-    fn fill_bytes(&mut self, dest: &mut [u8]) {
+    fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), Self::Error> {
         let mut written = 0;
         while written < dest.len() {
             if self.chunk_offset >= self.current_chunk.len() {
@@ -88,7 +93,7 @@ impl rand_core::RngCore for SequentialRng {
                     for b in &mut dest[written..] {
                         *b = 0;
                     }
-                    return;
+                    return Ok(());
                 }
             }
             let available = self.current_chunk.len() - self.chunk_offset;
@@ -100,10 +105,11 @@ impl rand_core::RngCore for SequentialRng {
             self.chunk_offset += to_copy;
             written += to_copy;
         }
+        Ok(())
     }
 }
 
-impl rand_core::CryptoRng for SequentialRng {}
+impl rand_core::TryCryptoRng for SequentialRng {}
 
 // ==========================================================================
 // Test Vector 1: Default identities (empty client_identity, empty server_identity)
@@ -669,7 +675,7 @@ fn test_vector2_full_login() {
 
 #[test]
 fn test_full_roundtrip_random() {
-    let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
+    let mut rng = rand_core::UnwrapErr(getrandom::SysRng);
     let password = b"correct horse battery staple";
 
     let setup = ServerSetup::<OpaqueRistretto255Sha512>::new(&mut rng).unwrap();
@@ -710,7 +716,7 @@ fn test_full_roundtrip_random() {
 
 #[test]
 fn test_wrong_password() {
-    let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
+    let mut rng = rand_core::UnwrapErr(getrandom::SysRng);
 
     let setup = ServerSetup::<OpaqueRistretto255Sha512>::new(&mut rng).unwrap();
 
@@ -737,7 +743,7 @@ fn test_wrong_password() {
 
 #[test]
 fn test_tampered_server_mac() {
-    let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
+    let mut rng = rand_core::UnwrapErr(getrandom::SysRng);
 
     let setup = ServerSetup::<OpaqueRistretto255Sha512>::new(&mut rng).unwrap();
 
@@ -767,7 +773,7 @@ fn test_tampered_server_mac() {
 
 #[test]
 fn test_tampered_client_mac() {
-    let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
+    let mut rng = rand_core::UnwrapErr(getrandom::SysRng);
 
     let setup = ServerSetup::<OpaqueRistretto255Sha512>::new(&mut rng).unwrap();
 
@@ -805,7 +811,7 @@ fn test_tampered_client_mac() {
 fn test_fake_credential_response() {
     use pakery_opaque::messages::CredentialResponse;
 
-    let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
+    let mut rng = rand_core::UnwrapErr(getrandom::SysRng);
     let password = b"some password";
 
     let setup = ServerSetup::<OpaqueRistretto255Sha512>::new(&mut rng).unwrap();
@@ -835,7 +841,7 @@ fn test_fake_credential_response() {
 
 #[test]
 fn test_fake_credential_client_fails() {
-    let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
+    let mut rng = rand_core::UnwrapErr(getrandom::SysRng);
     let password = b"some password";
 
     let setup = ServerSetup::<OpaqueRistretto255Sha512>::new(&mut rng).unwrap();
@@ -891,7 +897,7 @@ mod argon2_tests {
 
     #[test]
     fn test_argon2_roundtrip() {
-        let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
+        let mut rng = rand_core::UnwrapErr(getrandom::SysRng);
         let password = b"correct horse battery staple";
 
         let setup = ServerSetup::<OpaqueRistretto255Sha512Argon2>::new(&mut rng).unwrap();
@@ -936,7 +942,7 @@ mod argon2_tests {
 
     #[test]
     fn test_argon2_wrong_password() {
-        let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
+        let mut rng = rand_core::UnwrapErr(getrandom::SysRng);
 
         let setup = ServerSetup::<OpaqueRistretto255Sha512Argon2>::new(&mut rng).unwrap();
 
@@ -972,7 +978,7 @@ mod argon2_tests {
 
 #[test]
 fn test_start_fake_ke2_size_matches_real() {
-    let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
+    let mut rng = rand_core::UnwrapErr(getrandom::SysRng);
     let password = b"test password";
 
     let setup = ServerSetup::<OpaqueRistretto255Sha512>::new(&mut rng).unwrap();
@@ -1063,7 +1069,7 @@ fn test_start_fake_ke2_size_matches_real() {
 
 #[test]
 fn test_empty_password_roundtrip() {
-    let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
+    let mut rng = rand_core::UnwrapErr(getrandom::SysRng);
     let password = b"";
 
     let setup = ServerSetup::<OpaqueRistretto255Sha512>::new(&mut rng).unwrap();
@@ -1244,7 +1250,7 @@ fn test_deterministic_replay() {
 
 #[test]
 fn test_tampered_ke2_evaluated_message() {
-    let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
+    let mut rng = rand_core::UnwrapErr(getrandom::SysRng);
     let setup = ServerSetup::<OpaqueRistretto255Sha512>::new(&mut rng).unwrap();
 
     let (reg_request, reg_state) =
@@ -1273,7 +1279,7 @@ fn test_tampered_ke2_evaluated_message() {
 
 #[test]
 fn test_tampered_ke2_masked_response() {
-    let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
+    let mut rng = rand_core::UnwrapErr(getrandom::SysRng);
     let setup = ServerSetup::<OpaqueRistretto255Sha512>::new(&mut rng).unwrap();
 
     let (reg_request, reg_state) =
@@ -1302,7 +1308,7 @@ fn test_tampered_ke2_masked_response() {
 
 #[test]
 fn test_tampered_ke2_server_keyshare() {
-    let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
+    let mut rng = rand_core::UnwrapErr(getrandom::SysRng);
     let setup = ServerSetup::<OpaqueRistretto255Sha512>::new(&mut rng).unwrap();
 
     let (reg_request, reg_state) =
@@ -1331,7 +1337,7 @@ fn test_tampered_ke2_server_keyshare() {
 
 #[test]
 fn test_context_mismatch_fails() {
-    let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
+    let mut rng = rand_core::UnwrapErr(getrandom::SysRng);
     let setup = ServerSetup::<OpaqueRistretto255Sha512>::new(&mut rng).unwrap();
 
     let (reg_request, reg_state) =

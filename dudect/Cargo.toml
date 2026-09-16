@@ -10,7 +10,9 @@ rust-version = "1.85"
 
 [dependencies]
 dudect-bencher = "0.7"
-rand_core = { version = "0.9", features = ["os_rng"] }
+rand_core = "0.10"
+# rand_core 0.10 has no OS-backed RNG of its own; `SysRng` is where it went.
+getrandom = { version = "0.4", features = ["sys_rng"] }
 
 pakery-core = { path = "../pakery-core" }
 pakery-spake2 = { path = "../pakery-spake2" }

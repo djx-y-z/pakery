@@ -216,7 +216,7 @@ impl Drop for ChunkCallRng {
     }
 }
 
-/// Byte-stream RNG for our implementation (rand_core 0.9), zero-padded once
+/// Byte-stream RNG for our implementation (rand_core 0.10), zero-padded once
 /// the stream is exhausted. Feeding a canonical scalar reproduces that exact
 /// scalar in both groups: ristretto255 reads 64 bytes and wide-reduces
 /// `scalar || zeros` back to `scalar`; P-256 reads the 32 canonical big-endian
@@ -235,28 +235,34 @@ impl ByteStreamRng {
     }
 }
 
-impl rand_core::RngCore for ByteStreamRng {
-    fn next_u32(&mut self) -> u32 {
+// rand_core 0.10 made `Rng` and `CryptoRng` blanket impls over the fallible
+// `TryRng`/`TryCryptoRng`, so a generator is written once, with
+// `Error = Infallible`, and gets the infallible traits for free.
+impl rand_core::TryRng for ByteStreamRng {
+    type Error = rand_core::Infallible;
+
+    fn try_next_u32(&mut self) -> Result<u32, Self::Error> {
         let mut buf = [0u8; 4];
-        self.fill_bytes(&mut buf);
-        u32::from_le_bytes(buf)
+        self.try_fill_bytes(&mut buf)?;
+        Ok(u32::from_le_bytes(buf))
     }
 
-    fn next_u64(&mut self) -> u64 {
+    fn try_next_u64(&mut self) -> Result<u64, Self::Error> {
         let mut buf = [0u8; 8];
-        self.fill_bytes(&mut buf);
-        u64::from_le_bytes(buf)
+        self.try_fill_bytes(&mut buf)?;
+        Ok(u64::from_le_bytes(buf))
     }
 
-    fn fill_bytes(&mut self, dest: &mut [u8]) {
+    fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), Self::Error> {
         for b in dest.iter_mut() {
             *b = self.data.get(self.offset).copied().unwrap_or(0);
             self.offset += 1;
         }
+        Ok(())
     }
 }
 
-impl rand_core::CryptoRng for ByteStreamRng {}
+impl rand_core::TryCryptoRng for ByteStreamRng {}
 
 // ==========================================================================
 // Differential driver

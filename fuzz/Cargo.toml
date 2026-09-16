@@ -10,8 +10,8 @@ cargo-fuzz = true
 [dependencies]
 libfuzzer-sys = "0.4"
 arbitrary = { version = "1", features = ["derive"] }
-rand_core = "0.9"
-rand_chacha = "0.9"
+rand_core = "0.10"
+rand_chacha = "0.10"
 hex = "0.4"
 
 pakery-core = { path = "../pakery-core" }

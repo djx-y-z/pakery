@@ -159,10 +159,10 @@ impl Oprf for P256Oprf {
         // byte-consumption pattern is what the RFC 9497 / RFC 9807 vector tests
         // depend on — they replay a deterministic 32-byte scalar through a test
         // RNG — so it is a fixed contract of this function, not an imitation of
-        // whatever `Scalar::random` does internally. (We could not call
-        // `Scalar::random` anyway: it comes from `ff` 0.14's
-        // `Field::random<R: rand_core::Rng>`, i.e. a rand_core 0.10 RNG,
-        // and our bound is rand_core 0.9.)
+        // whatever `Scalar::random` does internally. Until 0.4.0 it was also
+        // out of reach — `ff` 0.14's `Field::random` takes a rand_core 0.10
+        // RNG, and the bound here was rand_core 0.9 — but that is no longer
+        // what stops us: the byte contract above is.
         //
         // ctgrind: candidate bytes are deliberately NOT marked secret —
         // rejection sampling branches on each candidate's validity (a public
@@ -361,16 +361,17 @@ mod tests {
 
     #[test]
     fn roundtrip() {
-        use rand_core::{OsRng, UnwrapErr};
+        use getrandom::SysRng;
+        use rand_core::UnwrapErr;
         let sk = P256Oprf::derive_key(&hex(SEED), &hex(KEY_INFO)).unwrap();
         let password = b"hunter2";
-        let (state, blinded) = P256Oprf::client_blind(password, &mut UnwrapErr(OsRng)).unwrap();
+        let (state, blinded) = P256Oprf::client_blind(password, &mut UnwrapErr(SysRng)).unwrap();
         let eval = P256Oprf::server_evaluate(&sk, &blinded).unwrap();
         let output = state.finalize(password, &eval).unwrap();
         assert_eq!(output.len(), 32); // SHA-256 output
 
         // Same password + key should produce the same output.
-        let (state2, blinded2) = P256Oprf::client_blind(password, &mut UnwrapErr(OsRng)).unwrap();
+        let (state2, blinded2) = P256Oprf::client_blind(password, &mut UnwrapErr(SysRng)).unwrap();
         let eval2 = P256Oprf::server_evaluate(&sk, &blinded2).unwrap();
         let output2 = state2.finalize(password, &eval2).unwrap();
         assert_eq!(output, output2);
@@ -407,7 +408,7 @@ mod tests {
 
     #[test]
     fn finalize_rejects_identity_evaluation() {
-        let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
+        let mut rng = rand_core::UnwrapErr(getrandom::SysRng);
         let (state, _) = P256Oprf::client_blind(b"password", &mut rng).unwrap();
         // SEC1 identity encoding = single 0x00 byte.
         assert!(state.finalize(b"password", &[0x00]).is_err());
@@ -431,16 +432,17 @@ mod tests {
 
     #[test]
     fn different_passwords_different_outputs() {
-        use rand_core::{OsRng, UnwrapErr};
+        use getrandom::SysRng;
+        use rand_core::UnwrapErr;
         let sk = P256Oprf::derive_key(&hex(SEED), &hex(KEY_INFO)).unwrap();
 
         let (state_a, blinded_a) =
-            P256Oprf::client_blind(b"password-A", &mut UnwrapErr(OsRng)).unwrap();
+            P256Oprf::client_blind(b"password-A", &mut UnwrapErr(SysRng)).unwrap();
         let eval_a = P256Oprf::server_evaluate(&sk, &blinded_a).unwrap();
         let output_a = state_a.finalize(b"password-A", &eval_a).unwrap();
 
         let (state_b, blinded_b) =
-            P256Oprf::client_blind(b"password-B", &mut UnwrapErr(OsRng)).unwrap();
+            P256Oprf::client_blind(b"password-B", &mut UnwrapErr(SysRng)).unwrap();
         let eval_b = P256Oprf::server_evaluate(&sk, &blinded_b).unwrap();
         let output_b = state_b.finalize(b"password-B", &eval_b).unwrap();
 
@@ -449,15 +451,16 @@ mod tests {
 
     #[test]
     fn empty_password_roundtrip() {
-        use rand_core::{OsRng, UnwrapErr};
+        use getrandom::SysRng;
+        use rand_core::UnwrapErr;
         let sk = P256Oprf::derive_key(&hex(SEED), &hex(KEY_INFO)).unwrap();
-        let (state, blinded) = P256Oprf::client_blind(b"", &mut UnwrapErr(OsRng)).unwrap();
+        let (state, blinded) = P256Oprf::client_blind(b"", &mut UnwrapErr(SysRng)).unwrap();
         let eval = P256Oprf::server_evaluate(&sk, &blinded).unwrap();
         let output = state.finalize(b"", &eval).unwrap();
         assert_eq!(output.len(), 32);
 
         // Must be deterministic.
-        let (state2, blinded2) = P256Oprf::client_blind(b"", &mut UnwrapErr(OsRng)).unwrap();
+        let (state2, blinded2) = P256Oprf::client_blind(b"", &mut UnwrapErr(SysRng)).unwrap();
         let eval2 = P256Oprf::server_evaluate(&sk, &blinded2).unwrap();
         let output2 = state2.finalize(b"", &eval2).unwrap();
         assert_eq!(output, output2);
@@ -465,17 +468,18 @@ mod tests {
 
     #[test]
     fn different_keys_different_outputs() {
-        use rand_core::{OsRng, UnwrapErr};
+        use getrandom::SysRng;
+        use rand_core::UnwrapErr;
         let sk1 = P256Oprf::derive_key(&hex(SEED), b"key1").unwrap();
         let sk2 = P256Oprf::derive_key(&hex(SEED), b"key2").unwrap();
 
         let (state1, blinded1) =
-            P256Oprf::client_blind(b"password", &mut UnwrapErr(OsRng)).unwrap();
+            P256Oprf::client_blind(b"password", &mut UnwrapErr(SysRng)).unwrap();
         let eval1 = P256Oprf::server_evaluate(&sk1, &blinded1).unwrap();
         let output1 = state1.finalize(b"password", &eval1).unwrap();
 
         let (state2, blinded2) =
-            P256Oprf::client_blind(b"password", &mut UnwrapErr(OsRng)).unwrap();
+            P256Oprf::client_blind(b"password", &mut UnwrapErr(SysRng)).unwrap();
         let eval2 = P256Oprf::server_evaluate(&sk2, &blinded2).unwrap();
         let output2 = state2.finalize(b"password", &eval2).unwrap();
 

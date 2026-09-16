@@ -17,11 +17,12 @@ SPAKE2+ is an augmented (asymmetric) PAKE: the server stores a verifier derived 
 pakery-spake2plus = "0.3"
 pakery-core = "0.3"
 pakery-crypto = { version = "0.3", features = ["ristretto255"] }
-# `OsRng` lives in rand_core, so it must be a direct dependency with its
-# `os_rng` feature on. Enabling `os_rng` on any pakery crate turns the
-# same rand_core feature on transitively; naming it here keeps the
-# requirement explicit and independent of feature unification.
-rand_core = { version = "0.9", features = ["os_rng"] }
+# pakery's RNG bound is `rand_core::CryptoRng`, but rand_core 0.10 ships no
+# generator of its own: when it dropped its Cargo features it dropped the
+# OS-backed `OsRng` with them, and that generator now lives in getrandom as
+# `SysRng`. The example therefore names both.
+getrandom = { version = "0.4", features = ["sys_rng"] }
+rand_core = "0.10"
 ```
 
 ## Example
@@ -44,10 +45,10 @@ impl Spake2PlusCiphersuite for MySpake2PlusSuite {
     const N_BYTES: &'static [u8] = &SPAKE2_N_COMPRESSED;
 }
 
-// In rand_core 0.9 `OsRng` only implements `TryRngCore`; `UnwrapErr`
-// adapts it to the `CryptoRng` bound used by pakery's API (panics on
-// RNG failure, which never happens on a real OS).
-let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
+// `SysRng` is fallible (`TryCryptoRng`); `UnwrapErr` adapts it to the
+// infallible `CryptoRng` bound used by pakery's API (panics on RNG
+// failure, which never happens on a real OS).
+let mut rng = rand_core::UnwrapErr(getrandom::SysRng);
 
 // Derive password scalars (w0, w1)
 let h0 = Sha512Hash::digest(b"passwordw0");
@@ -86,7 +87,6 @@ assert_eq!(
 | Feature | Description |
 |---------|-------------|
 | `std` (default) | Enable `std` support |
-| `os_rng` | Enable OS-backed RNG via `rand_core/os_rng` |
 | `test-utils` | Expose deterministic constructors for testing |
 
 ## Security

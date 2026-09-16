@@ -80,7 +80,7 @@ fn test_full_round_trip() {
     let id_prover = b"client";
     let id_verifier = b"server";
 
-    let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
+    let mut rng = rand_core::UnwrapErr(getrandom::SysRng);
 
     // Prover starts → sends shareP
     let (share_p_bytes, prover_state) =
@@ -128,7 +128,7 @@ fn test_wrong_password_confirmation_fails() {
     let context = b"test";
     let id_prover = b"client";
     let id_verifier = b"server";
-    let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
+    let mut rng = rand_core::UnwrapErr(getrandom::SysRng);
 
     // Prover uses wrong password
     let (share_p_bytes, prover_state) = P::start(
@@ -244,7 +244,7 @@ fn test_invalid_point_rejection_verifier() {
     let context = b"test";
     let id_prover = b"client";
     let id_verifier = b"server";
-    let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
+    let mut rng = rand_core::UnwrapErr(getrandom::SysRng);
 
     // Garbage shareP should be rejected
     let garbage = [0xffu8; 32];
@@ -329,7 +329,7 @@ fn test_empty_context_and_identities() {
     let id_prover = b"";
     let id_verifier = b"";
 
-    let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
+    let mut rng = rand_core::UnwrapErr(getrandom::SysRng);
 
     // Both identities and context empty (valid per RFC 9383)
     let (share_p_bytes, prover_state) =
@@ -372,7 +372,7 @@ fn test_empty_password_round_trip() {
     let id_prover = b"client";
     let id_verifier = b"server";
 
-    let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
+    let mut rng = rand_core::UnwrapErr(getrandom::SysRng);
 
     let (share_p_bytes, prover_state) =
         P::start(&w0, &w1, context, id_prover, id_verifier, &mut rng).unwrap();
@@ -420,7 +420,7 @@ fn test_verifier_first_confirmation_order() {
     let context = b"order test";
     let id_prover = b"client";
     let id_verifier = b"server";
-    let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
+    let mut rng = rand_core::UnwrapErr(getrandom::SysRng);
 
     let (share_p_bytes, prover_state) =
         P::start(&w0, &w1, context, id_prover, id_verifier, &mut rng).unwrap();
@@ -461,7 +461,7 @@ fn test_different_passwords_different_keys() {
     let context = b"test";
     let id_prover = b"client";
     let id_verifier = b"server";
-    let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
+    let mut rng = rand_core::UnwrapErr(getrandom::SysRng);
 
     // Run A
     let (sp_a, ps_a) = P::start(&w0_a, &w1_a, context, id_prover, id_verifier, &mut rng).unwrap();
@@ -511,7 +511,7 @@ fn test_different_passwords_different_keys() {
 fn prover_output_into_session_key_matches_field_access() {
     let (w0, w1) = password_to_scalars(b"into_session_key");
     let l_bytes = compute_verifier::<Spake2PlusRistretto255Sha512>(&w1);
-    let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
+    let mut rng = rand_core::UnwrapErr(getrandom::SysRng);
 
     let (sp, ps) = P::start(&w0, &w1, b"ctx", b"p", b"v", &mut rng).unwrap();
     let (sv, cv, _vs) = V::start(&sp, &w0, &l_bytes, b"ctx", b"p", b"v", &mut rng).unwrap();
@@ -526,7 +526,7 @@ fn prover_output_into_session_key_matches_field_access() {
 fn prover_output_into_confirm_p_matches_field_access() {
     let (w0, w1) = password_to_scalars(b"into_confirm_p");
     let l_bytes = compute_verifier::<Spake2PlusRistretto255Sha512>(&w1);
-    let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
+    let mut rng = rand_core::UnwrapErr(getrandom::SysRng);
 
     let (sp, ps) = P::start(&w0, &w1, b"ctx", b"p", b"v", &mut rng).unwrap();
     let (sv, cv, _vs) = V::start(&sp, &w0, &l_bytes, b"ctx", b"p", b"v", &mut rng).unwrap();
@@ -541,7 +541,7 @@ fn prover_output_into_confirm_p_matches_field_access() {
 fn spake2plus_output_into_session_key_matches_field_access() {
     let (w0, w1) = password_to_scalars(b"verifier_consumer");
     let l_bytes = compute_verifier::<Spake2PlusRistretto255Sha512>(&w1);
-    let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
+    let mut rng = rand_core::UnwrapErr(getrandom::SysRng);
 
     let (sp, ps) = P::start(&w0, &w1, b"ctx", b"p", b"v", &mut rng).unwrap();
     let (sv, cv, vs) = V::start(&sp, &w0, &l_bytes, b"ctx", b"p", b"v", &mut rng).unwrap();

@@ -99,7 +99,6 @@ impl CpaceCiphersuite for MyCpaceSuite {
 | `ristretto255` (default) | Ristretto255 / SHA-512 primitives |
 | `p256` | P-256 / SHA-256 primitives |
 | `argon2` | Argon2id key-stretching function |
-| `os_rng` | Enable OS-backed RNG via `rand_core/os_rng` |
 | `cpace` | Pre-built CPace ciphersuites (pulls in `pakery-cpace`) |
 | `spake2` | Pre-built SPAKE2 ciphersuites (pulls in `pakery-spake2`) |
 | `spake2plus` | Pre-built SPAKE2+ ciphersuites (pulls in `pakery-spake2plus`) |

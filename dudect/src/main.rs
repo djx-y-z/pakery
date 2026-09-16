@@ -21,11 +21,12 @@
 
 use dudect_bencher::rand::RngExt;
 use dudect_bencher::{ctbench_main, BenchRng, Class, CtRunner};
+use getrandom::SysRng;
 use pakery_core::crypto::{CpaceGroup, Hash, Mac};
 use pakery_core::SharedSecret;
 use pakery_crypto::{HmacSha512, Ristretto255Group, Sha512Hash, Spake2Ristretto255};
 use pakery_spake2::{PartyA, PartyB};
-use rand_core::{OsRng, UnwrapErr};
+use rand_core::UnwrapErr;
 
 /// Measurements per benchmark run (matches upstream dudect-bencher examples).
 const SAMPLES: usize = 100_000;
@@ -41,7 +42,7 @@ fn rand_bytes(len: usize, rng: &mut BenchRng) -> Vec<u8> {
 /// SPAKE2 confirmation-MAC verification: correct peer MAC (Left) vs random
 /// MAC (Right) against one honest protocol run.
 fn spake2_confirm_verify(runner: &mut CtRunner, rng: &mut BenchRng) {
-    let mut proto_rng = UnwrapErr(OsRng);
+    let mut proto_rng = UnwrapErr(SysRng);
     let digest = Sha512Hash::digest(b"correct horse battery staple");
     let w = <Ristretto255Group as CpaceGroup>::scalar_from_wide_bytes(&digest)
         .expect("SHA-512 output is 64 bytes");

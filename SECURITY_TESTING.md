@@ -202,8 +202,9 @@ branches, length guards.
 ## Watch list (tracked elsewhere)
 
 - MSRV 1.85 bump + dep group (dalek 5 / argon2 0.6 / p256 0.14 / digest 0.11
-  wave) — DONE; see CHANGELOG. Left open: `rand_core` 0.10 (removes the
-  `os_rng` feature from six published crates — a separate breaking decision).
+  wave) — DONE; see CHANGELOG. `rand_core` 0.10 followed in 0.4.0, removing the
+  `os_rng` feature from six published crates and putting the whole tree on one
+  rand_core.
 - LLVM constant-time intrinsics and Rust secret-types RFC 2859 — nothing usable
   from stable Rust yet.
 - Re-verify tool versions periodically (this document's survey is from

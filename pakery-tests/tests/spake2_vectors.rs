@@ -81,7 +81,7 @@ fn test_full_round_trip() {
     let identity_b = b"bob";
     let aad = b"additional data";
 
-    let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
+    let mut rng = rand_core::UnwrapErr(getrandom::SysRng);
 
     // Party A starts
     let (pa_bytes, state_a) = A::start(&w, identity_a, identity_b, aad, &mut rng).unwrap();
@@ -123,7 +123,7 @@ fn test_wrong_password_different_keys() {
     let identity_b = b"bob";
     let aad = b"";
 
-    let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
+    let mut rng = rand_core::UnwrapErr(getrandom::SysRng);
 
     // Party A with correct password
     let (pa_bytes, state_a) = A::start(&w_correct, identity_a, identity_b, aad, &mut rng).unwrap();
@@ -281,7 +281,7 @@ fn test_empty_password_round_trip() {
     let identity_b = b"bob";
     let aad = b"";
 
-    let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
+    let mut rng = rand_core::UnwrapErr(getrandom::SysRng);
 
     let (pa_bytes, state_a) = A::start(&w, identity_a, identity_b, aad, &mut rng).unwrap();
     let (pb_bytes, state_b) = B::start(&w, identity_a, identity_b, aad, &mut rng).unwrap();
@@ -312,7 +312,7 @@ fn test_identity_encoding_as_received_share() {
     let identity_b = b"bob";
     let aad = b"";
 
-    let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
+    let mut rng = rand_core::UnwrapErr(getrandom::SysRng);
 
     // Send all-zeros (Ristretto identity encoding) as pB to Party A.
     // Defense-in-depth: identity is rejected before computation.
@@ -334,7 +334,7 @@ fn test_empty_identities() {
     let w = password_to_scalar(b"password");
     let aad = b"";
 
-    let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
+    let mut rng = rand_core::UnwrapErr(getrandom::SysRng);
 
     // Both identities empty (valid per RFC 9382)
     let (pa_bytes, state_a) = A::start(&w, b"", b"", aad, &mut rng).unwrap();
@@ -362,7 +362,7 @@ fn test_empty_identities() {
 #[test]
 fn test_tampered_confirmation_mac_rejected() {
     let w = password_to_scalar(b"password");
-    let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
+    let mut rng = rand_core::UnwrapErr(getrandom::SysRng);
 
     let (pa_bytes, state_a) = A::start(&w, b"alice", b"bob", b"", &mut rng).unwrap();
     let (pb_bytes, state_b) = B::start(&w, b"alice", b"bob", b"", &mut rng).unwrap();
@@ -400,7 +400,7 @@ fn test_tampered_confirmation_mac_rejected() {
 #[test]
 fn test_swapped_confirmation_macs_rejected() {
     let w = password_to_scalar(b"password");
-    let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
+    let mut rng = rand_core::UnwrapErr(getrandom::SysRng);
 
     let (pa_bytes, state_a) = A::start(&w, b"alice", b"bob", b"", &mut rng).unwrap();
     let (pb_bytes, state_b) = B::start(&w, b"alice", b"bob", b"", &mut rng).unwrap();
@@ -430,7 +430,7 @@ fn test_swapped_confirmation_macs_rejected() {
 #[test]
 fn spake2_output_into_session_key_matches_field_access() {
     let w = password_to_scalar(b"into_session_key_test");
-    let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
+    let mut rng = rand_core::UnwrapErr(getrandom::SysRng);
 
     let (_pa, state_a) = A::start(&w, b"alice", b"bob", b"", &mut rng).unwrap();
     let (pb, _state_b) = B::start(&w, b"alice", b"bob", b"", &mut rng).unwrap();
@@ -444,7 +444,7 @@ fn spake2_output_into_session_key_matches_field_access() {
 #[test]
 fn spake2_output_into_confirmation_mac_matches_field_access() {
     let w = password_to_scalar(b"into_confirmation_mac_test");
-    let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
+    let mut rng = rand_core::UnwrapErr(getrandom::SysRng);
 
     let (_pa, state_a) = A::start(&w, b"alice", b"bob", b"", &mut rng).unwrap();
     let (pb, _state_b) = B::start(&w, b"alice", b"bob", b"", &mut rng).unwrap();

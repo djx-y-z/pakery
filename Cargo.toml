@@ -23,7 +23,14 @@ pakery-spake2 = { version = "0.3.1", path = "pakery-spake2" }
 pakery-spake2plus = { version = "0.3.1", path = "pakery-spake2plus" }
 pakery-crypto = { version = "0.3.1", path = "pakery-crypto" }
 digest = "0.11"
-rand_core = { version = "0.9", default-features = false }
+# rand_core 0.10 ships no Cargo features at all, so there is nothing to opt out
+# of: it is unconditionally `no_std` and carries no OS-backed generator.
+rand_core = "0.10"
+# Test-only, workspace-wide: `getrandom::SysRng` is where the OS-backed RNG went
+# when rand_core 0.10 dropped `OsRng` along with its features. No published
+# crate depends on it — it is a dev-dependency of pakery-crypto and a
+# dependency of the publish = false pakery-tests.
+getrandom = { version = "0.4", features = ["sys_rng"] }
 zeroize = { version = "1.9", features = ["derive"] }
 subtle = { version = "2.6", default-features = false }
 zeroize_derive = "1.5"
@@ -32,14 +39,15 @@ sha2 = "0.11"
 # first commit but is never used: this crate reaches ristretto255 through
 # dalek's own inherent API (`from_uniform_bytes`, `from_bytes_mod_order_wide`,
 # `traits::Identity`), never through the `group` traits. Dropping it keeps
-# `group` 0.14, `ff` 0.14 and a second `rand_core` (0.10, which dalek 5 pulls
-# via that feature) out of the *default* (`ristretto255`) tree.
+# `group` 0.14 and `ff` 0.14 out of the *default* (`ristretto255`) tree.
 #
 # It does NOT keep them out of a `p256` build: `elliptic-curve` 0.14 pulls
-# `group` 0.14 / `ff` 0.14, and `rand_core` 0.10 arrives independently via
-# `crypto-bigint` 0.7 (<- elliptic-curve) and `crypto-common` 0.2 (<- digest
-# 0.11). Verify with:
+# `group` 0.14 / `ff` 0.14 regardless. Verify with:
 #   cargo tree -p pakery-crypto --no-default-features --features std,p256 -d
+#
+# The second `rand_core` this comment used to warn about is gone: since 0.4.0
+# the workspace bound is rand_core 0.10, the same major the whole RustCrypto
+# wave is on, so the tree holds one copy rather than two.
 curve25519-dalek = { version = "5.0" }
 hkdf = "0.13"
 hmac = "0.13"

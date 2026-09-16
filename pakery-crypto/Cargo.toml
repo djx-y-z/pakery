@@ -21,7 +21,6 @@ all-features = true
 [features]
 default = ["std", "ristretto255"]
 std = ["pakery-core/std"]
-os_rng = ["rand_core/os_rng"]
 ristretto255 = ["dep:curve25519-dalek", "dep:sha2", "dep:hkdf", "dep:hmac", "dep:digest"]
 p256 = ["dep:p256", "dep:sha2", "dep:hkdf", "dep:hmac", "dep:digest"]
 argon2 = ["dep:argon2"]
@@ -46,3 +45,8 @@ pakery-cpace = { workspace = true, optional = true }
 pakery-spake2 = { workspace = true, optional = true }
 pakery-spake2plus = { workspace = true, optional = true }
 pakery-opaque = { workspace = true, optional = true }
+
+# The unit tests in `src/` need a concrete RNG to drive the OPRF; rand_core 0.10
+# no longer ships one. Dev-only, so it reaches no published dependency tree.
+[dev-dependencies]
+getrandom = { workspace = true }

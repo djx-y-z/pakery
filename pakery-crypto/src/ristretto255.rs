@@ -57,8 +57,7 @@ impl CpaceGroup for Ristretto255Group {
         // Sample 64 wide bytes and reduce mod the group order. Avoids
         // `Scalar::random` from curve25519-dalek 5.0, which is not even
         // compiled here: it is `#[cfg(feature = "rand_core")]`, and that
-        // feature is off since we dropped dalek's `group`. It would also
-        // take a rand_core 0.10 RNG, and our bound is rand_core 0.9.
+        // feature is off since we dropped dalek's `group`.
         let mut wide = Zeroizing::new([0u8; 64]);
         rng.fill_bytes(&mut *wide);
         // ctgrind: freshly sampled scalar material is secret; the wide

@@ -44,9 +44,10 @@ confidence-threshold = 0.9
 # `warn`, not `deny`: the workspace legitimately carries duplicates today.
 # `pakery-tests` (publish = false) pins the previous RustCrypto wave under
 # renamed aliases so the opaque-ke v4 differential suite keeps compiling, and
-# a `p256` build has both rand_core 0.9 (our public bound) and rand_core 0.10
-# (via elliptic-curve 0.14 / crypto-bigint 0.7). Tighten to "deny" once
-# opaque-ke moves to the new wave and the rand_core decision lands.
+# its proptest dev-dependency is still on the rand 0.9 wave. Neither reaches a
+# published crate: since 0.4.0 moved the bound to rand_core 0.10, a `p256`
+# build resolves exactly one rand_core. Tighten to "deny" once opaque-ke moves
+# to the new wave.
 multiple-versions = "warn"
 # A `*` version requirement in a published crate is never intentional here.
 wildcards = "deny"

@@ -105,7 +105,7 @@ fn sweep_group_decode<G: CpaceGroup>(v: &GroupVectors) {
 // --- Diffie-Hellman ---
 
 fn sweep_dh<D: DhGroup>(v: &GroupVectors) {
-    let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
+    let mut rng = rand_core::UnwrapErr(getrandom::SysRng);
     let (sk, pk) = D::generate_keypair(&mut rng).expect("keypair");
 
     for e in bad_points(v) {
@@ -131,7 +131,7 @@ fn sweep_dh<D: DhGroup>(v: &GroupVectors) {
 // --- OPRF ---
 
 fn sweep_oprf<O: Oprf>(v: &GroupVectors) {
-    let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
+    let mut rng = rand_core::UnwrapErr(getrandom::SysRng);
     let oprf_key = O::derive_key(&[0x07; 32], b"negative-vector-sweep").expect("OPRF key");
     let (state, blinded) = O::client_blind(b"password", &mut rng).expect("blind");
 
@@ -164,7 +164,7 @@ fn sweep_oprf<O: Oprf>(v: &GroupVectors) {
 fn sweep_spake2<C: pakery_spake2::Spake2Ciphersuite>(v: &GroupVectors) {
     use pakery_spake2::{PartyA, PartyB};
 
-    let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
+    let mut rng = rand_core::UnwrapErr(getrandom::SysRng);
     let w = C::Group::scalar_from_wide_bytes(&[0x2a; 64]).expect("w scalar");
 
     for e in bad_points(v) {
@@ -194,7 +194,7 @@ fn sweep_spake2plus<C: pakery_spake2plus::Spake2PlusCiphersuite>(v: &GroupVector
     use pakery_spake2plus::registration::compute_verifier;
     use pakery_spake2plus::{Prover, Verifier};
 
-    let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
+    let mut rng = rand_core::UnwrapErr(getrandom::SysRng);
     let w0 = C::Group::scalar_from_wide_bytes(&[0x2a; 64]).expect("w0 scalar");
     let w1 = C::Group::scalar_from_wide_bytes(&[0x2b; 64]).expect("w1 scalar");
     let l_bytes = compute_verifier::<C>(&w1);
@@ -233,7 +233,7 @@ fn sweep_opaque<C: pakery_opaque::OpaqueCiphersuite>(v: &GroupVectors) {
         ClientLogin, ClientRegistration, ServerLogin, ServerRegistration, ServerSetup,
     };
 
-    let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
+    let mut rng = rand_core::UnwrapErr(getrandom::SysRng);
     let password = b"password";
     let cred_id = b"credential-id";
     let context = b"negative-vector-sweep";

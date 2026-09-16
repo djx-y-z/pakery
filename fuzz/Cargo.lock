@@ -87,7 +87,7 @@ dependencies = [
  "ctutils",
  "hybrid-array",
  "num-traits",
- "rand_core 0.10.1",
+ "rand_core",
  "subtle",
  "zeroize",
 ]
@@ -99,7 +99,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ce6e4c961d6cd6c9a86db418387425e8bdeaf05b3c8bc1411e6dca4c252f1453"
 dependencies = [
  "hybrid-array",
- "rand_core 0.10.1",
+ "rand_core",
 ]
 
 [[package]]
@@ -183,7 +183,7 @@ dependencies = [
  "ff",
  "group",
  "hybrid-array",
- "rand_core 0.10.1",
+ "rand_core",
  "sec1",
  "subtle",
  "zeroize",
@@ -195,7 +195,7 @@ version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a1f686ab92a9fb0eaf188f6c6c87b89490baa6fdb0db4544ba4dc47f7942489f"
 dependencies = [
- "rand_core 0.10.1",
+ "rand_core",
  "subtle",
 ]
 
@@ -230,7 +230,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7fd1a1c7a5206c5b7a3f5a0d7ccd3ff85d0c8f5133d62a02680255b0004af5f4"
 dependencies = [
  "ff",
- "rand_core 0.10.1",
+ "rand_core",
  "subtle",
 ]
 
@@ -332,7 +332,7 @@ name = "pakery-core"
 version = "0.3.1"
 dependencies = [
  "pkg-config",
- "rand_core 0.9.5",
+ "rand_core",
  "rustversion",
  "subtle",
  "zeroize",
@@ -344,7 +344,7 @@ name = "pakery-cpace"
 version = "0.3.1"
 dependencies = [
  "pakery-core",
- "rand_core 0.9.5",
+ "rand_core",
  "subtle",
  "zeroize",
 ]
@@ -363,7 +363,7 @@ dependencies = [
  "pakery-opaque",
  "pakery-spake2",
  "pakery-spake2plus",
- "rand_core 0.9.5",
+ "rand_core",
  "sha2",
  "subtle",
  "zeroize",
@@ -383,7 +383,7 @@ dependencies = [
  "pakery-spake2",
  "pakery-spake2plus",
  "rand_chacha",
- "rand_core 0.9.5",
+ "rand_core",
 ]
 
 [[package]]
@@ -391,7 +391,7 @@ name = "pakery-opaque"
 version = "0.3.1"
 dependencies = [
  "pakery-core",
- "rand_core 0.9.5",
+ "rand_core",
  "subtle",
  "zeroize",
 ]
@@ -401,7 +401,7 @@ name = "pakery-spake2"
 version = "0.3.1"
 dependencies = [
  "pakery-core",
- "rand_core 0.9.5",
+ "rand_core",
  "subtle",
  "zeroize",
 ]
@@ -411,7 +411,7 @@ name = "pakery-spake2plus"
 version = "0.3.1"
 dependencies = [
  "pakery-core",
- "rand_core 0.9.5",
+ "rand_core",
  "subtle",
  "zeroize",
 ]
@@ -440,7 +440,7 @@ dependencies = [
  "crypto-bigint",
  "crypto-common",
  "ff",
- "rand_core 0.10.1",
+ "rand_core",
  "subtle",
  "zeroize",
 ]
@@ -482,21 +482,12 @@ checksum = "69cdb34c158ceb288df11e18b4bd39de994f6657d83847bdffdbd7f346754b0f"
 
 [[package]]
 name = "rand_chacha"
-version = "0.9.0"
+version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d3022b5f1df60f26e1ffddd6c66e8aa15de382ae63b3a0c1bfc0e4d3e3f325cb"
+checksum = "3e6af7f3e25ded52c41df4e0b1af2d047e45896c2f3281792ed68a1c243daedb"
 dependencies = [
  "ppv-lite86",
- "rand_core 0.9.5",
-]
-
-[[package]]
-name = "rand_core"
-version = "0.9.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "76afc826de14238e6e8c374ddcc1fa19e374fd8dd986b0d2af0d02377261d83c"
-dependencies = [
- "getrandom",
+ "rand_core",
 ]
 
 [[package]]

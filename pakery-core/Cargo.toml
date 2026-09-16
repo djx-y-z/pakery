@@ -17,12 +17,13 @@ categories = ["cryptography", "no-std", "authentication"]
 # private CI-only feature that pulls crabgrind and emits Valgrind client
 # requests.
 [package.metadata.docs.rs]
-features = ["std", "os_rng"]
+features = ["std"]
 
 [features]
 default = ["std"]
-std = ["rand_core/std"]
-os_rng = ["rand_core/os_rng"]
+# rand_core 0.10 has no `std` feature to forward to (it has no features at
+# all), so this now controls nothing but this crate's own `#![no_std]` switch.
+std = []
 # PRIVATE (exempt from semver): wires the `ct` module's helpers to Valgrind
 # memcheck client requests for the constant-time CI job (ct.yml, roadmap
 # item 6). Without it the helpers compile to no-ops. Never enable in

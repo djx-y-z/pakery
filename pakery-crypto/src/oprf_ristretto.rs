@@ -109,8 +109,7 @@ impl Oprf for Ristretto255Oprf {
         // reducing mod the group order. Avoids
         // `Scalar::random` from curve25519-dalek 5.0, which is not even
         // compiled here: it is `#[cfg(feature = "rand_core")]`, and that
-        // feature is off since we dropped dalek's `group`. It would also
-        // take a rand_core 0.10 RNG, and our bound is rand_core 0.9.
+        // feature is off since we dropped dalek's `group`.
         let mut r = loop {
             let mut wide = Zeroizing::new([0u8; 64]);
             rng.fill_bytes(&mut *wide);
@@ -276,18 +275,19 @@ mod tests {
 
     #[test]
     fn roundtrip() {
-        use rand_core::{OsRng, UnwrapErr};
+        use getrandom::SysRng;
+        use rand_core::UnwrapErr;
         let sk = Ristretto255Oprf::derive_key(&hex(SEED), &hex(KEY_INFO)).unwrap();
         let password = b"hunter2";
         let (state, blinded) =
-            Ristretto255Oprf::client_blind(password, &mut UnwrapErr(OsRng)).unwrap();
+            Ristretto255Oprf::client_blind(password, &mut UnwrapErr(SysRng)).unwrap();
         let eval = Ristretto255Oprf::server_evaluate(&sk, &blinded).unwrap();
         let output = state.finalize(password, &eval).unwrap();
         assert_eq!(output.len(), 64); // SHA-512 output
 
         // Same password + key should produce the same output.
         let (state2, blinded2) =
-            Ristretto255Oprf::client_blind(password, &mut UnwrapErr(OsRng)).unwrap();
+            Ristretto255Oprf::client_blind(password, &mut UnwrapErr(SysRng)).unwrap();
         let eval2 = Ristretto255Oprf::server_evaluate(&sk, &blinded2).unwrap();
         let output2 = state2.finalize(password, &eval2).unwrap();
         assert_eq!(output, output2);
@@ -321,7 +321,7 @@ mod tests {
 
     #[test]
     fn finalize_rejects_identity_evaluation() {
-        let mut rng = rand_core::UnwrapErr(rand_core::OsRng);
+        let mut rng = rand_core::UnwrapErr(getrandom::SysRng);
         let (state, _) = Ristretto255Oprf::client_blind(b"password", &mut rng).unwrap();
         // Identity encoding = 32 zero bytes.
         assert!(state.finalize(b"password", &[0u8; 32]).is_err());
@@ -341,16 +341,17 @@ mod tests {
 
     #[test]
     fn different_passwords_different_outputs() {
-        use rand_core::{OsRng, UnwrapErr};
+        use getrandom::SysRng;
+        use rand_core::UnwrapErr;
         let sk = Ristretto255Oprf::derive_key(&hex(SEED), &hex(KEY_INFO)).unwrap();
 
         let (state_a, blinded_a) =
-            Ristretto255Oprf::client_blind(b"password-A", &mut UnwrapErr(OsRng)).unwrap();
+            Ristretto255Oprf::client_blind(b"password-A", &mut UnwrapErr(SysRng)).unwrap();
         let eval_a = Ristretto255Oprf::server_evaluate(&sk, &blinded_a).unwrap();
         let output_a = state_a.finalize(b"password-A", &eval_a).unwrap();
 
         let (state_b, blinded_b) =
-            Ristretto255Oprf::client_blind(b"password-B", &mut UnwrapErr(OsRng)).unwrap();
+            Ristretto255Oprf::client_blind(b"password-B", &mut UnwrapErr(SysRng)).unwrap();
         let eval_b = Ristretto255Oprf::server_evaluate(&sk, &blinded_b).unwrap();
         let output_b = state_b.finalize(b"password-B", &eval_b).unwrap();
 
@@ -359,16 +360,17 @@ mod tests {
 
     #[test]
     fn empty_password_roundtrip() {
-        use rand_core::{OsRng, UnwrapErr};
+        use getrandom::SysRng;
+        use rand_core::UnwrapErr;
         let sk = Ristretto255Oprf::derive_key(&hex(SEED), &hex(KEY_INFO)).unwrap();
-        let (state, blinded) = Ristretto255Oprf::client_blind(b"", &mut UnwrapErr(OsRng)).unwrap();
+        let (state, blinded) = Ristretto255Oprf::client_blind(b"", &mut UnwrapErr(SysRng)).unwrap();
         let eval = Ristretto255Oprf::server_evaluate(&sk, &blinded).unwrap();
         let output = state.finalize(b"", &eval).unwrap();
         assert_eq!(output.len(), 64); // SHA-512 output
 
         // Must be deterministic.
         let (state2, blinded2) =
-            Ristretto255Oprf::client_blind(b"", &mut UnwrapErr(OsRng)).unwrap();
+            Ristretto255Oprf::client_blind(b"", &mut UnwrapErr(SysRng)).unwrap();
         let eval2 = Ristretto255Oprf::server_evaluate(&sk, &blinded2).unwrap();
         let output2 = state2.finalize(b"", &eval2).unwrap();
         assert_eq!(output, output2);
@@ -376,17 +378,18 @@ mod tests {
 
     #[test]
     fn different_keys_different_outputs() {
-        use rand_core::{OsRng, UnwrapErr};
+        use getrandom::SysRng;
+        use rand_core::UnwrapErr;
         let sk1 = Ristretto255Oprf::derive_key(&hex(SEED), b"key1").unwrap();
         let sk2 = Ristretto255Oprf::derive_key(&hex(SEED), b"key2").unwrap();
 
         let (state1, blinded1) =
-            Ristretto255Oprf::client_blind(b"password", &mut UnwrapErr(OsRng)).unwrap();
+            Ristretto255Oprf::client_blind(b"password", &mut UnwrapErr(SysRng)).unwrap();
         let eval1 = Ristretto255Oprf::server_evaluate(&sk1, &blinded1).unwrap();
         let output1 = state1.finalize(b"password", &eval1).unwrap();
 
         let (state2, blinded2) =
-            Ristretto255Oprf::client_blind(b"password", &mut UnwrapErr(OsRng)).unwrap();
+            Ristretto255Oprf::client_blind(b"password", &mut UnwrapErr(SysRng)).unwrap();
         let eval2 = Ristretto255Oprf::server_evaluate(&sk2, &blinded2).unwrap();
         let output2 = state2.finalize(b"password", &eval2).unwrap();
 
