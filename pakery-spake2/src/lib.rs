@@ -3,6 +3,11 @@
 //! Implements the SPAKE2 protocol per RFC 9382 with pluggable ciphersuites.
 
 #![cfg_attr(not(feature = "std"), no_std)]
+// docs.rs passes `--cfg docsrs` (see `[package.metadata.docs.rs]`), which
+// turns this on and makes rustdoc label every `#[cfg(feature = ...)]` item
+// with the feature that gates it. Inert everywhere else, so stable builds
+// never see a `feature(...)` attribute.
+#![cfg_attr(docsrs, feature(doc_cfg))]
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 

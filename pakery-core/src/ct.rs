@@ -8,8 +8,9 @@
 //! `valgrind --track-origins=yes --error-exitcode=99`.
 //!
 //! Without the private `__ctgrind` cargo feature every function here compiles
-//! to a no-op; with it, they emit Valgrind client requests via [`crabgrind`]
-//! (a safe API — compatible with `#![forbid(unsafe_code)]`). The feature is
+//! to a no-op; with it, they emit Valgrind client requests via
+//! [`crabgrind`](https://docs.rs/crabgrind) (a safe API — compatible with
+//! `#![forbid(unsafe_code)]`). The feature is
 //! internal to pakery's CI (`ct.yml`) and must never be enabled in production
 //! builds — the double-underscore prefix marks it exempt from semver.
 //!

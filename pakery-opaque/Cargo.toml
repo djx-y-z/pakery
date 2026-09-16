@@ -17,6 +17,7 @@ categories = ["cryptography", "no-std", "authentication"]
 # README documents it.
 [package.metadata.docs.rs]
 all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
 
 [features]
 default = ["std"]
