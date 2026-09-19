@@ -113,8 +113,8 @@ All version numbers are centralized in `Cargo.toml` at the workspace root:
 1. Update `[workspace.package] version` (the version of all crates)
 2. Update `[workspace.dependencies] pakery-core` version (the dependency version used by other crates)
 3. Update `[workspace.dependencies] pakery-*` versions for any other inter-crate dependencies
-4. For a **minor** bump (`0.3.x` → `0.4.0`), update the `pakery-* = "0.3"`
-   install snippets in every `README.md`. Cargo treats `0.3` and `0.4` as
+4. For a **minor** bump (`0.x` → `0.y`), update the `pakery-* = "0.x"`
+   install snippets in every `README.md`. Cargo treats `0.x` and `0.y` as
    incompatible, so a snippet left behind tells readers to install a release
    that no longer exists on the new line. The `docs-check` CI job fails the
    build if one is missed — including on the release tag itself.
