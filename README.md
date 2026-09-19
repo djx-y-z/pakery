@@ -58,8 +58,8 @@ CPace key exchange using Ristretto255:
 
 ```toml
 [dependencies]
-pakery-cpace = "0.3"
-pakery-crypto = { version = "0.3", features = ["ristretto255"] }
+pakery-cpace = "0.4"
+pakery-crypto = { version = "0.4", features = ["ristretto255"] }
 # pakery's RNG bound is `rand_core::CryptoRng`, but rand_core 0.10 ships no
 # generator of its own: when it dropped its Cargo features it dropped the
 # OS-backed `OsRng` with them, and that generator now lives in getrandom as

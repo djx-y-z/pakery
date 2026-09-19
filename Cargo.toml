@@ -8,7 +8,7 @@ members = ["pakery-core", "pakery-cpace", "pakery-crypto", "pakery-opaque", "pak
 exclude = ["fuzz", "dudect"]
 
 [workspace.package]
-version = "0.3.1"
+version = "0.4.0"
 edition = "2021"
 rust-version = "1.85"
 license = "MIT OR Apache-2.0"
@@ -16,12 +16,12 @@ repository = "https://github.com/djx-y-z/pakery"
 authors = ["pakery contributors"]
 
 [workspace.dependencies]
-pakery-core = { version = "0.3.1", path = "pakery-core", default-features = false }
-pakery-cpace = { version = "0.3.1", path = "pakery-cpace" }
-pakery-opaque = { version = "0.3.1", path = "pakery-opaque" }
-pakery-spake2 = { version = "0.3.1", path = "pakery-spake2" }
-pakery-spake2plus = { version = "0.3.1", path = "pakery-spake2plus" }
-pakery-crypto = { version = "0.3.1", path = "pakery-crypto" }
+pakery-core = { version = "0.4.0", path = "pakery-core", default-features = false }
+pakery-cpace = { version = "0.4.0", path = "pakery-cpace" }
+pakery-opaque = { version = "0.4.0", path = "pakery-opaque" }
+pakery-spake2 = { version = "0.4.0", path = "pakery-spake2" }
+pakery-spake2plus = { version = "0.4.0", path = "pakery-spake2plus" }
+pakery-crypto = { version = "0.4.0", path = "pakery-crypto" }
 digest = "0.11"
 # rand_core 0.10 ships no Cargo features at all, so there is nothing to opt out
 # of: it is unconditionally `no_std` and carries no OS-backed generator.

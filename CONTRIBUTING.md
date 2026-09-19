@@ -39,6 +39,18 @@ cargo fmt --all -- --check
 
 # Documentation
 RUSTDOCFLAGS=-Dwarnings cargo doc --workspace --all-features --no-deps
+
+# Documentation, the way docs.rs will build it: each crate alone, with the
+# feature set its own [package.metadata.docs.rs] declares. The line above
+# does not cover this -- 0.3.1 published a broken intra-doc link through
+# exactly that gap. Needs a nightly toolchain, as docs.rs does.
+python3 ci/docsrs-build.py --toolchain nightly
+
+# Documentation claims vs code: feature tables, install snippets, MSRV, and
+# every README example compiled and run. The break-tests come first and are
+# not optional -- two of these checks have failed open before.
+python3 ci/test-check-docs.py
+python3 ci/check-docs.py
 ```
 
 ### Mutation testing (advisory)

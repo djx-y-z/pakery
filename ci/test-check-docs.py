@@ -188,6 +188,66 @@ def case_stale_docs_rs(repo: Path) -> None:
     _fixture_crate(repo, STALE_DOCS_RS)
 
 
+def _fixture_crate_with_lib(repo: Path, body: str, lib: str) -> None:
+    _fixture_crate(repo, body)
+    src = repo / "fixture-crate" / "src"
+    src.mkdir()
+    (src / "lib.rs").write_text(lib)
+
+
+# `#![cfg_attr(docsrs, ...)]` and `rustdoc-args = ["--cfg", "docsrs"]` are two
+# halves of one switch, kept in two files with nothing linking them. Delete
+# the manifest half and the attribute goes inert: docs.rs builds green and
+# renders a page with every feature badge gone. pakery-crypto alone renders
+# 101 of them, and a published page can never be amended.
+CFG_ATTR_WITHOUT_RUSTDOC_ARGS = """\
+[package]
+name = "fixture-crate"
+version = "0.0.0"
+
+[package.metadata.docs.rs]
+all-features = true
+
+[features]
+default = ["std"]
+std = []
+"""
+
+CFG_ATTR_LIB = """\
+#![cfg_attr(docsrs, feature(doc_cfg))]
+
+pub fn nothing() {}
+"""
+
+# The mirror image, and the reason the check cannot simply demand the
+# attribute everywhere: a crate that never opted into doc_cfg is correct as
+# it stands and must stay green.
+NO_DOCSRS_OPT_IN = """\
+[package]
+name = "fixture-crate"
+version = "0.0.0"
+
+[package.metadata.docs.rs]
+all-features = true
+
+[features]
+default = ["std"]
+std = []
+"""
+
+PLAIN_LIB = """\
+pub fn nothing() {}
+"""
+
+
+def case_cfg_attr_without_rustdoc_args(repo: Path) -> None:
+    _fixture_crate_with_lib(repo, CFG_ATTR_WITHOUT_RUSTDOC_ARGS, CFG_ATTR_LIB)
+
+
+def case_no_docsrs_opt_in(repo: Path) -> None:
+    _fixture_crate_with_lib(repo, NO_DOCSRS_OPT_IN, PLAIN_LIB)
+
+
 def case_private_exclusion(repo: Path) -> None:
     _fixture_crate(repo, DELIBERATE_PRIVATE_EXCLUSION)
 
@@ -281,6 +341,16 @@ def run_docsrs(mod, repo: Path, target: Path) -> None:
     fn()
 
 
+def run_docsrs_cfg(mod, repo: Path, target: Path) -> None:
+    # Absent in versions that predate the check: that is the "not detected"
+    # state for this case, not an error in the harness.
+    fn = getattr(mod, "check_docs_rs_cfg", None)
+    if fn is None:
+        return
+    mod.CRATES = ["fixture-crate"]
+    fn()
+
+
 CASES = [
     (
         "fence-parity-examples",
@@ -324,6 +394,24 @@ CASES = [
         "correct and must NOT be reported",
         case_private_exclusion,
         run_docsrs,
+        False,
+        "guard",
+    ),
+    (
+        "docsrs-cfg-attr-without-rustdoc-args",
+        "a crate whose lib.rs opts into doc_cfg while its manifest never "
+        "passes --cfg docsrs renders on docs.rs with every badge missing",
+        case_cfg_attr_without_rustdoc_args,
+        run_docsrs_cfg,
+        True,
+        "fix",
+    ),
+    (
+        "docsrs-no-opt-in-at-all",
+        "a crate that never opted into doc_cfg is correct and must NOT be "
+        "reported",
+        case_no_docsrs_opt_in,
+        run_docsrs_cfg,
         False,
         "guard",
     ),

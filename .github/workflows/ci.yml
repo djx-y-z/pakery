@@ -58,6 +58,39 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo doc --workspace --all-features --no-deps
 
+  # The `doc` job above builds one workspace-wide `--all-features` graph.
+  # docs.rs builds each crate alone, with the feature set that crate's
+  # `[package.metadata.docs.rs]` declares -- and 0.3.1 shipped through the
+  # gap between the two. `pakery-core` pins docs.rs to `features = ["std"]`
+  # so crabgrind stays out of a documentation build, which is exactly the
+  # configuration where its `ct` module's intra-doc link to `crabgrind`
+  # cannot resolve. Under `--all-features` crabgrind is present, the link
+  # resolves, and `doc` stayed green while the published page rendered it as
+  # plain text. Found by hand, two releases later.
+  #
+  # 0.4.0 makes this worse before it makes it better:
+  # `#![cfg_attr(docsrs, feature(doc_cfg))]` is a nightly-only code path that
+  # *nothing but docs.rs* compiles. A published page can never be amended --
+  # the only way to fix one is another release.
+  #
+  # Nightly is deliberately unpinned. docs.rs builds on whatever nightly is
+  # current when the crate is published, so a pinned toolchain here would let
+  # this job pass while the real build breaks -- a fail-open in a job that
+  # exists to close one. `ci/docsrs-build.py` reads every feature set from
+  # the manifests rather than repeating them, because a hardcoded copy is the
+  # same drift that caused the original defect, and it refuses to report
+  # success unless it resolved all six published crates.
+  docsrs:
+    name: docs.rs configuration
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@nightly
+      # Explicit `+nightly` rather than trusting the action to leave it as the
+      # default toolchain: docs.rs builds on nightly, and a silent fall back to
+      # stable would skip the `feature(doc_cfg)` path altogether.
+      - run: python3 ci/docsrs-build.py --toolchain nightly
+
   # Documentation gate. The Markdown docs make claims that nothing else in CI
   # compiles or compares: Cargo feature tables, install snippets, the stated
   # MSRV, and the examples themselves. Three doc regressions shipped in a row

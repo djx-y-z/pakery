@@ -501,6 +501,65 @@ def check_docs_rs_features() -> None:
 
 
 # --------------------------------------------------------------------------
+# Check 3b: the docs.rs cfg handshake
+# --------------------------------------------------------------------------
+
+# `#![cfg_attr(docsrs, feature(doc_cfg))]` is inert unless the build passes
+# `--cfg docsrs`, and docs.rs passes it only when the manifest asks for it.
+# The two halves sit in different files and nothing ties them together: delete
+# the `rustdoc-args` line and every feature badge silently vanishes from the
+# published page -- no warning, no failing build, and pakery-crypto alone
+# renders 101 of them. Published documentation can never be amended, so both
+# directions are checked.
+DOCSRS_CFG_ATTR_RE = re.compile(r"^\s*#!\[cfg_attr\(\s*docsrs\s*,", re.M)
+
+
+def passes_cfg_docsrs(rustdoc_args: list[str]) -> bool:
+    """Whether these rustdoc-args amount to `--cfg docsrs`.
+
+    Both spellings rustdoc accepts: `["--cfg", "docsrs"]` as two elements and
+    `["--cfg=docsrs"]` as one.
+    """
+    for i, arg in enumerate(rustdoc_args):
+        if arg == "--cfg=docsrs":
+            return True
+        if arg == "--cfg" and rustdoc_args[i + 1 : i + 2] == ["docsrs"]:
+            return True
+    return False
+
+
+def check_docs_rs_cfg() -> None:
+    """`cfg_attr(docsrs, ...)` in the source and `--cfg docsrs` in the manifest
+    must either both be present or both be absent."""
+    for crate in CRATES:
+        man = manifest(crate)
+        pkg = man.get("package", {})
+        if pkg.get("publish") is False:
+            continue
+        lib = REPO / crate / "src" / "lib.rs"
+        if not lib.exists():
+            continue
+        opted_in = bool(DOCSRS_CFG_ATTR_RE.search(lib.read_text()))
+        meta = pkg.get("metadata", {}).get("docs", {}).get("rs", {})
+        asked_for = passes_cfg_docsrs(meta.get("rustdoc-args", []))
+        if opted_in and not asked_for:
+            fail(
+                f"{crate}/Cargo.toml",
+                "src/lib.rs has `#![cfg_attr(docsrs, ...)]` but "
+                "[package.metadata.docs.rs] does not pass `--cfg docsrs`, so "
+                "docs.rs renders the crate with every feature badge missing "
+                'and no error. Add `rustdoc-args = ["--cfg", "docsrs"]`',
+            )
+        elif asked_for and not opted_in:
+            fail(
+                f"{crate}/src/lib.rs",
+                "[package.metadata.docs.rs] passes `--cfg docsrs` but no "
+                "`#![cfg_attr(docsrs, ...)]` reads it, so the flag does "
+                "nothing. Add the attribute, or drop `rustdoc-args`",
+            )
+
+
+# --------------------------------------------------------------------------
 
 
 def main() -> int:
@@ -517,6 +576,7 @@ def main() -> int:
         check_versions()
     if "docsrs" in selected:
         check_docs_rs_features()
+        check_docs_rs_cfg()
     if "examples" in selected:
         check_examples(Path(args.target_dir), args.verbose)
 
