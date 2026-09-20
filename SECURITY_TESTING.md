@@ -168,7 +168,15 @@ branches, length guards.
   `o_cat` `>`→`>=` equivalent mutant, the `leb128_encode` `==`→`!=` mutant
   (a genuine behavioural change whose OOM failure mode is unrecordable without a
   per-process memory sandbox), and the two spake2plus `Drop` delegations
-  (drop-time observation is UB from safe Rust).
+  (drop-time observation is UB from safe Rust). Nine entries as of `0.5.0`.
+- **Coverage totals are reported, because `missed = 0` does not mean coverage
+  held.** An `exclude_re` entry added to silence a survivor drives `missed` to
+  zero while shrinking `caught`, and nothing else in the workflow reports
+  that. The `summarize` job now aggregates every shard's `outcomes.json` and
+  writes total / caught / missed / timeout / unviable plus the current
+  `exclude_re` count to the run's summary page, so a drop is visible without
+  reading logs. It also warns if it aggregated fewer than 8 shard files —
+  summarizing over a missing shard would otherwise look like a clean run.
 - **Exit codes in CI:** cargo-mutants exit 3 (timeouts only) is treated as
   success (a timeout is a kill, not a survivor); survivors (exit 2) are gated
   independently by the `summarize` job reading each shard's `missed.txt`.

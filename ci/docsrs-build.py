@@ -70,6 +70,34 @@ def plan_for(crate: str) -> tuple[list[str], list[str]]:
     return args, list(meta.get("rustdoc-args", []))
 
 
+def require_nightly(toolchain: str) -> None:
+    """Refuse to run on a toolchain that cannot compile what docs.rs compiles.
+
+    Every published crate carries `#![cfg_attr(docsrs, feature(doc_cfg))]`,
+    and `rustdoc-args` turns `docsrs` on -- so on a stable toolchain *every*
+    crate fails with E0554 before rustdoc looks at a single doc comment.
+    Without this check the run ends in "6 crate(s) do not document cleanly",
+    which blames the crates for what is really a wrong invocation, and sends
+    the reader looking for a documentation defect that is not there.
+    """
+    cmd = ["rustc"] + ([f"+{toolchain}"] if toolchain else []) + ["--version"]
+    try:
+        out = subprocess.run(cmd, capture_output=True, text=True, check=True).stdout
+    except (OSError, subprocess.CalledProcessError) as exc:
+        sys.exit(f"docsrs-build: cannot query the toolchain ({' '.join(cmd)}): {exc}")
+    if "nightly" not in out and "dev" not in out:
+        which = f"'{toolchain}'" if toolchain else "the default toolchain"
+        sys.exit(
+            f"docsrs-build: {which} is not nightly ({out.strip()}).\n"
+            f"docs.rs builds on nightly, and every crate here gates its "
+            f"`doc_cfg` attributes behind `#![cfg_attr(docsrs, "
+            f"feature(doc_cfg))]` -- a nightly-only feature gate. On stable "
+            f"every crate fails with E0554 and the result says nothing about "
+            f"the documentation.\nRe-run with: "
+            f"python3 ci/docsrs-build.py --toolchain nightly"
+        )
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument(
@@ -82,6 +110,9 @@ def main() -> int:
     )
     ap.add_argument("--target-dir", default=str(REPO / "target" / "docsrs"))
     args = ap.parse_args()
+
+    if not args.dry_run:
+        require_nightly(args.toolchain)
 
     crates = publishable_crates()
     # The realistic way this job fails open is not rustdoc going quiet, it is

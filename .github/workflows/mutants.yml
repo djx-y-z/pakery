@@ -141,6 +141,40 @@ jobs:
           echo "count=$count" >> "$GITHUB_OUTPUT"
           echo "== $count missed mutants =="
           cat missed-all.txt
+      # `missed` going to zero is not by itself evidence that coverage held:
+      # an `exclude_re` entry added to silence a survivor does exactly that,
+      # while shrinking `caught`, and nothing else reports it. Both numbers go
+      # on the run page so a drop is visible without digging through logs.
+      - name: Check out (for the exclusion count)
+        uses: actions/checkout@v7
+      - name: Report coverage totals
+        run: |
+          python3 - <<'PY' | tee -a "$GITHUB_STEP_SUMMARY"
+          import glob, json, pathlib, re
+          KEYS = ("total_mutants", "caught", "missed", "timeout", "unviable")
+          tot = dict.fromkeys(KEYS, 0)
+          shards = sorted(glob.glob("shards/*/outcomes.json"))
+          for f in shards:
+              d = json.loads(pathlib.Path(f).read_text())
+              for k in KEYS:
+                  tot[k] += d.get(k, 0)
+          cfg = pathlib.Path(".cargo/mutants.toml").read_text()
+          block = re.search(r"exclude_re\s*=\s*\[(.*?)\n\]", cfg, re.S)
+          n_excl = len(re.findall(r'^\s*"', block.group(1), re.M)) if block else 0
+          print("## Mutation coverage")
+          print()
+          print("| shards | total | caught | missed | timeout | unviable | exclude_re |")
+          print("|---|---|---|---|---|---|---|")
+          print(f"| {len(shards)} | {tot['total_mutants']} | **{tot['caught']}** |"
+                f" **{tot['missed']}** | {tot['timeout']} | {tot['unviable']} |"
+                f" {n_excl} |")
+          print()
+          print("`caught` is the number to watch across runs. An `exclude_re` entry")
+          print("added to silence a survivor drives `missed` to 0 while shrinking")
+          print("`caught`; no other signal in this workflow reports that.")
+          if len(shards) != 8:
+              print(f"::warning::aggregated {len(shards)} shard outcome files, expected 8")
+          PY
       - name: Upload aggregated list
         uses: actions/upload-artifact@v7
         with:
