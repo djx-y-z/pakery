@@ -15,7 +15,15 @@ argon2 = ["pakery-crypto/argon2"]
 # Differential testing against opaque-ke v4 (RFC 9807 peer implementation).
 # Pulls a large dependency tree — deliberately not a default feature; enabled
 # in CI via --all-features. Covers both suites, hence implies `p256`.
-differential = ["dep:opaque-ke", "dep:sha2-010", "dep:p256-013", "p256"]
+# Implies `argon2`: the suite now covers an Argon2id case on both sides, which
+# is what pins the KSF salt and `T = Nh` against a conformant peer. opaque-ke
+# 4.0.1 implements its `Ksf` trait for `argon2::Argon2` from the 0.5 line, not
+# the workspace's 0.6 — reached through its own `opaque_ke::argon2` re-export
+# rather than a third renamed alias, so the version cannot drift from the one
+# opaque-ke actually dispatches on. Argon2id output is identical across the
+# two lines, which those cases rely on and also prove: our side stretches with
+# 0.6, opaque-ke's with 0.5, and the results are byte-compared.
+differential = ["dep:opaque-ke", "dep:sha2-010", "dep:p256-013", "opaque-ke/argon2", "p256", "argon2"]
 # PRIVATE (roadmap item 6): constant-time verification harness (ctgrind
 # pattern). Turns pakery-core's `ct` helpers into real Valgrind memcheck
 # client requests and enables the `ct_flows` integration test, which ct.yml

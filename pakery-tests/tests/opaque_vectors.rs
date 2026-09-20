@@ -895,6 +895,45 @@ mod argon2_tests {
         const NX: usize = 64;
     }
 
+    /// The shipped Argon2id ciphersuites must pair with a KSF whose
+    /// `OUTPUT_LEN` equals their own `NH`, as RFC 9807 §7's `T = Nh`
+    /// requires.
+    ///
+    /// This pins the *wiring*, which is where the pre-0.5.0 P-256 defect
+    /// lived: `OpaqueP256Argon2` declares `NH = 32` but used the 64-byte
+    /// `Argon2idKsf`, and the stretched output is concatenated into the
+    /// `Extract` input, so the length silently changed the derived password.
+    ///
+    /// The `roundtrip` test below cannot see this — it applies the same KSF
+    /// to both of its own sides. Cross-implementation conformance of the salt
+    /// and of `T = Nh` is proven in `differential_opaque.rs`, which runs the
+    /// real Argon2id KSF against opaque-ke on both suites.
+    #[test]
+    fn test_shipped_argon2_suites_stretch_to_their_nh() {
+        use pakery_core::crypto::Ksf as _;
+
+        fn assert_ksf_matches_nh<C: OpaqueCiphersuite>(suite: &str) {
+            let stretched = C::Ksf::stretch(&[0x5au8; 32]).expect("stretch failed");
+            assert_eq!(
+                stretched.len(),
+                C::NH,
+                "{suite}: KSF stretches to {} bytes but the suite's NH is {} \
+                 (RFC 9807 §7 requires T = Nh)",
+                stretched.len(),
+                C::NH,
+            );
+        }
+
+        assert_ksf_matches_nh::<pakery_crypto::suites::OpaqueRistretto255Argon2>(
+            "OpaqueRistretto255Argon2",
+        );
+        #[cfg(feature = "p256")]
+        assert_ksf_matches_nh::<pakery_crypto::suites::OpaqueP256Argon2>("OpaqueP256Argon2");
+    }
+
+    /// Same-implementation round-trip. Blind by construction to any KSF
+    /// parameter applied symmetrically — see the test above and
+    /// `differential_opaque.rs` for what covers that.
     #[test]
     fn test_argon2_roundtrip() {
         let mut rng = rand_core::UnwrapErr(getrandom::SysRng);

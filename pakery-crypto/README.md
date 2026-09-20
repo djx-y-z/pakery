@@ -12,8 +12,8 @@ This crate provides implementations of the traits defined in [`pakery-core`](htt
 
 ```toml
 [dependencies]
-pakery-cpace = "0.4"
-pakery-crypto = { version = "0.4", features = ["ristretto255"] }
+pakery-cpace = "0.5"
+pakery-crypto = { version = "0.5", features = ["ristretto255"] }
 ```
 
 ## Available types
@@ -47,9 +47,17 @@ pakery-crypto = { version = "0.4", features = ["ristretto255"] }
 
 ### Argon2 (`argon2` feature)
 
-| Type | Implements |
-|------|-----------|
-| `Argon2idKsf` | `Ksf` |
+| Type | Implements | Stretches to |
+|------|-----------|--------------|
+| `Argon2idKsf` | `Ksf` | 64 bytes — `Nh` for SHA-512 suites |
+| `Argon2idKsfNh32` | `Ksf` | 32 bytes — `Nh` for SHA-256 suites |
+
+Both use RFC 9106 §4's SECOND RECOMMENDED Argon2id cost (`m = 64 MiB`,
+`t = 3`, `p = 4`) and the RFC 9807 §7 salt `zeroes(16)`. They differ only in
+output length, which RFC 9807 §7 ties to the ciphersuite: `T = Nh`. Pair
+SHA-512 suites with `Argon2idKsf` and SHA-256 suites with `Argon2idKsfNh32` —
+a mismatch silently changes the derived password and breaks interop. For other
+cost settings, implement `Argon2Params` and use `Argon2idKsfWithParams`.
 
 ### Pre-built ciphersuites
 
@@ -72,7 +80,12 @@ group feature.
 
 The two identity-KSF OPAQUE suites apply **no password hardening** and exist
 for testing and for matching RFC 9807 test vectors. Production deployments
-want one of the Argon2id suites.
+want one of the Argon2id suites, which pick the correct `T = Nh` KSF for you.
+
+> **Upgrading from `0.4.x` or earlier:** both Argon2id suites changed their
+> envelope-producing parameters in `0.5.0` (salt on both, output length on
+> P-256). Existing OPAQUE registration records are unreadable; users must
+> re-register. See the `0.5.0` entry in `CHANGELOG.md`.
 
 ## Example: defining a ciphersuite
 

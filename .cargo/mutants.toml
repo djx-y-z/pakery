@@ -22,10 +22,16 @@ test_package = [
 # - `p256`: covers the P-256 halves of pakery-crypto and pakery-tests.
 # - `argon2`: compiles the Argon2id KSF (pakery-crypto/src/ksf.rs); without
 #   it that file is cfg'd out and its mutants would build unchanged and be
-#   reported as false survivors. Its killing tests (in-crate unit tests +
-#   argon2 OPAQUE vectors) add only a few seconds per mutant run.
+#   reported as false survivors. Its killing tests are the in-crate unit
+#   tests, the argon2 OPAQUE vectors, and — since 0.5.0 — four differential
+#   Argon2id flows plus a direct stretch comparison against opaque-ke. The
+#   0.5.0 additions run at m=8/t=1/p=1 on purpose: the salt and `T = Nh`
+#   properties they pin are cost-independent, so they cost ~0.2s in total.
+#   The 64 MiB stretches in the unit tests and the OPAQUE vectors remain the
+#   only material Argon2 cost, a few seconds per mutant run.
 # - `differential`: byte-compares OPAQUE against opaque-ke v4 — the
-#   strongest oracle we have for pakery-opaque mutants. opaque-ke is a
+#   strongest oracle we have for pakery-opaque mutants, and since 0.5.0 the
+#   only one that constrains the Argon2id KSF parameters. opaque-ke is a
 #   dependency, built once, never rebuilt per mutant.
 # - `__ctgrind` is deliberately NOT enabled: it is a CI-private Valgrind
 #   instrumentation feature (ct.yml); under it the ct helpers emit client
@@ -98,4 +104,6 @@ exclude_re = [
 # rejection-sampling loops (e.g. p256 scalar sampling) hang forever and are
 # killed by the timeout; proptest shrinking on a caught mutant can also run
 # well past the baseline test time.
+# Measured headroom: a full `--all-features` run is ~25s wall, so this floor
+# sits ~5x above it even after the 0.5.0 Argon2id additions.
 minimum_test_timeout = 120

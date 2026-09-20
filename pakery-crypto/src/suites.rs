@@ -167,7 +167,10 @@ impl pakery_opaque::OpaqueCiphersuite for OpaqueP256 {
 
 /// OPAQUE ciphersuite: Ristretto255 + SHA-512 + Argon2id.
 ///
-/// Uses Argon2id for password hardening. Suitable for production.
+/// Argon2id hardening at RFC 9106 §4's SECOND RECOMMENDED cost (64 MiB,
+/// `t = 3`, `p = 4`), stretching to `Nh = 64` as RFC 9807 §7's `T = Nh`
+/// requires for ristretto255-SHA512. See [`crate::ksf::DefaultArgon2Params`]
+/// for why those costs and not §7's own 2 GiB option.
 #[cfg(all(feature = "opaque", feature = "ristretto255", feature = "argon2"))]
 pub struct OpaqueRistretto255Argon2;
 
@@ -193,7 +196,10 @@ impl pakery_opaque::OpaqueCiphersuite for OpaqueRistretto255Argon2 {
 
 /// OPAQUE ciphersuite: P-256 + SHA-256 + Argon2id.
 ///
-/// Uses Argon2id for password hardening. Suitable for production.
+/// Argon2id hardening at RFC 9106 §4's SECOND RECOMMENDED cost (64 MiB,
+/// `t = 3`, `p = 4`), stretching to `Nh = 32` as RFC 9807 §7's `T = Nh`
+/// requires for P256-SHA256. See [`crate::ksf::DefaultArgon2Params`] for why
+/// those costs and not §7's own 2 GiB option.
 #[cfg(all(feature = "opaque", feature = "p256", feature = "argon2"))]
 pub struct OpaqueP256Argon2;
 
@@ -204,7 +210,7 @@ impl pakery_opaque::OpaqueCiphersuite for OpaqueP256Argon2 {
     type Mac = crate::HmacSha256;
     type Dh = crate::P256Dh;
     type Oprf = crate::P256Oprf;
-    type Ksf = crate::Argon2idKsf;
+    type Ksf = crate::Argon2idKsfNh32;
 
     const NN: usize = 32;
     const NSEED: usize = 32;

@@ -48,7 +48,8 @@ sweep — per protocol (CPace, SPAKE2, SPAKE2+, OPAQUE) × both groups.
 - **Run:** `cargo test -p pakery-tests --all-features`.
 - **Notes:** randomness is driven through a seeded `rand_chacha` `CryptoRng`
   (no `test-utils` needed); case counts kept modest (32–64) and the identity
-  KSF is used so Argon2 does not dominate runtime. proptest is left
+  KSF is used so Argon2 does not dominate runtime — the KSF itself is covered
+  by the differential Argon2id cases instead (see "Differential testing"). proptest is left
   **unpinned**: since the workspace moved to MSRV 1.85 its 1.11+ releases are
   within range, and the MSRV job does not build dev-dependencies anyway.
 
@@ -103,6 +104,18 @@ Cross-implementation oracle for the one protocol with a same-spec peer:
   record, export_key, session_key. Only the fake-credentials path is not
   differential-tested (both sides sample fresh randomness by design). Limits
   documented in `pakery-tests/README.md`.
+- **KSF coverage, and why it is called out.** Through `0.4.0` every case ran
+  the identity KSF on both sides, and the `0.3.0` / `0.4.0` changelogs cited
+  this suite as the evidence for cross-implementation agreement. Substituting
+  the identity KSF removes the component under test, so the suite could not
+  observe the Argon2id salt defect fixed in `0.5.0` — correct logic over an
+  input set that excluded the bug. Four `*_argon2_*` cases now drive the real
+  Argon2id KSF on both sides (ours via `Argon2idKsfWithParams`, opaque-ke's
+  via its `impl Ksf for argon2::Argon2`), plus a direct stretch comparison.
+  They pin two properties no same-implementation round-trip can see: the salt
+  is `zeroes(16)`, and the stretch output is `T = Nh` (64 for
+  ristretto255-SHA512, 32 for P256-SHA256). Costs are minimal (`m = 8`,
+  `t = 1`, `p = 1`) — both properties are cost-independent.
 
 ### Constant-time verification (Valgrind + crabgrind)
 

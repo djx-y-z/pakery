@@ -1,3 +1,46 @@
+## [0.5.0] - 2026-09-20
+
+Breaking release: two interop defects in the Argon2id key-stretching function. Every OPAQUE envelope this crate produced under an Argon2id suite was undecryptable by a conformant peer, and both failures were silent. **Users of the Argon2id suites must re-register.** Users on `IdentityKsf` or a hand-written `Ksf` are unaffected, as is every other protocol: CPace, SPAKE2, SPAKE2+ and the identity-KSF OPAQUE suites are byte-identical to `0.4.0`.
+
+### Fixed
+
+- **Breaking: the Argon2id KSF salt was `b"OPAQUE-Argon2id"`, not `zeroes(16)`.** RFC 9807 §7 specifies `S = zeroes(16)` for both of its recommended Argon2id configurations, and that is what conformant implementations use — `opaque-ke`'s `Ksf` impl passes `&[0; argon2::RECOMMENDED_SALT_LEN]`, which `argon2` defines as `16`. The old value was wrong on two counts by two separate standards: wrong bytes per RFC 9807 §7, and wrong length per RFC 9106 §4, which recommends a 128-bit salt for both of its options — `b"OPAQUE-Argon2id"` is 15 bytes. It never errored because `argon2`'s `MIN_SALT_LEN` is `8`.
+  - *Scoped honestly.* §7 opens "Absent an application-specific profile, the following configurations are RECOMMENDED", so this is an interop defect rather than a specification violation. The interop framing is the stronger one regardless, because the constant's own docstring made the interop claim — "Fixed at `b"OPAQUE-Argon2id"` for cross-implementation interop" — about the one value that does not have that property.
+  - *The failure was silent.* Registration and login both succeed. Only a conformant peer fails to open the envelope, where it presents as a wrong password.
+- **Breaking: `OpaqueP256Argon2` stretched to 64 bytes where RFC 9807 §7 requires `T = Nh` = 32.** The KSF output is concatenated into the `Extract` input that derives the randomized password (`randomized_pwd = Extract("", concat(oprf_output, Harden(oprf_output)))`), so its length changes the result. `OpaqueP256Argon2` declares `NH = 32` but used `Argon2idKsf`, whose `OUTPUT_LEN` is 64 — correct for ristretto255-SHA512, wrong for P256-SHA256. opaque-ke's KSF is length-preserving (`hash<L>` maps `L` to `L`, called with the OPRF output), so a conformant peer stretches to exactly `Nh`.
+  - The ristretto255 suite was never affected by this second defect: `Nh` is 64 there, which is what it used.
+  - **New:** `Argon2idKsfNh32` (and its parameter set `DefaultArgon2ParamsNh32`) — the same costs with `OUTPUT_LEN = 32`. `OpaqueP256Argon2` now uses it. Hand-written SHA-256 ciphersuites should too; `Argon2idKsf` remains correct for SHA-512 suites.
+  - *Same root cause as the salt, in a different dress:* a parameter that is suite-dependent by specification was hardcoded once, globally.
+
+### Changed
+
+- **`Argon2Params` documents that `OUTPUT_LEN` is not a free tuning knob.** It is `Nh` of the ciphersuite the KSF is paired with. The trait shape is unchanged, and the salt remains deliberately outside it — RFC 9807 §7 fixes it, so exposing it would only add a supported way to produce envelopes no conformant peer can open. Callers with a genuine need implement `Ksf` directly; the escape hatch is the trait, not a knob on the default path.
+
+### Notes
+
+- **The cost parameters did not change, and that is deliberate.** `DefaultArgon2Params` stays at `m = 65536` KiB (64 MiB), `t = 3`, `p = 4` — which is bit-exactly RFC 9106 §4's **SECOND RECOMMENDED** Argon2id option, the one §4 designates for memory-constrained environments. It is a named standardized configuration, not an arbitrary undershoot, and it sits about 3.4× above OWASP's 2025 baseline of 19 MiB. RFC 9807 §7 names RFC 9106's *first* recommended option instead (`m = 2^21`, 2 GiB, `t = 1`); both are standardized, and 2 GiB per stretch is not a workable default for a browser or a phone, where it would fail at runtime rather than at compile time. Applications that can afford it should spell out an `Argon2Params` impl with `M_COST = 1 << 21` and `T_COST = 1`. The docstrings now name the standard instead of claiming "production-tuned", which was unfalsifiable and is what let the question go unexamined for four releases.
+- **No in-place migration is possible.** RFC 9807 §8 already requires re-registration for any KSF change: "Any such change will require users to reregister to create a new RegistrationRecord." There is nothing to offer beyond saying so.
+
+### Why four releases shipped this
+
+Three tests covered the KSF and none could see the salt defect, each blind for a different reason. The P-256 output-length defect had no test at all.
+
+- `differential_opaque.rs` was the only test comparing against a conformant implementation, and the only evidence the `0.3.0` and `0.4.0` changelogs cited for cross-implementation agreement — but it substituted the identity KSF on **both** sides, removing exactly the component that diverged. Correct logic over an input set that excluded the bug.
+- `opaque_vectors.rs::argon2_tests::test_argon2_roundtrip` drove the real Argon2id KSF but compared this crate to itself. A wrong salt applied symmetrically round-trips perfectly.
+- `ksf.rs::default_alias_matches_v0_1_config` pinned the stretch output against this crate's own `v0.1.0` and **asserted the defective constant** — a backward-compatibility pin wearing the shape of a correctness pin.
+- Nothing instantiated a P-256 Argon2id ciphersuite anywhere in the workspace, so the `T = Nh` mismatch had no test to be blind to.
+
+Together the first three read as thorough coverage. `zeroes(16)` as a KSF salt appeared nowhere in the workspace: there was no conformance test to fix, only one to write.
+
+**What replaces them.** The salt and the output length are now pinned as observable *properties* rather than as constants:
+
+- A known-answer test compares `Argon2idKsfWithParams::stretch` against `argon2` invoked by hand with `S = [0u8; 16]`, with the pre-`0.5.0` salt as a negative control. Editing the constant makes the two diverge — which an assertion of a constant against its own literal cannot detect.
+- The differential suite gains four Argon2id cases (both suites × default and explicit identities) running the real KSF on **both** sides, plus a direct stretch comparison against opaque-ke at both `Nh` values. The P-256 cases pin the salt and `T = Nh` simultaneously against a conformant peer. Costs are minimal (`m = 8`, `t = 1`, `p = 1`); both properties are cost-independent, so a fast run proves them in full.
+- A wiring test asserts, for each *shipped* Argon2id suite, that its KSF stretches to its own `NH` — the invariant the P-256 defect violated. It runs beside `test_argon2_roundtrip` in `opaque_vectors.rs`, which is precisely the file that had no P-256 Argon2id coverage, and it fails on the pre-`0.5.0` wiring while the round-trip beside it still passes.
+- The `v0.1.x` vector is **deleted** rather than renamed. Its 64 pinned bytes were produced with the old salt, so no rename or `#[ignore]` leaves it meaningful — and keeping a green test that asserts the old constant is what this release is fixing. Its one durable part, the assertions on `m`/`t`/`p`/`OUTPUT_LEN`, is re-homed into a test that names the standard those values come from and costs no Argon2 run.
+
+Each of these was verified to fail against a reintroduced defect, not merely to pass against the fix.
+
 ## [0.4.0] - 2026-09-19
 
 Breaking release: the RNG bound moves from `rand_core` 0.9 to 0.10. This is a public-dependency break of the same kind as `p256` / `curve25519-dalek` in `0.3.0` — downstream code must move to the rand_core 0.10 wave in lockstep, or its generator will not satisfy the bound. No protocol output changes: every RFC test vector passes bit-exactly across the bump, and MSRV stays at `1.85`. This settles the decision `0.3.0` deferred in its Notes.

@@ -68,7 +68,7 @@ pub use kdf::HkdfSha512;
 pub use mac::HmacSha512;
 
 #[cfg(feature = "argon2")]
-pub use ksf::Argon2idKsf;
+pub use ksf::{Argon2idKsf, Argon2idKsfNh32};
 #[cfg(feature = "ristretto255")]
 pub use oprf_ristretto::Ristretto255Oprf;
 #[cfg(feature = "ristretto255")]

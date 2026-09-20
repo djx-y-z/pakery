@@ -43,9 +43,32 @@
 //! fake client public key while opaque-ke uses the long-term `dummy_pk` from
 //! `ServerSetup`, so their outputs are incomparable by construction.
 //!
-//! KSF: both sides use the identity KSF (`pakery_core::crypto::IdentityKsf` /
-//! `opaque_ke::ksf::Identity`) so that comparison runs are fast and
-//! KSF-parameter-independent.
+//! # KSF coverage
+//!
+//! Most cases run the identity KSF on both sides (`pakery_core::crypto::
+//! IdentityKsf` / opaque-ke's `ksf: None`) so that comparison runs are fast
+//! and KSF-parameter-independent.
+//!
+//! That is not sufficient on its own, and through `0.4.0` it was all there
+//! was: substituting the identity KSF removes precisely the component that
+//! diverged in the Argon2id salt defect fixed in `0.5.0`, so a suite that
+//! only ever ran it could not observe the bug it was cited as evidence
+//! against. The `*_argon2_*` cases below therefore drive the real Argon2id
+//! KSF on **both** sides — ours via `Argon2idKsfWithParams`, opaque-ke's via
+//! its `impl Ksf for argon2::Argon2`, which salts with
+//! `&[0; RECOMMENDED_SALT_LEN]`.
+//!
+//! Two properties ride on those cases, and neither is observable from a
+//! same-implementation round-trip:
+//!
+//! - the salt is `zeroes(16)` (RFC 9807 §7), not some other constant applied
+//!   symmetrically on both of our own sides;
+//! - the stretch output length is `T = Nh` — 64 for ristretto255-SHA512, 32
+//!   for P256-SHA256. It is concatenated into the `Extract` input, so a
+//!   mismatched length silently changes the randomized password.
+//!
+//! Cost parameters are deliberately minimal (`m = 8`, `t = 1`, `p = 1`):
+//! both properties are cost-independent, so a fast run proves them in full.
 
 #![cfg(feature = "differential")]
 
@@ -60,7 +83,8 @@ use opaque_ke::{
     ServerRegistration as KeServerRegistration,
 };
 use pakery_core::crypto::dh::DhGroup;
-use pakery_core::crypto::IdentityKsf;
+use pakery_core::crypto::{IdentityKsf, Ksf as _};
+use pakery_crypto::ksf::{Argon2Params, Argon2idKsfWithParams};
 use pakery_crypto::{
     HkdfSha256, HkdfSha512, HmacSha256, HmacSha512, P256Dh, P256Oprf, Ristretto255Dh,
     Ristretto255Oprf, Sha256Hash, Sha512Hash,
@@ -135,6 +159,120 @@ impl opaque_ke::CipherSuite for KeP256 {
     type OprfCs = p256_013::NistP256;
     type KeyExchange = opaque_ke::TripleDh<p256_013::NistP256, sha2_010::Sha256>;
     type Ksf = opaque_ke::ksf::Identity;
+}
+
+// --------------------------------------------------------------------------
+// Argon2id pairs — the cases that make the KSF observable (see module docs)
+// --------------------------------------------------------------------------
+
+/// Minimal Argon2id cost, `OUTPUT_LEN = Nh` for ristretto255-SHA512.
+///
+/// `m = 8` is `Params::MIN_M_COST`. The salt and the output length do not
+/// depend on the cost parameters, so the cheapest legal set proves both.
+struct CheapArgon2Nh64;
+impl Argon2Params for CheapArgon2Nh64 {
+    const M_COST: u32 = 8;
+    const T_COST: u32 = 1;
+    const P_COST: u32 = 1;
+    const OUTPUT_LEN: usize = 64;
+}
+
+/// Minimal Argon2id cost, `OUTPUT_LEN = Nh` for P256-SHA256.
+struct CheapArgon2Nh32;
+impl Argon2Params for CheapArgon2Nh32 {
+    const M_COST: u32 = 8;
+    const T_COST: u32 = 1;
+    const P_COST: u32 = 1;
+    const OUTPUT_LEN: usize = 32;
+}
+
+/// Build opaque-ke's side of the KSF, reached through `opaque_ke::argon2` so
+/// it is by construction the exact `argon2` build opaque-ke dispatches on
+/// (the 0.5 line, where the workspace is on 0.6). Same Argon2id variant,
+/// version and costs as ours.
+///
+/// opaque-ke supplies the salt itself — `&[0; RECOMMENDED_SALT_LEN]`, which it
+/// does not expose — so the salt is genuinely compared here rather than
+/// configured to agree.
+fn cheap_argon2(output_len: usize) -> opaque_ke::argon2::Argon2<'static> {
+    let params = opaque_ke::argon2::Params::new(
+        CheapArgon2Nh64::M_COST,
+        CheapArgon2Nh64::T_COST,
+        CheapArgon2Nh64::P_COST,
+        Some(output_len),
+    )
+    .expect("argon2 0.5 rejected the cheap parameter set");
+    opaque_ke::argon2::Argon2::new(
+        opaque_ke::argon2::Algorithm::Argon2id,
+        opaque_ke::argon2::Version::V0x13,
+        params,
+    )
+}
+
+/// OPAQUE-3DH over ristretto255 + SHA-512, Argon2id KSF (ours).
+struct OurRistretto255Argon2;
+
+impl OpaqueCiphersuite for OurRistretto255Argon2 {
+    type Hash = Sha512Hash;
+    type Kdf = HkdfSha512;
+    type Mac = HmacSha512;
+    type Dh = Ristretto255Dh;
+    type Oprf = Ristretto255Oprf;
+    type Ksf = Argon2idKsfWithParams<CheapArgon2Nh64>;
+
+    const NN: usize = 32;
+    const NSEED: usize = 32;
+    const NOE: usize = 32;
+    const NOK: usize = 32;
+    const NM: usize = 64;
+    const NH: usize = 64;
+    const NPK: usize = 32;
+    const NSK: usize = 32;
+    const NX: usize = 64;
+}
+
+/// OPAQUE-3DH over ristretto255 + SHA-512, Argon2id KSF (opaque-ke).
+struct KeRistretto255Argon2;
+
+impl opaque_ke::CipherSuite for KeRistretto255Argon2 {
+    type OprfCs = opaque_ke::Ristretto255;
+    type KeyExchange = opaque_ke::TripleDh<opaque_ke::Ristretto255, sha2_010::Sha512>;
+    type Ksf = opaque_ke::argon2::Argon2<'static>;
+}
+
+/// OPAQUE-3DH over P-256 + SHA-256, Argon2id KSF (ours).
+///
+/// This is the pair that pins `T = Nh`: `Nh` is 32 here, and stretching to 64
+/// — as every pakery release through `0.4.0` did for this suite — changes the
+/// `Extract` input and so the randomized password.
+struct OurP256Argon2;
+
+impl OpaqueCiphersuite for OurP256Argon2 {
+    type Hash = Sha256Hash;
+    type Kdf = HkdfSha256;
+    type Mac = HmacSha256;
+    type Dh = P256Dh;
+    type Oprf = P256Oprf;
+    type Ksf = Argon2idKsfWithParams<CheapArgon2Nh32>;
+
+    const NN: usize = 32;
+    const NSEED: usize = 32;
+    const NOE: usize = 33;
+    const NOK: usize = 32;
+    const NM: usize = 32;
+    const NH: usize = 32;
+    const NPK: usize = 33;
+    const NSK: usize = 32;
+    const NX: usize = 32;
+}
+
+/// OPAQUE-3DH over P-256 + SHA-256, Argon2id KSF (opaque-ke).
+struct KeP256Argon2;
+
+impl opaque_ke::CipherSuite for KeP256Argon2 {
+    type OprfCs = p256_013::NistP256;
+    type KeyExchange = opaque_ke::TripleDh<p256_013::NistP256, sha2_010::Sha256>;
+    type Ksf = opaque_ke::argon2::Argon2<'static>;
 }
 
 // ==========================================================================
@@ -298,10 +436,15 @@ struct DiffInputs {
 }
 
 macro_rules! differential_driver {
-    ($fn_name:ident, $ours:ty, $theirs:ty) => {
+    ($fn_name:ident, $ours:ty, $theirs:ty, $their_ksf:expr) => {
         /// Run registration + login through both implementations on identical
         /// inputs and byte-compare every protocol artifact.
         fn $fn_name(inputs: &DiffInputs) {
+            // opaque-ke takes the KSF by reference (`Option<&CS::Ksf>`), so it
+            // is built once here and borrowed at both finish sites. `None`
+            // means "no hardening", which is what our `IdentityKsf` does.
+            let their_ksf = $their_ksf;
+            let their_ksf = their_ksf.as_ref();
             let client_id = inputs.client_identity.as_deref().unwrap_or(b"");
             let server_id = inputs.server_identity.as_deref().unwrap_or(b"");
             let ke_identifiers = KeIdentifiers {
@@ -383,7 +526,7 @@ macro_rules! differential_driver {
                     &inputs.password,
                     KeRegistrationResponse::deserialize(&their_reg_response)
                         .expect("opaque-ke rejected its own RegistrationResponse"),
-                    KeClientRegistrationFinishParameters::new(ke_identifiers, None),
+                    KeClientRegistrationFinishParameters::new(ke_identifiers, their_ksf),
                 )
                 .expect("opaque-ke registration finish failed");
             let their_record = their_reg_finish.message.serialize();
@@ -490,7 +633,11 @@ macro_rules! differential_driver {
                     &inputs.password,
                     KeCredentialResponse::deserialize(&their_ke2.message.serialize())
                         .expect("opaque-ke rejected its own KE2"),
-                    KeClientLoginFinishParameters::new(Some(&inputs.context), ke_identifiers, None),
+                    KeClientLoginFinishParameters::new(
+                        Some(&inputs.context),
+                        ke_identifiers,
+                        their_ksf,
+                    ),
                 )
                 .expect("opaque-ke client login finish failed");
             let their_ke3 = their_login_finish.message.serialize();
@@ -554,9 +701,27 @@ macro_rules! differential_driver {
 differential_driver!(
     run_differential_ristretto255,
     OurRistretto255,
-    KeRistretto255
+    KeRistretto255,
+    None::<opaque_ke::ksf::Identity>
 );
-differential_driver!(run_differential_p256, OurP256, KeP256);
+differential_driver!(
+    run_differential_p256,
+    OurP256,
+    KeP256,
+    None::<opaque_ke::ksf::Identity>
+);
+differential_driver!(
+    run_differential_ristretto255_argon2,
+    OurRistretto255Argon2,
+    KeRistretto255Argon2,
+    Some(cheap_argon2(<CheapArgon2Nh64 as Argon2Params>::OUTPUT_LEN))
+);
+differential_driver!(
+    run_differential_p256_argon2,
+    OurP256Argon2,
+    KeP256Argon2,
+    Some(cheap_argon2(<CheapArgon2Nh32 as Argon2Params>::OUTPUT_LEN))
+);
 
 // ==========================================================================
 // Input construction
@@ -641,6 +806,89 @@ fn differential_p256_explicit_identities() {
     let mut inputs = fixed_inputs(OurP256::NH, false, true);
     fill_server_keys::<P256Dh>(&mut inputs, &[0x11; 32], &[0x22; 32]);
     run_differential_p256(&inputs);
+}
+
+// --------------------------------------------------------------------------
+// Argon2id cases — real KSF on both sides (see module docs)
+// --------------------------------------------------------------------------
+
+/// Pins the Argon2id salt at `zeroes(16)` against a conformant peer: every
+/// artifact from the registration record onwards depends on the stretched
+/// OPRF output, so a salt mismatch fails this loudly.
+#[test]
+fn differential_ristretto255_argon2_default_identities() {
+    let mut inputs = fixed_inputs(OurRistretto255Argon2::NH, true, false);
+    fill_server_keys::<Ristretto255Dh>(&mut inputs, &[0x11; 32], &[0x22; 32]);
+    run_differential_ristretto255_argon2(&inputs);
+}
+
+#[test]
+fn differential_ristretto255_argon2_explicit_identities() {
+    let mut inputs = fixed_inputs(OurRistretto255Argon2::NH, true, true);
+    fill_server_keys::<Ristretto255Dh>(&mut inputs, &[0x11; 32], &[0x22; 32]);
+    run_differential_ristretto255_argon2(&inputs);
+}
+
+/// Pins both the salt and `T = Nh = 32` for P256-SHA256. Before `0.5.0` there
+/// was no P-256 Argon2id test of any kind, in this file or elsewhere.
+#[test]
+fn differential_p256_argon2_default_identities() {
+    let mut inputs = fixed_inputs(OurP256Argon2::NH, false, false);
+    fill_server_keys::<P256Dh>(&mut inputs, &[0x11; 32], &[0x22; 32]);
+    run_differential_p256_argon2(&inputs);
+}
+
+#[test]
+fn differential_p256_argon2_explicit_identities() {
+    let mut inputs = fixed_inputs(OurP256Argon2::NH, false, true);
+    fill_server_keys::<P256Dh>(&mut inputs, &[0x11; 32], &[0x22; 32]);
+    run_differential_p256_argon2(&inputs);
+}
+
+/// Direct check that our stretch and opaque-ke's agree byte-for-byte on the
+/// same input, independent of the protocol flow above. This is the narrowest
+/// statement of the salt property against a conformant implementation: the
+/// two sides never exchange a salt, so agreement here means both chose
+/// `zeroes(16)`.
+///
+/// Run at both `Nh` values, which also pins the `T = Nh` half: opaque-ke's
+/// `hash<L>` is length-preserving, so its output length is the `Nh` it is
+/// handed, and ours is whatever `OUTPUT_LEN` says.
+#[test]
+fn argon2_stretch_agrees_with_opaque_ke() {
+    fn ke_stretch<N>(input: &[u8]) -> Vec<u8>
+    where
+        N: opaque_ke::generic_array::ArrayLength<u8>,
+    {
+        use opaque_ke::ksf::Ksf as KeKsf;
+
+        cheap_argon2(input.len())
+            .hash(opaque_ke::generic_array::GenericArray::<u8, N>::clone_from_slice(input))
+            .expect("opaque-ke argon2 stretch failed")
+            .to_vec()
+    }
+
+    use opaque_ke::generic_array::typenum::{U32, U64};
+
+    // Nh = 64 (ristretto255-SHA512).
+    let input64 = vec![0x5au8; 64];
+    assert_eq!(
+        Argon2idKsfWithParams::<CheapArgon2Nh64>::stretch(&input64)
+            .expect("our stretch failed")
+            .as_slice(),
+        ke_stretch::<U64>(&input64).as_slice(),
+        "Argon2id stretch disagrees with opaque-ke at Nh = 64"
+    );
+
+    // Nh = 32 (P256-SHA256).
+    let input32 = vec![0x5au8; 32];
+    assert_eq!(
+        Argon2idKsfWithParams::<CheapArgon2Nh32>::stretch(&input32)
+            .expect("our stretch failed")
+            .as_slice(),
+        ke_stretch::<U32>(&input32).as_slice(),
+        "Argon2id stretch disagrees with opaque-ke at Nh = 32"
+    );
 }
 
 // ==========================================================================

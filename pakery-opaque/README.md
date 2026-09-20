@@ -14,9 +14,9 @@ OPAQUE is an augmented (asymmetric) PAKE: the server stores a password verifier 
 
 ```toml
 [dependencies]
-pakery-opaque = "0.4"
-pakery-core = "0.4"
-pakery-crypto = { version = "0.4", features = ["ristretto255"] }
+pakery-opaque = "0.5"
+pakery-core = "0.5"
+pakery-crypto = { version = "0.5", features = ["ristretto255"] }
 # pakery's RNG bound is `rand_core::CryptoRng`, but rand_core 0.10 ships no
 # generator of its own: when it dropped its Cargo features it dropped the
 # OS-backed `OsRng` with them, and that generator now lives in getrandom as
@@ -31,10 +31,14 @@ The suite below uses `IdentityKsf`, which applies **no password hardening** —
 it keeps the example short and matches the RFC 9807 test vectors. That choice
 removes exactly the protection the paragraph above describes: with an identity
 KSF, an attacker who steals the registration record can test password guesses
-at the cost of one OPRF evaluation each. For production, use a real key
-stretching function (`pakery_crypto::Argon2idKsf`, behind the `argon2`
-feature) or the pre-built `pakery_crypto::OpaqueRistretto255Argon2` /
-`OpaqueP256Argon2` suites.
+at the cost of one OPRF evaluation each. For production, use the pre-built
+`pakery_crypto::OpaqueRistretto255Argon2` / `OpaqueP256Argon2` suites (behind
+the `argon2` feature), or a real key stretching function of your own.
+
+If you spell out the suite by hand, note that RFC 9807 §7 ties the KSF output
+length to the ciphersuite (`T = Nh`): pair SHA-512 suites with
+`pakery_crypto::Argon2idKsf` and SHA-256 suites with
+`pakery_crypto::Argon2idKsfNh32`. The pre-built suites already do this.
 
 
 ```rust

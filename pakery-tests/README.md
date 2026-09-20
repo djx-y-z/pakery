@@ -18,7 +18,9 @@ vectors, property-based tests, and differential testing. Not published.
 - `p256` — enables the P-256 suites in vector and property tests.
 - `argon2` — enables the Argon2id KSF tests.
 - `differential` — enables the OPAQUE differential suite against
-  [opaque-ke](https://crates.io/crates/opaque-ke) v4. Implies `p256`. Kept out
+  [opaque-ke](https://crates.io/crates/opaque-ke) v4. Implies `p256` and
+  `argon2` (the suite covers an Argon2id case on both sides, which is what
+  pins the KSF salt and `T = Nh` against a conformant peer). Kept out
   of default runs because opaque-ke pulls a large dependency tree; CI covers it
   through the `--all-features` test/check jobs. Note the MSRV job does **not**
   cover it: `ci.yml` runs `cargo check --workspace --exclude pakery-tests
