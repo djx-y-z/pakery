@@ -22,6 +22,18 @@ impl pakery_cpace::CpaceCiphersuite for CpaceRistretto255 {
 }
 
 /// CPace ciphersuite: P-256 + SHA-512.
+///
+/// # Not the draft's P-256 suite
+///
+/// This suite deliberately differs from draft-irtf-cfrg-cpace's
+/// `CPACE-P256_XMD:SHA-256_SSWU_NU_`: it uses the DSI `CPaceP256` and SHA-512
+/// rather than SHA-256, because CPace needs a hash output of at least twice
+/// the field size (64 bytes for P-256) to derive the generator.
+///
+/// The consequence is that **no conformant CPace P-256 implementation will
+/// interoperate with it**, and the draft's positive test vectors do not apply.
+/// Its point-validation vectors are suite-independent and are exercised. Use
+/// [`CpaceRistretto255`] where cross-implementation interoperability matters.
 #[cfg(all(feature = "cpace", feature = "p256"))]
 pub struct CpaceP256;
 
@@ -40,6 +52,18 @@ impl pakery_cpace::CpaceCiphersuite for CpaceP256 {
 // ---------------------------------------------------------------------------
 
 /// SPAKE2 ciphersuite: Ristretto255 + SHA-512.
+///
+/// # Not an RFC 9382 suite
+///
+/// RFC 9382 defines M and N only for P-256, P-384, P-521, edwards25519 and
+/// edwards448; ristretto255 is not among them. For other groups its Section 2
+/// says to derive the points with RFC 9380 `hash_to_curve` from a seed of the
+/// form `"M SPAKE2 seed OID x"`. The constants this suite uses
+/// ([`crate::SPAKE2_M_COMPRESSED`], [`crate::SPAKE2_N_COMPRESSED`]) follow
+/// neither that recipe nor RFC 9382 Appendix A's, so they are **this crate's
+/// own**: no RFC 9382 test vector applies to this suite and it has no
+/// conformant peer. Use [`Spake2P256`] where cross-implementation
+/// interoperability matters.
 #[cfg(all(feature = "spake2", feature = "ristretto255"))]
 pub struct Spake2Ristretto255;
 
@@ -76,6 +100,14 @@ impl pakery_spake2::Spake2Ciphersuite for Spake2P256 {
 // ---------------------------------------------------------------------------
 
 /// SPAKE2+ ciphersuite: Ristretto255 + SHA-512.
+///
+/// # Not an RFC 9383 suite
+///
+/// RFC 9383, like RFC 9382, defines M and N only for P-256, P-384, P-521,
+/// edwards25519 and edwards448. This suite reuses the same non-standard
+/// ristretto255 constants as [`Spake2Ristretto255`], so it is **this crate's
+/// own**: no RFC 9383 test vector applies to it and it has no conformant peer.
+/// Use [`Spake2PlusP256`] where cross-implementation interoperability matters.
 #[cfg(all(feature = "spake2plus", feature = "ristretto255"))]
 pub struct Spake2PlusRistretto255;
 

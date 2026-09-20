@@ -1,4 +1,4 @@
-//! Transcript construction and ISK/session-ID derivation per draft-irtf-cfrg-cpace-18.
+//! Transcript construction and ISK/session-ID derivation per draft-irtf-cfrg-cpace-21.
 
 use alloc::vec::Vec;
 use pakery_core::crypto::Hash;

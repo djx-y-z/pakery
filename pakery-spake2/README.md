@@ -86,7 +86,16 @@ out_b.verify_peer_confirmation(&out_a.confirmation_mac).unwrap();
 - `#![forbid(unsafe_code)]`
 - Constant-time comparisons via [`subtle`](https://crates.io/crates/subtle)
 - Secret values zeroized on drop via [`zeroize`](https://crates.io/crates/zeroize)
-- Validated against RFC 9382 test vectors
+- Validated against the RFC 9382 Appendix B test vectors, which cover the
+  `P256-SHA256-HKDF-SHA256-HMAC-SHA256` ciphersuite
+
+> **ristretto255 is not an RFC 9382 suite.** RFC 9382 defines M and N only for
+> P-256, P-384, P-521, edwards25519 and edwards448, and for other curves its
+> Section 2 says to derive them with RFC 9380 `hash_to_curve`. The ristretto255
+> constants shipped in `pakery_crypto` predate that guidance and follow neither
+> convention, so `Spake2Ristretto255` is **this crate's own suite**: no RFC test
+> vectors apply to it and it has no conformant peer. Use the P-256 suite where
+> cross-implementation interoperability matters.
 
 ## MSRV
 

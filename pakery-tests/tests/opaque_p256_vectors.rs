@@ -1,9 +1,10 @@
-//! OPAQUE P-256 test vectors from draft-irtf-cfrg-opaque reference implementation.
+//! OPAQUE P-256 test vectors from RFC 9807 Appendix C.1.5 and C.1.6.
+//!
+//! Verified byte-for-byte against the published RFC, not against the
+//! reference implementation these were originally transcribed from.
 //!
 //! Vector 1: default identities (public keys).
 //! Vector 2: explicit identities (client=alice, server=bob).
-//!
-//! Source: <https://github.com/cfrg/draft-irtf-cfrg-opaque/tree/master/poc/vectors>
 #![cfg(feature = "p256")]
 
 use pakery_core::crypto::dh::DhGroup;
@@ -116,7 +117,7 @@ impl rand_core::TryCryptoRng for SequentialRng {}
 
 // ==========================================================================
 // Test Vector 1: Default identities (empty client_identity, empty server_identity)
-// Source: cfrg/draft-irtf-cfrg-opaque poc/vectors, OPRF(P-256, SHA-256)
+// Source: RFC 9807 Appendix C.1.5, OPRF(P-256, SHA-256)
 // ==========================================================================
 
 mod vector1 {

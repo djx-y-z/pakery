@@ -58,7 +58,7 @@ fn with_sel_cut(sel: u8, cut: u8, bytes: &[u8]) -> Vec<u8> {
     out
 }
 
-// RFC 9807 test vector D.1.1 (real ristretto255 suite messages, identical to
+// RFC 9807 test vector C.1.1 (real ristretto255 suite messages, identical to
 // the constants in pakery-tests/tests/opaque_vectors.rs).
 const RFC9807_REGISTRATION_REQUEST: &str =
     "5059ff249eb1551b7ce4991f3336205bde44a105a032e747d21bf382e75f7a71";

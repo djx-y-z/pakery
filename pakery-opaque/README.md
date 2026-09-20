@@ -35,10 +35,14 @@ at the cost of one OPRF evaluation each. For production, use the pre-built
 `pakery_crypto::OpaqueRistretto255Argon2` / `OpaqueP256Argon2` suites (behind
 the `argon2` feature), or a real key stretching function of your own.
 
-If you spell out the suite by hand, note that RFC 9807 §7 ties the KSF output
-length to the ciphersuite (`T = Nh`): pair SHA-512 suites with
-`pakery_crypto::Argon2idKsf` and SHA-256 suites with
-`pakery_crypto::Argon2idKsfNh32`. The pre-built suites already do this.
+If you spell out the suite by hand, note that none of the length constants is
+a free parameter. `NN` and `NSEED` are fixed at 32 by RFC 9807 §2 and default
+to it, so leave them out; the other seven are determined by the primitives you
+name and are checked against them at build time, so a mismatch is a compile
+error rather than a silent change to the bytes on the wire. The same applies
+to the KSF, which RFC 9807 §7 ties to the ciphersuite (`T = Nh`): pair SHA-512
+suites with `pakery_crypto::Argon2idKsf` and SHA-256 suites with
+`pakery_crypto::Argon2idKsfNh32`. The pre-built suites already do all of this.
 
 
 ```rust
@@ -56,8 +60,7 @@ impl OpaqueCiphersuite for MyOpaqueSuite {
     type Oprf = Ristretto255Oprf;
     type Ksf = IdentityKsf;
 
-    const NN: usize = 32;
-    const NSEED: usize = 32;
+    // NN and NSEED default to 32 (RFC 9807 §2) — no need to spell them out.
     const NOE: usize = 32;
     const NOK: usize = 32;
     const NM: usize = 64;

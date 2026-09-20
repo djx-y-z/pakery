@@ -74,7 +74,16 @@ assert_eq!(init_out.isk.as_bytes(), resp_out.isk.as_bytes());
 - `#![forbid(unsafe_code)]`
 - Constant-time comparisons via [`subtle`](https://crates.io/crates/subtle)
 - Secret values zeroized on drop via [`zeroize`](https://crates.io/crates/zeroize)
-- Validated against draft-irtf-cfrg-cpace test vectors
+- Validated against the draft-irtf-cfrg-cpace-21 test vectors for the
+  ristretto255 suite (Appendix B.3)
+
+> **The P-256 suite is not the draft's P-256 suite.** `pakery_crypto::CpaceP256`
+> uses its own DSI (`CPaceP256`) and SHA-512, because CPace requires a hash
+> output of at least twice the field size. It therefore differs from the draft's
+> `CPACE-P256_XMD:SHA-256_SSWU_NU_`, the draft's positive vectors do not apply
+> to it, and it has no conformant peer. Its point-validation vectors do apply
+> and are exercised. Use the ristretto255 suite where cross-implementation
+> interoperability matters.
 
 ## MSRV
 

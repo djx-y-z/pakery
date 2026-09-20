@@ -1,4 +1,4 @@
-//! Generator calculation per draft-irtf-cfrg-cpace-18.
+//! Generator calculation per draft-irtf-cfrg-cpace-21.
 //!
 //! ```text
 //! generator_string(DSI, PRS, CI, sid, s_in_bytes):

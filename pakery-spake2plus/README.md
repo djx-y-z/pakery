@@ -94,7 +94,15 @@ assert_eq!(
 - `#![forbid(unsafe_code)]`
 - Constant-time comparisons via [`subtle`](https://crates.io/crates/subtle)
 - Secret values zeroized on drop via [`zeroize`](https://crates.io/crates/zeroize)
-- Validated against RFC 9383 test vectors
+- Validated against the RFC 9383 Appendix C.1 test vectors, which cover the
+  `P256-SHA256-HKDF-SHA256-HMAC-SHA256` ciphersuite
+
+> **ristretto255 is not an RFC 9383 suite.** Like RFC 9382, RFC 9383 defines M
+> and N only for P-256, P-384, P-521, edwards25519 and edwards448. The
+> ristretto255 constants shipped in `pakery_crypto` are **this crate's own**:
+> no RFC test vectors apply to `Spake2PlusRistretto255` and it has no
+> conformant peer. Use the P-256 suite where cross-implementation
+> interoperability matters.
 
 ## MSRV
 

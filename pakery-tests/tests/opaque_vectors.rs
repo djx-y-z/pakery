@@ -1,4 +1,7 @@
-//! OPAQUE test vectors from draft-irtf-cfrg-opaque.
+//! OPAQUE test vectors from RFC 9807 Appendix C.1.1 and C.1.2.
+//!
+//! Verified byte-for-byte against the published RFC, not against the draft
+//! these were originally transcribed from.
 //!
 //! Vectors 1-2: ristretto255 + SHA-512 + IdentityKSF.
 //! Vector 1: default identities (public keys)

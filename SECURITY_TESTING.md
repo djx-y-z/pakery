@@ -12,10 +12,20 @@ point back to.
 
 ## Baseline (predates the layers below)
 
-- RFC/draft positive test vectors for all 4 protocols on both groups (over 200
-  integration tests in `pakery-tests`, incl. wrong-password / tampered-MAC /
-  garbage-bytes / identity-point negative tests; count them with
-  `cargo test -p pakery-tests --all-features`).
+- RFC/draft positive test vectors for **5 of the 8** protocol x group
+  combinations (over 200 integration tests in `pakery-tests`, incl.
+  wrong-password / tampered-MAC / garbage-bytes / identity-point negative
+  tests; count them with `cargo test -p pakery-tests --all-features`).
+  The other three have no vectors to run, because no standard defines the
+  suite -- each is covered by round-trip and property tests instead, and each
+  says so in its own test-file header:
+
+  | | ristretto255 | P-256 |
+  |---|---|---|
+  | CPace | draft-21 App. B.3 | none -- suite deviates from the draft |
+  | SPAKE2 | none -- not an RFC 9382 suite | RFC 9382 App. B |
+  | SPAKE2+ | none -- not an RFC 9383 suite | RFC 9383 App. C.1 |
+  | OPAQUE | RFC 9807 App. C.1.1/C.1.2 | RFC 9807 App. C.1.5/C.1.6 |
 - CI: test, clippy `-D warnings`, fmt, doc, MSRV (1.85), no_std (thumbv7em),
   wasm, feature-combinations, minimal-versions, coverage, and the
   documentation gate (`ci/check-docs.py`); `cargo audit` and cargo-deny on

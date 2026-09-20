@@ -1,6 +1,24 @@
 //! Pre-computed SPAKE2 constants for Ristretto255.
 //!
 //! Each constant is derived as `compress(from_uniform_bytes(SHA-512(label)))`.
+//!
+//! # These are not RFC 9382 constants
+//!
+//! RFC 9382 tabulates M and N for P-256, P-384, P-521, edwards25519 and
+//! edwards448 only. For any other group its Section 2 says the RFC 9380
+//! methods SHOULD be used, e.g. via `M = hash_to_curve("M SPAKE2 seed OID x")`;
+//! RFC 9382 Appendix A generated the tabulated points from strings of
+//! the form `"<OID or name> point generation seed (M)"`.
+//!
+//! The derivation below matches neither: the seed strings differ, and a raw
+//! SHA-512 feeding `from_uniform_bytes` is not RFC 9380 `hash_to_curve`
+//! (no `expand_message_xmd`, no DST). An implementation that follows RFC 9382
+//! Section 2 for ristretto255 will therefore arrive at **different** M and N.
+//!
+//! These values are kept as they are because they have shipped since `0.1.0`
+//! and changing them would break every existing deployment without buying
+//! interoperability with anything — there is no standard ristretto255 SPAKE2
+//! suite to interoperate with. They are documented as non-standard instead.
 
 /// M point for SPAKE2 with Ristretto255.
 ///

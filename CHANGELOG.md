@@ -1,6 +1,10 @@
 ## [0.5.0] - 2026-09-20
 
-Breaking release: two interop defects in the Argon2id key-stretching function. Every OPAQUE envelope this crate produced under an Argon2id suite was undecryptable by a conformant peer, and both failures were silent. **Users of the Argon2id suites must re-register.** Users on `IdentityKsf` or a hand-written `Ksf` are unaffected, as is every other protocol: CPace, SPAKE2, SPAKE2+ and the identity-KSF OPAQUE suites are byte-identical to `0.4.0`.
+Breaking release. Two interop defects in the Argon2id key-stretching function, plus the structural gap that let them ship: an OPAQUE ciphersuite's nine length constants were hand-written and tied to nothing, so four of them could be wrong without a single pakery-to-pakery test noticing. They are now checked against the primitives at compile time, which required new associated constants on four `pakery-core` traits.
+
+Every OPAQUE envelope this crate produced under an Argon2id suite was undecryptable by a conformant peer, and both failures were silent. **Users of the Argon2id suites must re-register.** Users on `IdentityKsf` or a hand-written `Ksf` are unaffected.
+
+**No wire format changes beyond the Argon2id KSF.** CPace, SPAKE2, SPAKE2+ and the identity-KSF OPAQUE suites are byte-identical to `0.4.0`; every RFC vector passes unchanged. The other breaking change is to the trait surface, and it affects only code that implements a `pakery-core` crypto trait itself — not code that merely uses the shipped ciphersuites.
 
 ### Fixed
 
@@ -12,13 +16,33 @@ Breaking release: two interop defects in the Argon2id key-stretching function. E
   - **New:** `Argon2idKsfNh32` (and its parameter set `DefaultArgon2ParamsNh32`) — the same costs with `OUTPUT_LEN = 32`. `OpaqueP256Argon2` now uses it. Hand-written SHA-256 ciphersuites should too; `Argon2idKsf` remains correct for SHA-512 suites.
   - *Same root cause as the salt, in a different dress:* a parameter that is suite-dependent by specification was hardcoded once, globally.
 
+### Added
+
+- **Length constants on four `pakery-core` traits, so OPAQUE's can be checked against them.** `Mac::OUTPUT_SIZE`, `Kdf::EXTRACT_SIZE`, `DhGroup::SK_LEN` / `PK_LEN`, and `Oprf::KEY_LEN` / `ELEMENT_LEN`. RFC 9807 defines `Nm`, `Nx`, `Nsk`, `Npk`, `Nok` and `Noe` as exactly these quantities; until now Rust had no way to read them off the associated types, so `OpaqueCiphersuite` restated them and nothing compared the two.
+  - **Breaking for implementors of those four traits**, which must now declare the constants. It is *not* breaking for code that only names the shipped types or writes an `OpaqueCiphersuite` impl. Every implementation in this workspace is updated; the concrete values are `HmacSha512` 64 / `HmacSha256` 32, `HkdfSha512` 64 / `HkdfSha256` 32, `Ristretto255Dh` 32/32, `P256Dh` 32/33, `Ristretto255Oprf` 32/32, `P256Oprf` 32/33.
+
 ### Changed
 
+- **Breaking (behaviour, in the fail-closed direction): every `OpaqueCiphersuite` is now length-checked at compile time.** A private `assert_lengths::<C>()` runs nine `const` assertions — `NN == 32`, `NSEED == 32`, and the other seven against the primitives above — and is called from all nine public entry points (`ServerSetup::new` / `new_with_key`, `ClientRegistration::start`, `ServerRegistration::start`, `ClientLogin::start` / `start_with_blind_and_nonce_and_seed`, `ServerLogin::start` / `start_with_nonce_and_seed` / `start_fake`). A suite whose constants disagree with its own primitives no longer builds, and the error names the offending constant.
+  - *A shipped suite that was already correct is unaffected.* All four pre-built OPAQUE suites pass unchanged.
+  - *These are post-monomorphization const evaluations*, so they fire on `cargo build` and `cargo test`, not on `cargo check` — which is why the MSRV job, which only checks, is not where this gate lives. A downstream crate sees the error when it builds its own call to an entry point.
+- **`NN` and `NSEED` now default to 32 and should not be spelled out.** RFC 9807 §2 fixes both for every configuration — "all random nonces and seeds ... are of length Nn and Nseed bytes, respectively, where Nn = Nseed = 32" — so offering them as free required constants was itself the defect. Existing impls that state `= 32` keep compiling; the `pakery-opaque` README example no longer lists them.
 - **`Argon2Params` documents that `OUTPUT_LEN` is not a free tuning knob.** It is `Nh` of the ciphersuite the KSF is paired with. The trait shape is unchanged, and the salt remains deliberately outside it — RFC 9807 §7 fixes it, so exposing it would only add a supported way to produce envelopes no conformant peer can open. Callers with a genuine need implement `Ksf` directly; the escape hatch is the trait, not a knob on the default path.
+
+### Fixed (documentation)
+
+Three user-facing claims were broader than what the code does. No wire format changes; each was contradicted by a test file in this repository that said the opposite.
+
+- **`Spake2Ristretto255` and `Spake2PlusRistretto255` are not RFC suites, and the READMEs said they were validated as such.** RFC 9382 and RFC 9383 tabulate M and N for P-256, P-384, P-521, edwards25519 and edwards448 only; ristretto255 is in neither. For other groups RFC 9382 §2 says to derive the points with RFC 9380 `hash_to_curve` from a seed like `"M SPAKE2 seed OID x"`, and Appendix A generated the tabulated ones from `"<OID or name> point generation seed (M)"`. This crate's constants use `SHA-512("M SPAKE2 ristretto255")` fed to `from_uniform_bytes` — neither recipe, and not `hash_to_curve` at all (no `expand_message_xmd`, no DST). An implementation following RFC 9382 §2 arrives at different points, so these suites have **no conformant peer**. The constants are kept, because they have shipped since `0.1.0` and changing them would break every deployment without buying interoperability with anything; they are documented as non-standard instead, in the READMEs, in `spake2_constants.rs` and on both suite types.
+- **`pakery-cpace`'s README claimed validation against the draft's test vectors without saying which suite.** True for ristretto255 (draft-21 Appendix B.3); not true for `CpaceP256`, which deliberately uses its own DSI and SHA-512 because CPace needs a hash output of at least twice the field size, and to which only the draft's suite-independent point-validation vectors apply. Both the README and the `CpaceP256` docstring now say so.
+- **`SECURITY_TESTING.md` claimed positive vectors "for all 4 protocols on both groups".** Five of the eight combinations have them; the other three have no standard to draw them from and are covered by round-trip and property tests. The entry is now a table naming the appendix behind each.
+- Smaller provenance corrections: the OPAQUE vector files cited the draft and its reference implementation, but the pinned values are byte-identical to RFC 9807 Appendix C.1.1/C.1.2 (ristretto255) and C.1.5/C.1.6 (P-256), verified against the published RFC — they now cite it, and `fuzz/examples/gen_seeds.rs` no longer calls C.1.1 "D.1.1". `pakery-cpace`'s `generator.rs` and `transcript.rs` headers said draft-18 while the vectors and `SECURITY_TESTING.md` say draft-21.
 
 ### Notes
 
 - **The cost parameters did not change, and that is deliberate.** `DefaultArgon2Params` stays at `m = 65536` KiB (64 MiB), `t = 3`, `p = 4` — which is bit-exactly RFC 9106 §4's **SECOND RECOMMENDED** Argon2id option, the one §4 designates for memory-constrained environments. It is a named standardized configuration, not an arbitrary undershoot, and it sits about 3.4× above OWASP's 2025 baseline of 19 MiB. RFC 9807 §7 names RFC 9106's *first* recommended option instead (`m = 2^21`, 2 GiB, `t = 1`); both are standardized, and 2 GiB per stretch is not a workable default for a browser or a phone, where it would fail at runtime rather than at compile time. Applications that can afford it should spell out an `Argon2Params` impl with `M_COST = 1 << 21` and `T_COST = 1`. The docstrings now name the standard instead of claiming "production-tuned", which was unfalsifiable and is what let the question go unexamined for four releases.
+- **Supersedes a sentence in the `0.4.0` notes.** That entry said "`multiple-versions` stays at `warn` until `opaque-ke` ships a stable release on the current wave". It stopped being true before this release: `deny.toml` sets `multiple-versions = "deny"`, and the graph is split across two `cargo deny` invocations rather than the check being loosened — `check advisories licenses sources` on the full graph, `--exclude-unpublished check bans` on the published one. `opaque-ke` is in fact still on the previous RustCrypto wave; that was never what gated the flip. The released `0.4.0` entry is deliberately **not** edited in place, because `ci/release-notes.py` derives the published GitHub release body from it and a published body cannot be amended.
+- **This release adds one more duplicate to the test-only set, by design.** `opaque-ke` 4.0.1 implements its `Ksf` trait for `argon2` 0.5 while the workspace is on 0.6, so the differential Argon2id cases reach it through `opaque_ke::argon2` — the exact build opaque-ke dispatches on, rather than a fourth renamed alias that could drift. Like the `proptest` and `opaque-ke` copies the `0.4.0` notes describe, it reaches only `pakery-tests`, which is `publish = false`, so `--exclude-unpublished check bans` prunes it: verified `bans ok` on this tree. Argon2id output is identical across the two lines, which those cases rely on and also prove — our side stretches with 0.6, opaque-ke's with 0.5, and the results are byte-compared.
 - **No in-place migration is possible.** RFC 9807 §8 already requires re-registration for any KSF change: "Any such change will require users to reregister to create a new RegistrationRecord." There is nothing to offer beyond saying so.
 
 ### Why four releases shipped this
@@ -40,6 +64,26 @@ Together the first three read as thorough coverage. `zeroes(16)` as a KSF salt a
 - The `v0.1.x` vector is **deleted** rather than renamed. Its 64 pinned bytes were produced with the old salt, so no rename or `#[ignore]` leaves it meaningful — and keeping a green test that asserts the old constant is what this release is fixing. Its one durable part, the assertions on `m`/`t`/`p`/`OUTPUT_LEN`, is re-homed into a test that names the standard those values come from and costs no Argon2 run.
 
 Each of these was verified to fail against a reintroduced defect, not merely to pass against the fix.
+
+**The same root cause, everywhere else it lives.** `T = Nh` was one instance of a general shape: a quantity the specification derives from something else, written out by hand, with nothing tying the copy to the source. Auditing the rest of `OpaqueCiphersuite` for that shape found four more. Each constant was set to a wrong value and two oracles were run — `prop_opaque` (pakery against pakery, including serialize/deserialize round-trip and a truncation sweep) and the RFC 9807 vectors:
+
+| Constant | Wrong value | `prop_opaque` | RFC 9807 vectors |
+|---|---|---|---|
+| `NN` | 32 -> 16 | **0 failed** | 3 failed |
+| `NSEED` | 32 -> 16 | **0 failed** | 8 failed |
+| `NOK` | 32 -> 7 | **0 failed** | **0 failed** |
+| `NSK` | 32 -> 999 | **0 failed** | **0 failed** |
+| `NOE` | 32 -> 33 | 2 failed | 2 failed |
+| `NM` | 64 -> 32 | 5 failed | 11 failed |
+| `NPK` | 32 -> 33 | 5 failed | 12 failed |
+| `NX` | 64 -> 32 | 7 failed | 17 failed |
+| `NH` | 64 -> 32 | 8 failed | 19 failed |
+
+`NN` and `NSEED` changed the bytes on the wire while every pakery-to-pakery test stayed green. `NOK` and `NSK` were never read by the library at all — `grep` found zero uses outside their own declarations — so any value passed everything, including all 27 RFC 9807 vector tests.
+
+The shipped suites were correct, but only because RFC 9807 publishes vectors for exactly the two ciphersuites this crate ships. A hand-written suite — which `pakery-opaque`'s README teaches, and which warned about `T = Nh` and nothing else — had no such net. The sibling crates already carried the idiom that was missing here: `pakery-cpace/src/generator.rs`, `pakery-spake2/src/transcript.rs` and `pakery-spake2plus/src/transcript.rs` each tie a declared constant to `Hash::OUTPUT_SIZE` with a `const` assertion. `pakery-opaque`, with nine hand-written constants, had none.
+
+All nine are now checked at compile time, and each check was verified by reintroducing its defect and confirming the build fails naming that constant. Because the checks only fire for a ciphersuite monomorphized through an entry point, a source-level test asserts that all nine entry points call `assert_lengths::<C>()` as their first statement — it fails when a call is removed, which is the only failure mode a ciphersuite test cannot see.
 
 ## [0.4.0] - 2026-09-19
 
