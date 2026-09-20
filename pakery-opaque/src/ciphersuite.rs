@@ -74,7 +74,15 @@ pub trait OpaqueCiphersuite: Sized + 'static {
 /// `cargo build` and `cargo test` — which is where CI catches them — but not
 /// on `cargo check`, which stops before codegen. A downstream crate sees the
 /// error when it builds its own call to any entry point below.
-pub(crate) fn assert_lengths<C: OpaqueCiphersuite>() {
+///
+/// Returns the number of invariants checked. That return value is the only
+/// thing about this function a runtime test can observe: for a *correct*
+/// suite the assertions compile to nothing, and their sole effect is on which
+/// *wrong* suites fail to build — of which a test binary contains none, by
+/// construction. The count is therefore a tripwire on the body being intact,
+/// not a proof of the assertions themselves; those are verified by
+/// reintroducing each defect (see the `0.5.0` changelog).
+pub(crate) fn assert_lengths<C: OpaqueCiphersuite>() -> usize {
     // Fixed by RFC 9807 Section 2 for every configuration.
     const {
         assert!(
@@ -131,10 +139,27 @@ pub(crate) fn assert_lengths<C: OpaqueCiphersuite>() {
             "OpaqueCiphersuite::NOE must equal Oprf::ELEMENT_LEN"
         )
     };
+    9
 }
 
 #[cfg(test)]
 mod tests {
+    use super::assert_lengths;
+    use crate::test_mocks::MockSuite;
+
+    /// `assert_lengths` must still contain its nine checks.
+    ///
+    /// The assertions themselves are invisible to a runtime test — for a
+    /// correct suite they compile to nothing. Without this, `cargo-mutants`
+    /// replaces the whole body and every test still passes: measured on
+    /// `21db5c5`, gutting the body left all 354 tests green *and* let a suite
+    /// declaring `NH = 32` against a SHA-512 hash build cleanly. The returned
+    /// count is what makes emptying the body observable.
+    #[test]
+    fn assert_lengths_checks_all_nine_invariants() {
+        assert_eq!(assert_lengths::<MockSuite>(), 9);
+    }
+
     /// Every public constructor and `start` entry point must call
     /// [`assert_lengths`] as its first statement.
     ///
