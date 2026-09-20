@@ -126,6 +126,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      # MUST stay the first step: `actions/checkout` defaults to `clean: true`
+      # (`git clean -ffdx` + `git reset --hard`), which deletes untracked
+      # files. Run after the download and it wipes `shards/` *and*
+      # `missed-all.txt` — measured on run 35532151262, where the coverage
+      # table aggregated 0 shards and the `mutants-missed-all` artifact was
+      # never uploaded, while every step still reported success.
+      - name: Check out (for the exclusion count)
+        uses: actions/checkout@v7
       - name: Download shard results
         uses: actions/download-artifact@v8
         with:
@@ -145,8 +153,6 @@ jobs:
       # an `exclude_re` entry added to silence a survivor does exactly that,
       # while shrinking `caught`, and nothing else reports it. Both numbers go
       # on the run page so a drop is visible without digging through logs.
-      - name: Check out (for the exclusion count)
-        uses: actions/checkout@v7
       - name: Report coverage totals
         run: |
           python3 - <<'PY' | tee -a "$GITHUB_STEP_SUMMARY"
