@@ -24,12 +24,33 @@ jobs:
   # each gate. Runs on the root workspace; `fuzz/` and `dudect/` are separate
   # workspaces excluded from it by design and are covered by the scheduled
   # `cargo audit` above.
+  #
+  # Two invocations on purpose, for two different graphs — deny.toml carries
+  # the reasoning. Advisories, licences and sources want every crate cargo
+  # resolves; the duplicate-version gate wants only what a published crate
+  # pulls in, which is what `--exclude-unpublished` leaves. Keep `arguments`
+  # spelled out on both steps: the action defaults it to `--all-features`, so
+  # setting it on one step and not the other would silently make them differ.
   deny:
     name: cargo-deny
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
-      - uses: EmbarkStudios/cargo-deny-action@v2
+      - name: Advisories, licences and sources (full graph)
+        uses: EmbarkStudios/cargo-deny-action@v2
         with:
           command: check
+          arguments: --all-features
+          command-arguments: advisories licenses sources
+      - name: Duplicate versions (published graph only)
+        # Runs even if the step above failed. `main` carries no required
+        # status checks, so a step that never ran is a gate that silently
+        # reports nothing — a standing advisory would otherwise mask this
+        # one for weeks, the Monday cron included.
+        if: ${{ !cancelled() }}
+        uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check
+          arguments: --all-features --exclude-unpublished
+          command-arguments: bans

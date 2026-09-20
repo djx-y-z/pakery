@@ -4,14 +4,32 @@
 # new advisories on direct and transitive dependencies, license drift, and
 # dependencies pulled from anywhere other than crates.io.
 #
-# Run locally with `cargo deny check`; CI runs the same command (audit.yml).
-# Schema targets cargo-deny 0.19.
+# The crate graph is deliberately split across two invocations, so a plain
+# `cargo deny check` FAILS the bans check by design. Run — and CI runs
+# (audit.yml) — exactly these two:
+#
+#     cargo deny --all-features check advisories licenses sources
+#     cargo deny --all-features --exclude-unpublished check bans
+#
+# `--exclude-unpublished` drops `publish = false` workspace members as graph
+# roots, leaving the dependency trees consumers actually get, which is what
+# `[bans]` below is about. The other three checks want the opposite: today
+# that flag would take 38 of 114 crates — the whole previous RustCrypto wave,
+# where an advisory is most likely to land — out of advisory, licence and
+# source scope.
+#
+# Schema and both spellings verified on cargo-deny 0.19.4 and on 0.20.2, the
+# version cargo-deny-action@v2 pins.
 
 [graph]
 # Match what the CI test/check jobs actually compile. Without this, the
 # optional `p256` / `argon2` / `differential` trees are never inspected — and
 # `p256` in particular is where elliptic-curve 0.14 and its transitive set
-# enter the graph.
+# enter the graph. It matters for `[bans]` too — a duplicate that only a
+# non-default feature pulls in is invisible without it — which is why
+# audit.yml passes `--all-features` on both steps as well. That redundancy is
+# deliberate: measured on a feature-gated duplicate, the key alone catches it
+# and the flag alone catches it; only deleting both makes it invisible.
 all-features = true
 
 [advisories]
@@ -41,15 +59,29 @@ allow = [
 confidence-threshold = 0.9
 
 [bans]
-# `warn`, not `deny`: the workspace legitimately carries duplicates today.
-# `pakery-tests` (publish = false) pins the previous RustCrypto wave under
-# renamed aliases so the opaque-ke v4 differential suite keeps compiling, and
-# its proptest dev-dependency is still on the rand 0.9 wave. Neither reaches a
-# published crate: since 0.4.0 moved the bound to rand_core 0.10, a `p256`
-# build resolves exactly one rand_core. Tighten to "deny" once opaque-ke moves
-# to the new wave.
-multiple-versions = "warn"
+# `deny`, on the pruned graph described at the top of this file. The full
+# graph legitimately carries the previous RustCrypto wave: `pakery-tests`
+# (publish = false) pins it under renamed aliases so the opaque-ke v4
+# differential suite keeps compiling, and nothing it pulls reaches a published
+# crate. Pruning the graph is not the same as relaxing the check — a duplicate
+# that reaches a published crate is still an error even when the same version
+# is also reachable from `pakery-tests`.
+#
+# `skip-tree` on the non-published roots was measured and rejected for failing
+# exactly there: it marks a version skipped wherever it appears, so an
+# `hmac 0.12` added to `pakery-crypto` passes it with exit 0.
+multiple-versions = "deny"
+# The only duplicate left in the published graph. bindgen 0.72.1 wants shlex
+# 1.3.0 and cc 1.2.66 wants 2.0.1; both are build-dependencies of crabgrind,
+# which `all-features` reaches through pakery-core's private `__ctgrind`
+# feature and which no compiled artifact links. Pinned to the exact version on
+# purpose: should bindgen move off 1.3.0 this stops matching and the check
+# fails with `unmatched-skip` rather than quietly absorbing the change.
+skip = [
+    { crate = "shlex@1.3.0", reason = "bindgen <- crabgrind build-dep, never linked" },
+]
 # A `*` version requirement in a published crate is never intentional here.
+# Evaluated on the pruned graph, which is what that sentence always meant.
 wildcards = "deny"
 
 [sources]

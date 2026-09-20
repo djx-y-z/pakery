@@ -51,6 +51,13 @@ python3 ci/docsrs-build.py --toolchain nightly
 # not optional -- two of these checks have failed open before.
 python3 ci/test-check-docs.py
 python3 ci/check-docs.py
+
+# Supply chain: advisories, licences, sources over the whole resolved graph,
+# then duplicate versions over the published graph alone. Two invocations,
+# two graphs -- a plain `cargo deny check` is expected to FAIL the bans
+# check, and deny.toml says why.
+cargo deny --all-features check advisories licenses sources
+cargo deny --all-features --exclude-unpublished check bans
 ```
 
 ### Mutation testing (advisory)

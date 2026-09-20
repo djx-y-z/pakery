@@ -18,9 +18,13 @@ point back to.
   `cargo test -p pakery-tests --all-features`).
 - CI: test, clippy `-D warnings`, fmt, doc, MSRV (1.85), no_std (thumbv7em),
   wasm, feature-combinations, minimal-versions, coverage, and the
-  documentation gate (`ci/check-docs.py`); `cargo audit` and
-  `cargo deny check` on every push and PR plus a weekly cron (advisories,
-  licences, sources, duplicate versions — see `deny.toml`).
+  documentation gate (`ci/check-docs.py`); `cargo audit` and cargo-deny on
+  every push and PR plus a weekly cron. cargo-deny runs twice, over two
+  different graphs: advisories, licences and sources over every crate cargo
+  resolves, and duplicate versions over the published graph alone
+  (`--exclude-unpublished`), because that gate is about what a consumer gets
+  rather than what the test crate pins. A plain `cargo deny check` therefore
+  fails by design — `deny.toml` carries both commands and the reasoning.
 - Code-level: `#![forbid(unsafe_code)]` everywhere, `subtle::ct_eq` on all
   secret comparisons, `zeroize` discipline, exact-length guards on all 8 OPAQUE
   `deserialize` fns, identity-point rejection after every DH/scalar-mult.
