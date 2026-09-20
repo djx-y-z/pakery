@@ -6,6 +6,14 @@ use zeroize::Zeroizing;
 
 /// A key derivation function (extract-then-expand).
 pub trait Kdf {
+    /// The length in bytes of the pseudorandom key returned by
+    /// [`extract`](Self::extract).
+    ///
+    /// RFC 9807 defines OPAQUE's `Nx` as the output size of Extract, so an
+    /// `OpaqueCiphersuite` whose `NX` disagrees with this value is rejected
+    /// at compile time.
+    const EXTRACT_SIZE: usize;
+
     /// Extract a pseudorandom key from input keying material.
     fn extract(salt: &[u8], ikm: &[u8]) -> Zeroizing<Vec<u8>>;
 

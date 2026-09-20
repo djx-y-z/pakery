@@ -150,6 +150,10 @@ pub struct P256Oprf;
 impl Oprf for P256Oprf {
     type ClientState = P256OprfClientState;
 
+    // P256-SHA256: 32-byte scalar, 33-byte compressed SEC1 element.
+    const KEY_LEN: usize = 32;
+    const ELEMENT_LEN: usize = 33;
+
     fn client_blind(
         password: &[u8],
         rng: &mut impl CryptoRng,

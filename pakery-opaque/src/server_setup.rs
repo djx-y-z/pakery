@@ -21,6 +21,7 @@ pub struct ServerSetup<C: OpaqueCiphersuite> {
 impl<C: OpaqueCiphersuite> ServerSetup<C> {
     /// Create a new server setup with random seed and keypair.
     pub fn new(rng: &mut impl CryptoRng) -> Result<Self, crate::OpaqueError> {
+        crate::ciphersuite::assert_lengths::<C>();
         // oprf_seed must be Nh bytes per the spec (not Nseed)
         let mut oprf_seed = vec![0u8; C::NH];
         rng.fill_bytes(&mut oprf_seed);
@@ -49,6 +50,7 @@ impl<C: OpaqueCiphersuite> ServerSetup<C> {
         server_private_key: Vec<u8>,
         server_public_key: Vec<u8>,
     ) -> Self {
+        crate::ciphersuite::assert_lengths::<C>();
         Self {
             oprf_seed,
             server_private_key,

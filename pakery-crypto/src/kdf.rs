@@ -11,6 +11,8 @@ use zeroize::Zeroizing;
 pub struct HkdfSha512;
 
 impl Kdf for HkdfSha512 {
+    const EXTRACT_SIZE: usize = 64;
+
     fn extract(salt: &[u8], ikm: &[u8]) -> Zeroizing<Vec<u8>> {
         let (prk, _) = Hkdf::<sha2::Sha512>::extract(Some(salt), ikm);
         Zeroizing::new(prk.to_vec())

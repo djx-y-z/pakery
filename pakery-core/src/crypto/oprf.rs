@@ -20,6 +20,18 @@ pub trait Oprf {
     /// The client state type held between blind and finalize.
     type ClientState: OprfClientState;
 
+    /// The serialized OPRF key length in bytes.
+    ///
+    /// This is OPAQUE's `Nok`. An `OpaqueCiphersuite` whose `NOK` disagrees
+    /// with this value is rejected at compile time.
+    const KEY_LEN: usize;
+
+    /// The serialized OPRF group element length in bytes.
+    ///
+    /// This is OPAQUE's `Noe`. An `OpaqueCiphersuite` whose `NOE` disagrees
+    /// with this value is rejected at compile time.
+    const ELEMENT_LEN: usize;
+
     /// Blind a password. Returns `(state, blinded_element_bytes)`.
     fn client_blind(
         password: &[u8],

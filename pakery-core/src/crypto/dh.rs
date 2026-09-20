@@ -7,6 +7,18 @@ use zeroize::Zeroizing;
 
 /// A Diffie-Hellman group operating on byte-serialized keys.
 pub trait DhGroup {
+    /// The serialized secret key length in bytes.
+    ///
+    /// This is OPAQUE's `Nsk`. An `OpaqueCiphersuite` whose `NSK` disagrees
+    /// with this value is rejected at compile time.
+    const SK_LEN: usize;
+
+    /// The serialized public key length in bytes.
+    ///
+    /// This is OPAQUE's `Npk`. An `OpaqueCiphersuite` whose `NPK` disagrees
+    /// with this value is rejected at compile time.
+    const PK_LEN: usize;
+
     /// Perform a Diffie-Hellman key exchange: `sk * pk`.
     fn diffie_hellman(sk: &[u8], pk: &[u8]) -> Result<Zeroizing<Vec<u8>>, PakeError>;
 

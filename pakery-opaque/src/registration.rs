@@ -31,6 +31,7 @@ impl<C: OpaqueCiphersuite> ClientRegistration<C> {
         password: &[u8],
         rng: &mut impl CryptoRng,
     ) -> Result<(RegistrationRequest, ClientRegistrationState<C>), OpaqueError> {
+        crate::ciphersuite::assert_lengths::<C>();
         // ctgrind: the password is the protocol's secret input.
         pakery_core::ct::mark_secret(password);
         let (oprf_state, blinded_message) = oprf::oprf_client_blind::<C>(password, rng)?;
@@ -137,6 +138,7 @@ impl<C: OpaqueCiphersuite> ServerRegistration<C> {
         request: &RegistrationRequest,
         credential_id: &[u8],
     ) -> Result<RegistrationResponse, OpaqueError> {
+        crate::ciphersuite::assert_lengths::<C>();
         // Derive OPRF key from seed
         let oprf_key = oprf::derive_oprf_key::<C>(setup.oprf_seed(), credential_id)?;
 

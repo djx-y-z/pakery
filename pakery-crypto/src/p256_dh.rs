@@ -20,6 +20,10 @@ use crate::oprf_p256::{point_from_bytes, point_to_bytes, scalar_from_bytes, P256
 pub struct P256Dh;
 
 impl DhGroup for P256Dh {
+    // P-256: 32-byte scalar, 33-byte compressed SEC1 point.
+    const SK_LEN: usize = 32;
+    const PK_LEN: usize = 33;
+
     fn diffie_hellman(sk: &[u8], pk: &[u8]) -> Result<Zeroizing<Vec<u8>>, PakeError> {
         use subtle::ConstantTimeEq;
 

@@ -32,6 +32,8 @@ impl Hash for MockHash {
 pub(crate) struct MockKdf;
 
 impl Kdf for MockKdf {
+    const EXTRACT_SIZE: usize = 64;
+
     fn extract(_salt: &[u8], _ikm: &[u8]) -> Zeroizing<Vec<u8>> {
         unimplemented!()
     }
@@ -43,6 +45,8 @@ impl Kdf for MockKdf {
 pub(crate) struct MockMac;
 
 impl Mac for MockMac {
+    const OUTPUT_SIZE: usize = 64;
+
     fn mac(_key: &[u8], _msg: &[u8]) -> Result<Vec<u8>, PakeError> {
         unimplemented!()
     }
@@ -51,6 +55,9 @@ impl Mac for MockMac {
 pub(crate) struct MockDh;
 
 impl DhGroup for MockDh {
+    const SK_LEN: usize = 32;
+    const PK_LEN: usize = 32;
+
     fn diffie_hellman(_sk: &[u8], _pk: &[u8]) -> Result<Zeroizing<Vec<u8>>, PakeError> {
         unimplemented!()
     }
@@ -86,6 +93,9 @@ pub(crate) struct MockOprf;
 
 impl Oprf for MockOprf {
     type ClientState = MockOprfClientState;
+
+    const KEY_LEN: usize = 32;
+    const ELEMENT_LEN: usize = 32;
 
     fn client_blind(
         _password: &[u8],

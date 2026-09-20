@@ -64,6 +64,7 @@ impl<C: OpaqueCiphersuite> ClientLogin<C> {
         password: &[u8],
         rng: &mut impl CryptoRng,
     ) -> Result<(KE1, ClientLoginState<C>), OpaqueError> {
+        crate::ciphersuite::assert_lengths::<C>();
         // ctgrind: the password is the protocol's secret input.
         pakery_core::ct::mark_secret(password);
         let (oprf_state, blinded_message) = oprf::oprf_client_blind::<C>(password, rng)?;
@@ -107,6 +108,7 @@ impl<C: OpaqueCiphersuite> ClientLogin<C> {
         client_nonce: &[u8],
         client_keyshare_seed: &[u8],
     ) -> Result<(KE1, ClientLoginState<C>), OpaqueError> {
+        crate::ciphersuite::assert_lengths::<C>();
         let (oprf_state, blinded_message) = oprf::oprf_client_blind::<C>(password, blind_rng)?;
 
         let (mut client_eph_sk, client_eph_pk) = C::Dh::derive_keypair(client_keyshare_seed)?;
@@ -278,6 +280,7 @@ impl<C: OpaqueCiphersuite> ServerLogin<C> {
         client_identity: &[u8],
         rng: &mut impl CryptoRng,
     ) -> Result<(KE2, ServerLoginState), OpaqueError> {
+        crate::ciphersuite::assert_lengths::<C>();
         let mut server_nonce = vec![0u8; C::NN];
         rng.fill_bytes(&mut server_nonce);
 
@@ -321,6 +324,7 @@ impl<C: OpaqueCiphersuite> ServerLogin<C> {
         server_keyshare_seed: &[u8],
         masking_nonce: &[u8],
     ) -> Result<(KE2, ServerLoginState), OpaqueError> {
+        crate::ciphersuite::assert_lengths::<C>();
         Self::start_inner(
             setup,
             record,
@@ -354,6 +358,7 @@ impl<C: OpaqueCiphersuite> ServerLogin<C> {
         client_identity: &[u8],
         rng: &mut impl CryptoRng,
     ) -> Result<KE2, OpaqueError> {
+        crate::ciphersuite::assert_lengths::<C>();
         // 1. OPRF evaluate (deterministic from oprf_seed + credential_id)
         let oprf_key = oprf::derive_oprf_key::<C>(setup.oprf_seed(), credential_id)?;
         let evaluated_message = oprf::oprf_server_evaluate::<C>(&oprf_key, &ke1.blinded_message)?;

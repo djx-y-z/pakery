@@ -101,6 +101,10 @@ fn hash_to_scalar_with_dst(input: &[&[u8]], dst: &[u8]) -> Result<Scalar, PakeEr
 impl Oprf for Ristretto255Oprf {
     type ClientState = Ristretto255OprfClientState;
 
+    // ristretto255-SHA512: 32-byte scalar, 32-byte compressed element.
+    const KEY_LEN: usize = 32;
+    const ELEMENT_LEN: usize = 32;
+
     fn client_blind(
         password: &[u8],
         rng: &mut impl CryptoRng,

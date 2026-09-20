@@ -104,6 +104,10 @@ impl CpaceGroup for Ristretto255Group {
 pub struct Ristretto255Dh;
 
 impl DhGroup for Ristretto255Dh {
+    // Ristretto255: 32-byte canonical scalar, 32-byte compressed point.
+    const SK_LEN: usize = 32;
+    const PK_LEN: usize = 32;
+
     fn diffie_hellman(sk: &[u8], pk: &[u8]) -> Result<Zeroizing<Vec<u8>>, PakeError> {
         use curve25519_dalek::traits::Identity;
         use subtle::ConstantTimeEq;

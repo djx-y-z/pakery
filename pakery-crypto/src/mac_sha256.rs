@@ -9,6 +9,8 @@ use pakery_core::PakeError;
 pub struct HmacSha256;
 
 impl Mac for HmacSha256 {
+    const OUTPUT_SIZE: usize = 32;
+
     fn mac(key: &[u8], msg: &[u8]) -> Result<Vec<u8>, PakeError> {
         use hmac::{KeyInit as _, Mac as _};
         let mut mac = <Hmac<sha2::Sha256>>::new_from_slice(key)

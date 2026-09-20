@@ -11,6 +11,8 @@ use zeroize::Zeroizing;
 pub struct HkdfSha256;
 
 impl Kdf for HkdfSha256 {
+    const EXTRACT_SIZE: usize = 32;
+
     fn extract(salt: &[u8], ikm: &[u8]) -> Zeroizing<Vec<u8>> {
         let (prk, _) = Hkdf::<sha2::Sha256>::extract(Some(salt), ikm);
         Zeroizing::new(prk.to_vec())

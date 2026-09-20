@@ -6,6 +6,14 @@ use subtle::ConstantTimeEq;
 
 /// A message authentication code.
 pub trait Mac {
+    /// The tag length in bytes produced by [`mac`](Self::mac).
+    ///
+    /// RFC 9807 defines OPAQUE's `Nm` as the output size of the MAC, so an
+    /// `OpaqueCiphersuite` whose `NM` disagrees with this value is rejected
+    /// at compile time rather than silently producing a wire format no
+    /// conformant peer can parse.
+    const OUTPUT_SIZE: usize;
+
     /// Compute a MAC tag.
     fn mac(key: &[u8], msg: &[u8]) -> Result<Vec<u8>, PakeError>;
 
