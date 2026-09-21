@@ -1,4 +1,4 @@
-# cargo-deny configuration (see SECURITY_TESTING.md and TODO.md).
+# cargo-deny configuration (see SECURITY_TESTING.md, "Baseline").
 #
 # Standard supply-chain hygiene for a published cryptographic library: catches
 # new advisories on direct and transitive dependencies, license drift, and

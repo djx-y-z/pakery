@@ -44,6 +44,14 @@ crabgrind = { version = "0.3.1", optional = true }
 # APIs its build.rs uses (pkg-config < 0.3.18 has no `print_system_cflags`;
 # rustversion < 1.0.15 lacks the `cfg!` form used). Verified empirically
 # 2026-07-06; drop when crabgrind fixes its declared minimums.
+#
+# Dependabot reads them as ordinary requirements and opens PRs raising them to
+# the newest release. Close those; never merge one. The version here is a
+# floor, not a pin to keep current: raising it only narrows what the
+# minimal-versions resolver may pick, and it retires the empirically measured
+# minimum the entry exists to state. The bump these PRs propose is only ever
+# correct if a *new* floor has been measured, which is a source change, not a
+# version bump.
 [target.'cfg(any())'.dependencies]
 pkg-config = "0.3.18"
 rustversion = "1.0.15"

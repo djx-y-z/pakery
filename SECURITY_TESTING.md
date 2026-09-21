@@ -193,8 +193,54 @@ branches, length guards.
   features only (protocol crates use dalek, impractical under Miri).
 - **dudect advisory:** standalone `dudect/` workspace (excluded from root),
   weekly non-blocking `.github/workflows/dudect.yml` — statistical timing on
-  the confirmation-MAC verify paths and `SharedSecret` equality; fails only on
-  `|t| > 5` (shared-runner noise makes `t < 5` prove nothing).
+  the confirmation-MAC verify paths and `SharedSecret` equality. Both verify
+  benches contrast two *wrong* tags differing in where the first mismatching
+  byte falls, rather than a correct tag against a wrong one: the accept/reject
+  outcome is public by design — `pakery_core::ct` declassifies it, per the
+  marking policy above — so classes split that way measure the cost of a
+  public decision and can report a difference with nothing wrong. The job
+  fails on `|t| > 5`, which is a prompt to re-run rather than a finding — on
+  byte-identical code one bench has reported -4.55, +20.17 and +3.02 within
+  minutes; `dudect/README.md` carries the five measurements and the
+  interpretation rules. `t < 5` proves nothing either.
+
+---
+
+## Documentation gate — and what it cannot check
+
+`ci/check-docs.py` runs on every push and PR. It is a Baseline check, older
+than the layers above and not one of them: four checks — feature tables,
+install-snippet versions and MSRV, `[package.metadata.docs.rs]` coverage, and
+every fenced `rust` example compiled *and run* as a standalone crate built
+from the `toml` block above it — each named after a doc regression this
+workspace has actually shipped. The script's own docstring records which.
+Its break-tests (`ci/test-check-docs.py`) run first and are not optional: two
+of these checks have failed *open* before, printing "all claims verified"
+because a parse bug had stopped them from looking.
+
+Two blind spots remain. Both are known, both need review, and neither has a
+mechanical fix worth what it would cost.
+
+- **Fenced blocks tagged `bash` are not checked.** The gate parses info
+  strings and branches on `rust` and `toml` only, so the commands documented
+  in `pakery-tests/README.md`, `fuzz/README.md` and `dudect/README.md` are prose
+  that nothing runs. The cheap ones were verified by hand in the `0.3.1`
+  audit; the rest need Valgrind (unavailable on darwin/arm64), nightly plus
+  cargo-fuzz, or multi-minute runs — which is why they are not wired into a
+  gate every PR waits on. Re-verify them by hand when the surrounding tooling
+  changes.
+- **Prose claims are not checked at all.** A sentence asserting conformance,
+  coverage or provenance is verifiable only by reading it against the code,
+  and this is where documentation actually drifts. The `0.5.0` audit found
+  three that had: `Spake2Ristretto255` and `Spake2PlusRistretto255` described
+  as RFC-validated, where neither RFC tabulates that group; `pakery-cpace`
+  claiming validation against the draft's vectors without saying that only
+  the ristretto255 suite has them; and this file claiming positive vectors
+  "for all 4 protocols on both groups" where 5 of 8 combinations have them.
+  Each was contradicted by a test file in this same repository, and nothing
+  mechanical would have caught any of them. Treat a prose claim about what is
+  tested as unverified until someone has read it against the test that is
+  supposed to back it.
 
 ---
 

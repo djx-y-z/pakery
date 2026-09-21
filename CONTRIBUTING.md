@@ -109,6 +109,14 @@ code — document it in `.cargo/mutants.toml` `exclude_re` with a justification.
 3. Ensure all CI checks pass locally (see above)
 4. Open a pull request against `main`
 
+`main` takes changes only through a pull request, but **no status check is
+configured as required**: nothing on the server blocks a merge over a red
+run. That is deliberate rather than an oversight — repository admins bypass
+branch rules unconditionally, so a required check would not stop the account
+that actually merges — and it makes step 3 the real gate. Read the CI result
+before merging; it is advisory by configuration, and worth revisiting if
+outside contributors start merging.
+
 ## Releasing a new version
 
 This workspace uses **lockstep versioning** — all crates share a single version defined in the root `Cargo.toml`. When releasing, every crate is published with the same version number.
