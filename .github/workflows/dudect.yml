@@ -1,9 +1,13 @@
 name: dudect
 
 # Advisory statistical constant-time testing (see SECURITY_TESTING.md
-# "Hygiene"; orion pattern). Timing statistics on shared runners are noisy:
-# |t| > 5 is strong evidence of a timing leak and fails the job; t < 5 proves
-# nothing. Deterministic CT verification is ct.yml's job — this workflow is
+# "Hygiene"; orion pattern). Timing statistics on shared runners are noisy: a
+# single |t| > 5 is a prompt to re-run rather than a finding — on
+# byte-identical code one bench reported -4.55, then +20.17, then +3.02
+# within minutes, and dudect/README.md carries all five measurements — while
+# t < 5 proves nothing either. The job still fails on |t| > 5, so the signal
+# is surfaced instead of buried; only a signal that reproduces is evidence of
+# a leak. Deterministic CT verification is ct.yml's job — this workflow is
 # weekly, non-blocking, and never a PR gate.
 
 on:
