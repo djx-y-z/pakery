@@ -1,4 +1,4 @@
-## [0.5.0] - 2026-09-20
+## [0.5.0] - 2026-09-21
 
 Breaking release. Two interop defects in the Argon2id key-stretching function, plus the structural gap that let them ship: an OPAQUE ciphersuite's nine length constants were hand-written and tied to nothing, so four of them could be wrong without a single pakery-to-pakery test noticing. They are now checked against the primitives at compile time, which required new associated constants on four `pakery-core` traits.
 
