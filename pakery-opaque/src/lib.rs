@@ -24,6 +24,8 @@ pub mod messages;
 pub mod oprf;
 pub mod registration;
 pub mod server_setup;
+#[cfg(all(test, feature = "std"))]
+mod source_scan;
 #[cfg(test)]
 pub(crate) mod test_mocks;
 

@@ -71,3 +71,6 @@ p256-013 = { package = "p256", version = "0.13", default-features = false, featu
 # the MSRV CI job does not build dev-dependencies.)
 proptest = "1"
 rand_chacha = "0.10"
+# Already in the graph via pakery-core; the edge exists so an integration test
+# can spell out a `Ksf` impl, whose signature names `Zeroizing`.
+zeroize = { workspace = true }

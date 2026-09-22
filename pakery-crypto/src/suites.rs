@@ -201,8 +201,12 @@ impl pakery_opaque::OpaqueCiphersuite for OpaqueP256 {
 ///
 /// Argon2id hardening at RFC 9106 §4's SECOND RECOMMENDED cost (64 MiB,
 /// `t = 3`, `p = 4`), stretching to `Nh = 64` as RFC 9807 §7's `T = Nh`
-/// requires for ristretto255-SHA512. See [`crate::ksf::DefaultArgon2Params`]
-/// for why those costs and not §7's own 2 GiB option.
+/// specifies for ristretto255-SHA512. The length is not configured here —
+/// `pakery-opaque` passes `NH` to [`Ksf::stretch`], so it cannot disagree
+/// with the constant below. See [`crate::ksf::DefaultArgon2Params`] for why
+/// those costs and not §7's own 2 GiB option.
+///
+/// [`Ksf::stretch`]: pakery_core::crypto::Ksf::stretch
 #[cfg(all(feature = "opaque", feature = "ristretto255", feature = "argon2"))]
 pub struct OpaqueRistretto255Argon2;
 
@@ -230,8 +234,12 @@ impl pakery_opaque::OpaqueCiphersuite for OpaqueRistretto255Argon2 {
 ///
 /// Argon2id hardening at RFC 9106 §4's SECOND RECOMMENDED cost (64 MiB,
 /// `t = 3`, `p = 4`), stretching to `Nh = 32` as RFC 9807 §7's `T = Nh`
-/// requires for P256-SHA256. See [`crate::ksf::DefaultArgon2Params`] for why
-/// those costs and not §7's own 2 GiB option.
+/// specifies for P256-SHA256 — the same [`crate::Argon2idKsf`] the SHA-512
+/// suite uses, because the length comes from the call rather than from the
+/// KSF type. Before `0.6.0` this suite needed a separate `Argon2idKsfNh32`,
+/// and before `0.5.0` it had the wrong one. See
+/// [`crate::ksf::DefaultArgon2Params`] for why those costs and not §7's own
+/// 2 GiB option.
 #[cfg(all(feature = "opaque", feature = "p256", feature = "argon2"))]
 pub struct OpaqueP256Argon2;
 
@@ -242,7 +250,7 @@ impl pakery_opaque::OpaqueCiphersuite for OpaqueP256Argon2 {
     type Mac = crate::HmacSha256;
     type Dh = crate::P256Dh;
     type Oprf = crate::P256Oprf;
-    type Ksf = crate::Argon2idKsfNh32;
+    type Ksf = crate::Argon2idKsf;
 
     const NN: usize = 32;
     const NSEED: usize = 32;

@@ -104,6 +104,8 @@ impl Oprf for Ristretto255Oprf {
     // ristretto255-SHA512: 32-byte scalar, 32-byte compressed element.
     const KEY_LEN: usize = 32;
     const ELEMENT_LEN: usize = 32;
+    // `finalize_hash::<Sha512>` below.
+    const OUTPUT_LEN: usize = 64;
 
     fn client_blind(
         password: &[u8],

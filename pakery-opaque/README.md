@@ -14,9 +14,9 @@ OPAQUE is an augmented (asymmetric) PAKE: the server stores a password verifier 
 
 ```toml
 [dependencies]
-pakery-opaque = "0.5"
-pakery-core = "0.5"
-pakery-crypto = { version = "0.5", features = ["ristretto255"] }
+pakery-opaque = "0.6"
+pakery-core = "0.6"
+pakery-crypto = { version = "0.6", features = ["ristretto255"] }
 # pakery's RNG bound is `rand_core::CryptoRng`, but rand_core 0.10 ships no
 # generator of its own: when it dropped its Cargo features it dropped the
 # OS-backed `OsRng` with them, and that generator now lives in getrandom as
@@ -39,10 +39,21 @@ If you spell out the suite by hand, note that none of the length constants is
 a free parameter. `NN` and `NSEED` are fixed at 32 by RFC 9807 §2 and default
 to it, so leave them out; the other seven are determined by the primitives you
 name and are checked against them at build time, so a mismatch is a compile
-error rather than a silent change to the bytes on the wire. The same applies
-to the KSF, which RFC 9807 §7 ties to the ciphersuite (`T = Nh`): pair SHA-512
-suites with `pakery_crypto::Argon2idKsf` and SHA-256 suites with
-`pakery_crypto::Argon2idKsfNh32`. The pre-built suites already do all of this.
+error rather than a silent change to the bytes on the wire. `NH` is checked
+twice — against `Hash::OUTPUT_SIZE` and against `Oprf::OUTPUT_LEN` — because
+both produce `Nh` bytes and a hand-written suite can name a hash and an OPRF
+that disagree. If you write an `Oprf` yourself, `OUTPUT_LEN` is the length
+your `finalize` returns.
+
+The KSF needs no pairing. RFC 9807 §7 writes `T = Nh` in both of its
+recommended Argon2id configurations, tying the output length to the
+ciphersuite, so `Ksf::stretch` takes the length as an argument and
+this crate passes your `NH`; `pakery_crypto::Argon2idKsf` is correct for any
+suite. If you write a `Ksf` yourself, return exactly the number of bytes you
+are asked for — a KSF that returns some other length is rejected rather than
+used, because the stretched output is concatenated into the input that derives
+`randomized_pwd`, where a wrong length silently produces an envelope no
+conformant peer can open.
 
 
 ```rust

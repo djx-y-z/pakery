@@ -165,25 +165,18 @@ impl opaque_ke::CipherSuite for KeP256 {
 // Argon2id pairs — the cases that make the KSF observable (see module docs)
 // --------------------------------------------------------------------------
 
-/// Minimal Argon2id cost, `OUTPUT_LEN = Nh` for ristretto255-SHA512.
+/// Minimal Argon2id cost, used for both suites.
 ///
 /// `m = 8` is `Params::MIN_M_COST`. The salt and the output length do not
-/// depend on the cost parameters, so the cheapest legal set proves both.
-struct CheapArgon2Nh64;
-impl Argon2Params for CheapArgon2Nh64 {
+/// depend on the cost parameters, so the cheapest legal set proves both. One
+/// parameter set covers both `Nh` values because since `0.6.0` the stretch
+/// length is an argument rather than a constant on the type — the same reason
+/// `pakery-crypto` ships a single `Argon2idKsf`.
+struct CheapArgon2;
+impl Argon2Params for CheapArgon2 {
     const M_COST: u32 = 8;
     const T_COST: u32 = 1;
     const P_COST: u32 = 1;
-    const OUTPUT_LEN: usize = 64;
-}
-
-/// Minimal Argon2id cost, `OUTPUT_LEN = Nh` for P256-SHA256.
-struct CheapArgon2Nh32;
-impl Argon2Params for CheapArgon2Nh32 {
-    const M_COST: u32 = 8;
-    const T_COST: u32 = 1;
-    const P_COST: u32 = 1;
-    const OUTPUT_LEN: usize = 32;
 }
 
 /// Build opaque-ke's side of the KSF, reached through `opaque_ke::argon2` so
@@ -196,9 +189,9 @@ impl Argon2Params for CheapArgon2Nh32 {
 /// configured to agree.
 fn cheap_argon2(output_len: usize) -> opaque_ke::argon2::Argon2<'static> {
     let params = opaque_ke::argon2::Params::new(
-        CheapArgon2Nh64::M_COST,
-        CheapArgon2Nh64::T_COST,
-        CheapArgon2Nh64::P_COST,
+        CheapArgon2::M_COST,
+        CheapArgon2::T_COST,
+        CheapArgon2::P_COST,
         Some(output_len),
     )
     .expect("argon2 0.5 rejected the cheap parameter set");
@@ -218,7 +211,7 @@ impl OpaqueCiphersuite for OurRistretto255Argon2 {
     type Mac = HmacSha512;
     type Dh = Ristretto255Dh;
     type Oprf = Ristretto255Oprf;
-    type Ksf = Argon2idKsfWithParams<CheapArgon2Nh64>;
+    type Ksf = Argon2idKsfWithParams<CheapArgon2>;
 
     const NN: usize = 32;
     const NSEED: usize = 32;
@@ -253,7 +246,7 @@ impl OpaqueCiphersuite for OurP256Argon2 {
     type Mac = HmacSha256;
     type Dh = P256Dh;
     type Oprf = P256Oprf;
-    type Ksf = Argon2idKsfWithParams<CheapArgon2Nh32>;
+    type Ksf = Argon2idKsfWithParams<CheapArgon2>;
 
     const NN: usize = 32;
     const NSEED: usize = 32;
@@ -714,13 +707,13 @@ differential_driver!(
     run_differential_ristretto255_argon2,
     OurRistretto255Argon2,
     KeRistretto255Argon2,
-    Some(cheap_argon2(<CheapArgon2Nh64 as Argon2Params>::OUTPUT_LEN))
+    Some(cheap_argon2(OurRistretto255Argon2::NH))
 );
 differential_driver!(
     run_differential_p256_argon2,
     OurP256Argon2,
     KeP256Argon2,
-    Some(cheap_argon2(<CheapArgon2Nh32 as Argon2Params>::OUTPUT_LEN))
+    Some(cheap_argon2(OurP256Argon2::NH))
 );
 
 // ==========================================================================
@@ -853,7 +846,7 @@ fn differential_p256_argon2_explicit_identities() {
 ///
 /// Run at both `Nh` values, which also pins the `T = Nh` half: opaque-ke's
 /// `hash<L>` is length-preserving, so its output length is the `Nh` it is
-/// handed, and ours is whatever `OUTPUT_LEN` says.
+/// handed, and ours is the length it is asked for.
 #[test]
 fn argon2_stretch_agrees_with_opaque_ke() {
     fn ke_stretch<N>(input: &[u8]) -> Vec<u8>
@@ -873,7 +866,7 @@ fn argon2_stretch_agrees_with_opaque_ke() {
     // Nh = 64 (ristretto255-SHA512).
     let input64 = vec![0x5au8; 64];
     assert_eq!(
-        Argon2idKsfWithParams::<CheapArgon2Nh64>::stretch(&input64)
+        Argon2idKsfWithParams::<CheapArgon2>::stretch(&input64, 64)
             .expect("our stretch failed")
             .as_slice(),
         ke_stretch::<U64>(&input64).as_slice(),
@@ -883,7 +876,7 @@ fn argon2_stretch_agrees_with_opaque_ke() {
     // Nh = 32 (P256-SHA256).
     let input32 = vec![0x5au8; 32];
     assert_eq!(
-        Argon2idKsfWithParams::<CheapArgon2Nh32>::stretch(&input32)
+        Argon2idKsfWithParams::<CheapArgon2>::stretch(&input32, 32)
             .expect("our stretch failed")
             .as_slice(),
         ke_stretch::<U32>(&input32).as_slice(),

@@ -898,40 +898,91 @@ mod argon2_tests {
         const NX: usize = 64;
     }
 
-    /// The shipped Argon2id ciphersuites must pair with a KSF whose
-    /// `OUTPUT_LEN` equals their own `NH`, as RFC 9807 §7's `T = Nh`
-    /// requires.
+    /// A ciphersuite whose KSF returns something other than `Nh` bytes must
+    /// fail, not silently derive a different `randomized_pwd`.
     ///
-    /// This pins the *wiring*, which is where the pre-0.5.0 P-256 defect
-    /// lived: `OpaqueP256Argon2` declares `NH = 32` but used the 64-byte
-    /// `Argon2idKsf`, and the stretched output is concatenated into the
-    /// `Extract` input, so the length silently changed the derived password.
+    /// This replaces the `0.5.0` wiring test, which asserted that each
+    /// shipped Argon2id suite was paired with the KSF alias of the matching
+    /// length. Since `0.6.0` there is only one alias and `pakery-opaque`
+    /// passes `NH` to `Ksf::stretch`, so that pairing no longer exists to be
+    /// got wrong — and the test that pinned it would now assert that
+    /// `stretch(_, NH)` returns `NH` bytes, which is a tautology.
     ///
-    /// The `roundtrip` test below cannot see this — it applies the same KSF
-    /// to both of its own sides. Cross-implementation conformance of the salt
-    /// and of `T = Nh` is proven in `differential_opaque.rs`, which runs the
-    /// real Argon2id KSF against opaque-ke on both suites.
+    /// What is left to pin is the half the type system cannot reach: an
+    /// implementation that ignores the length it was handed. That is the only
+    /// remaining way to reproduce the pre-`0.5.0` P-256 defect, and it is the
+    /// shape every hand-written KSF downstream can still take. The suite
+    /// below is the shipped ristretto255 Argon2id suite with exactly one
+    /// thing changed.
     #[test]
-    fn test_shipped_argon2_suites_stretch_to_their_nh() {
-        use pakery_core::crypto::Ksf as _;
-
-        fn assert_ksf_matches_nh<C: OpaqueCiphersuite>(suite: &str) {
-            let stretched = C::Ksf::stretch(&[0x5au8; 32]).expect("stretch failed");
-            assert_eq!(
-                stretched.len(),
-                C::NH,
-                "{suite}: KSF stretches to {} bytes but the suite's NH is {} \
-                 (RFC 9807 §7 requires T = Nh)",
-                stretched.len(),
-                C::NH,
-            );
+    fn wrong_length_ksf_is_rejected_rather_than_silently_used() {
+        /// Minimal Argon2id cost: the property under test is the length, and
+        /// it is cost-independent — so this keeps the case at ~0 ms in a
+        /// binary that `cargo-mutants` reruns for every mutant.
+        struct CheapCost;
+        impl pakery_crypto::ksf::Argon2Params for CheapCost {
+            const M_COST: u32 = 8;
+            const T_COST: u32 = 1;
+            const P_COST: u32 = 1;
         }
 
-        assert_ksf_matches_nh::<pakery_crypto::suites::OpaqueRistretto255Argon2>(
-            "OpaqueRistretto255Argon2",
-        );
-        #[cfg(feature = "p256")]
-        assert_ksf_matches_nh::<pakery_crypto::suites::OpaqueP256Argon2>("OpaqueP256Argon2");
+        /// A real Argon2id KSF that stretches to 32 bytes whatever it is
+        /// asked for — which is what `OpaqueP256Argon2` effectively did
+        /// before `0.5.0`, in reverse.
+        struct WrongLengthKsf;
+
+        impl pakery_core::crypto::Ksf for WrongLengthKsf {
+            fn stretch(
+                input: &[u8],
+                _output_len: usize,
+            ) -> Result<zeroize::Zeroizing<Vec<u8>>, pakery_core::PakeError> {
+                let mut out =
+                    pakery_crypto::ksf::Argon2idKsfWithParams::<CheapCost>::stretch(input, 32)?;
+                assert_eq!(out.len(), 32, "the KSF under test must ignore output_len");
+                Ok(core::mem::take(&mut out))
+            }
+        }
+
+        struct WrongLengthSuite;
+
+        impl OpaqueCiphersuite for WrongLengthSuite {
+            type Hash = Sha512Hash;
+            type Kdf = HkdfSha512;
+            type Mac = HmacSha512;
+            type Dh = Ristretto255Dh;
+            type Oprf = Ristretto255Oprf;
+            type Ksf = WrongLengthKsf;
+
+            const NOE: usize = 32;
+            const NOK: usize = 32;
+            const NM: usize = 64;
+            const NH: usize = 64;
+            const NPK: usize = 32;
+            const NSK: usize = 32;
+            const NX: usize = 64;
+        }
+
+        let mut rng = rand_core::UnwrapErr(getrandom::SysRng);
+        let setup = ServerSetup::<WrongLengthSuite>::new(&mut rng).unwrap();
+        let (reg_request, reg_state) =
+            ClientRegistration::<WrongLengthSuite>::start(b"password", &mut rng).unwrap();
+        let reg_response =
+            ServerRegistration::<WrongLengthSuite>::start(&setup, &reg_request, b"user123")
+                .unwrap();
+
+        let result = reg_state.finish(&reg_response, b"", b"", &mut rng);
+
+        match result {
+            Err(OpaqueError::InternalError(msg)) => assert!(
+                msg.contains("T = Nh"),
+                "rejected for the wrong reason: {msg}"
+            ),
+            Err(other) => panic!("rejected for the wrong reason: {other}"),
+            Ok(_) => panic!(
+                "a KSF stretching to 32 bytes against NH = 64 produced a registration record; \
+                 RFC 9807 §7 specifies T = Nh and the mismatch must not be silent"
+            ),
+        }
     }
 
     /// Same-implementation round-trip. Blind by construction to any KSF

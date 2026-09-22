@@ -745,7 +745,7 @@ dependencies = [
 
 [[package]]
 name = "pakery-core"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "crabgrind",
  "pkg-config",
@@ -758,7 +758,7 @@ dependencies = [
 
 [[package]]
 name = "pakery-cpace"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "pakery-core",
  "rand_core 0.10.1",
@@ -768,7 +768,7 @@ dependencies = [
 
 [[package]]
 name = "pakery-crypto"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "argon2 0.6.0",
  "curve25519-dalek 5.0.0",
@@ -790,7 +790,7 @@ dependencies = [
 
 [[package]]
 name = "pakery-opaque"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "pakery-core",
  "rand_core 0.10.1",
@@ -800,7 +800,7 @@ dependencies = [
 
 [[package]]
 name = "pakery-spake2"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "pakery-core",
  "rand_core 0.10.1",
@@ -810,7 +810,7 @@ dependencies = [
 
 [[package]]
 name = "pakery-spake2plus"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "pakery-core",
  "rand_core 0.10.1",
@@ -820,7 +820,7 @@ dependencies = [
 
 [[package]]
 name = "pakery-tests"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "curve25519-dalek 5.0.0",
  "getrandom 0.4.3",
@@ -840,6 +840,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.10.9",
+ "zeroize",
 ]
 
 [[package]]

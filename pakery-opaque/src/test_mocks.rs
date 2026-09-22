@@ -96,6 +96,7 @@ impl Oprf for MockOprf {
 
     const KEY_LEN: usize = 32;
     const ELEMENT_LEN: usize = 32;
+    const OUTPUT_LEN: usize = 64;
 
     fn client_blind(
         _password: &[u8],
@@ -114,7 +115,7 @@ impl Oprf for MockOprf {
 pub(crate) struct MockKsf;
 
 impl Ksf for MockKsf {
-    fn stretch(_input: &[u8]) -> Result<Zeroizing<Vec<u8>>, PakeError> {
+    fn stretch(_input: &[u8], _output_len: usize) -> Result<Zeroizing<Vec<u8>>, PakeError> {
         unimplemented!()
     }
 }

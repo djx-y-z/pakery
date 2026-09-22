@@ -32,6 +32,18 @@ pub trait Oprf {
     /// with this value is rejected at compile time.
     const ELEMENT_LEN: usize;
 
+    /// The length in bytes of [`OprfClientState::finalize`]'s output.
+    ///
+    /// This is OPAQUE's `Nh`: RFC 9807 derives the randomized password from
+    /// `concat(oprf_output, Stretch(oprf_output))`, and §7's recommended
+    /// configurations set the stretch length to `T = Nh`, so both halves are
+    /// `Nh` bytes. An `OpaqueCiphersuite` whose `NH` disagrees with this
+    /// value is rejected at compile time.
+    ///
+    /// It is declared here rather than inferred because `finalize` returns a
+    /// `Vec<u8>`, whose length nothing else in this trait constrains.
+    const OUTPUT_LEN: usize;
+
     /// Blind a password. Returns `(state, blinded_element_bytes)`.
     fn client_blind(
         password: &[u8],

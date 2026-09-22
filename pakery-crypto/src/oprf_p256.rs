@@ -153,6 +153,8 @@ impl Oprf for P256Oprf {
     // P256-SHA256: 32-byte scalar, 33-byte compressed SEC1 element.
     const KEY_LEN: usize = 32;
     const ELEMENT_LEN: usize = 33;
+    // `finalize_hash::<Sha256>` below.
+    const OUTPUT_LEN: usize = 32;
 
     fn client_blind(
         password: &[u8],

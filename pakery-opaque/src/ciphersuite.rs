@@ -16,7 +16,10 @@ use pakery_core::crypto::{DhGroup, Hash, Kdf, Ksf, Mac, Oprf};
 ///
 /// All nine are checked against the primitives at compile time from every
 /// entry point that takes a ciphersuite, so a suite whose constants disagree
-/// with its own primitives fails to build. Before `0.5.0` nothing performed
+/// with its own primitives fails to build. `NH` is checked twice — against
+/// `Hash::OUTPUT_SIZE` and against `Oprf::OUTPUT_LEN` — because both produce
+/// `Nh` bytes and a hand-written suite can name a hash and an OPRF that
+/// disagree. Before `0.5.0` nothing performed
 /// this check: `NOK` and `NSK` were never read at all, and a wrong `NN` or
 /// `NSEED` changed the bytes on the wire while every pakery-to-pakery test
 /// still passed.
@@ -139,7 +142,19 @@ pub(crate) fn assert_lengths<C: OpaqueCiphersuite>() -> usize {
             "OpaqueCiphersuite::NOE must equal Oprf::ELEMENT_LEN"
         )
     };
-    9
+    // `NH` is checked twice, against both primitives that produce `Nh` bytes.
+    // `Hash::OUTPUT_SIZE` above covers the transcript hash; this covers the
+    // OPRF output, which `derive_randomized_password` feeds to the KSF and
+    // concatenates into the `Extract` input. Nothing else ties the two
+    // together: `Oprf` names its own hash internally, and `finalize` returns
+    // a `Vec<u8>`.
+    const {
+        assert!(
+            <C::Oprf as Oprf>::OUTPUT_LEN == C::NH,
+            "OpaqueCiphersuite::NH must equal Oprf::OUTPUT_LEN"
+        )
+    };
+    10
 }
 
 #[cfg(test)]
@@ -147,7 +162,7 @@ mod tests {
     use super::assert_lengths;
     use crate::test_mocks::MockSuite;
 
-    /// `assert_lengths` must still contain its nine checks.
+    /// `assert_lengths` must still contain its ten checks.
     ///
     /// The assertions themselves are invisible to a runtime test — for a
     /// correct suite they compile to nothing. Without this, `cargo-mutants`
@@ -156,8 +171,8 @@ mod tests {
     /// declaring `NH = 32` against a SHA-512 hash build cleanly. The returned
     /// count is what makes emptying the body observable.
     #[test]
-    fn assert_lengths_checks_all_nine_invariants() {
-        assert_eq!(assert_lengths::<MockSuite>(), 9);
+    fn assert_lengths_checks_all_ten_invariants() {
+        assert_eq!(assert_lengths::<MockSuite>(), 10);
     }
 
     /// Every public constructor and `start` entry point must call
@@ -169,16 +184,18 @@ mod tests {
     /// module closes. Checking the source is crude, but it is the only thing
     /// that fails when someone forgets — a ciphersuite test cannot notice a
     /// call site that does not exist.
+    ///
+    /// It walks `src/` rather than naming three files. A hardcoded list is
+    /// fail-open exactly where it matters: an entry point in a file added
+    /// later is invisible, and because the missed site never increments the
+    /// counter, the `checked` total below does not notice either.
+    #[cfg(feature = "std")]
     #[test]
     fn every_entry_point_asserts_lengths() {
-        const SOURCES: [(&str, &str); 3] = [
-            ("server_setup.rs", include_str!("server_setup.rs")),
-            ("registration.rs", include_str!("registration.rs")),
-            ("login.rs", include_str!("login.rs")),
-        ];
+        use crate::source_scan::rust_sources;
 
         let mut checked = 0;
-        for (name, src) in SOURCES {
+        for (name, src) in rust_sources() {
             let lines: Vec<&str> = src.lines().collect();
             for (i, line) in lines.iter().enumerate() {
                 let sig = line.trim_start();
