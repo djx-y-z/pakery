@@ -102,6 +102,37 @@ code — document it in `.cargo/mutants.toml` `exclude_re` with a justification.
 - Test against RFC test vectors where available
 - Commit messages: `feat(crate): description`, `fix(crate): description`
 
+### Writing about where a change came from
+
+`pakery` is judged on conformance to its specifications, never on what any
+particular consumer finds convenient. The first bullet above is that rule in
+its technical form; this is the same rule applied to prose.
+
+**Credit a finding, do not recount the conversation.** If an outside report
+surfaced a defect, say so — that is useful, and it is how a reader judges how
+the defect was found. Keep it anonymous unless the reporter asks otherwise.
+
+What does not belong in a changelog entry, a commit message or a docstring:
+
+- what an outside party *proposed*, and that we chose something else;
+- the name of a consuming project, product or private codebase;
+- any framing in which a design decision is a response to a consumer rather
+  than a reading of the specification.
+
+The reason is not diplomacy. A design argument has to stand on the spec, and
+if it does, the conversation that prompted it adds nothing a reader can act
+on. `0.6.0` moved the KSF output length to the call site because `IdentityKsf`
+backs both a 64-byte and a 32-byte suite, so no constant on the type can be
+right for both — that argument is complete, checkable against the code, and
+needs no account of who suggested what. An entry that instead says a fix "is
+not the one that report recommended" asks the reader to take on faith a
+private exchange they cannot see, which is precisely the class of claim
+`SECURITY_TESTING.md` records as caught by nothing but review.
+
+Writing about *classes* of user is unaffected and often necessary — "a
+hand-written downstream KSF", "downstreams that hand-rolled `try_reserve`".
+Those describe who is affected, which is the reader's own question.
+
 ## Submitting changes
 
 1. Create a branch from `main`

@@ -156,6 +156,16 @@ branches, length guards.
   `.github/workflows/mutants.yml` (weekly full run sharded 8×, a `summarize`
   job that aggregates survivors into a deduplicated GitHub issue, plus an
   advisory `--in-diff` job on PRs). Runbook in CONTRIBUTING.md.
+- **It does not run on a push to `main`**, and neither does `dudect.yml`:
+  `mutants.yml` triggers on `schedule` + `workflow_dispatch` + `pull_request`,
+  `dudect.yml` on `schedule` + `workflow_dispatch`. A release cut mid-week
+  therefore ships unchecked by either unless they are dispatched by hand
+  (`gh workflow run Mutants --ref main`). `CI`, `CT`, `Fuzz` and `audit` do
+  run on push.
+- **Compare `caught` across runs, never `missed`.** An `exclude_re` entry
+  added to silence a survivor drives `missed` to 0 while shrinking `caught`,
+  and no other signal in the workflow reports that. The `summarize` job puts
+  both on the run summary for exactly this comparison.
 - **Config notes:** `test_package` lists all 7 workspace members —
   `test_workspace = true` is unusable (it injects a colliding `--workspace` and
   leaves the baseline building only the mutated crates, where the feature names
