@@ -51,9 +51,10 @@ Slice `==` is **not**: at 64 bytes a vectorized memcmp resolves a first-byte
 and a last-byte mismatch in close to the same time. That spelling is
 `ct.yml`'s to catch rather than this harness's, because memcheck does not
 need the difference to be large enough to measure: `expected_peer_mac` is
-deliberately never declassified (`pakery-spake2/src/transcript.rs:105-107`,
-"stays secret until compared"), which is the marking that would make a
-byte-wise branch on it visible. Not confirmed here — Valgrind does not run on
+deliberately never declassified — `derive_key_schedule` in
+`pakery-spake2/src/transcript.rs` declassifies only the MAC that goes on the
+wire ("The expected peer MAC stays secret until compared") — which is the
+marking that would make a byte-wise branch on it visible. Not confirmed here — Valgrind does not run on
 darwin/arm64.
 
 ## Running locally
