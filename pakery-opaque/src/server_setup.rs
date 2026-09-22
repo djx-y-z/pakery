@@ -6,7 +6,7 @@ use alloc::vec::Vec;
 use crate::ciphersuite::OpaqueCiphersuite;
 use pakery_core::crypto::DhGroup;
 use rand_core::CryptoRng;
-use zeroize::{Zeroize, ZeroizeOnDrop};
+use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
 /// Server's long-term configuration: OPRF seed and authentication keypair.
 #[derive(Clone, Zeroize, ZeroizeOnDrop)]
@@ -22,16 +22,21 @@ impl<C: OpaqueCiphersuite> ServerSetup<C> {
     /// Create a new server setup with random seed and keypair.
     pub fn new(rng: &mut impl CryptoRng) -> Result<Self, crate::OpaqueError> {
         crate::ciphersuite::assert_lengths::<C>();
-        // oprf_seed must be Nh bytes per the spec (not Nseed)
-        let mut oprf_seed = vec![0u8; C::NH];
-        rng.fill_bytes(&mut oprf_seed);
+        // oprf_seed must be Nh bytes per the spec (not Nseed).
+        //
+        // Zeroizing while it is a local: `generate_keypair` below is fallible,
+        // and on that `?` this buffer — already filled with the server's
+        // long-term secret — would otherwise drop unwiped. The struct's own
+        // `ZeroizeOnDrop` only starts covering it once it is a field.
+        let mut oprf_seed = Zeroizing::new(vec![0u8; C::NH]);
+        rng.fill_bytes(oprf_seed.as_mut_slice());
         // ctgrind: the OPRF seed is the server's long-term secret.
         pakery_core::ct::mark_secret(&oprf_seed);
 
         let (mut server_private_key, server_public_key) = C::Dh::generate_keypair(rng)?;
 
         Ok(Self {
-            oprf_seed,
+            oprf_seed: core::mem::take(&mut *oprf_seed),
             server_private_key: core::mem::take(&mut *server_private_key),
             server_public_key,
             _marker: core::marker::PhantomData,

@@ -100,11 +100,13 @@ impl<P: Argon2Params> Ksf for Argon2idKsfWithParams<P> {
         let params = Params::new(P::M_COST, P::T_COST, P::P_COST, Some(output_len))
             .map_err(|_| PakeError::ProtocolError("argon2 params"))?;
         let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
-        let mut output = vec![0u8; output_len];
+        // Zeroizing before the fallible call: on the `?` below the buffer is
+        // dropped, and a plain `Vec` would drop unwiped.
+        let mut output = Zeroizing::new(vec![0u8; output_len]);
         argon2
-            .hash_password_into(input, ARGON2_KSF_SALT, &mut output)
+            .hash_password_into(input, ARGON2_KSF_SALT, output.as_mut_slice())
             .map_err(|_| PakeError::ProtocolError("argon2 hash"))?;
-        Ok(Zeroizing::new(output))
+        Ok(output)
     }
 }
 
