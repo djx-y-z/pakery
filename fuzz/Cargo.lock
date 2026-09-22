@@ -329,7 +329,7 @@ dependencies = [
 
 [[package]]
 name = "pakery-core"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "pkg-config",
  "rand_core",
@@ -341,7 +341,7 @@ dependencies = [
 
 [[package]]
 name = "pakery-cpace"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "pakery-core",
  "rand_core",
@@ -351,7 +351,7 @@ dependencies = [
 
 [[package]]
 name = "pakery-crypto"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "curve25519-dalek",
  "digest",
@@ -388,7 +388,7 @@ dependencies = [
 
 [[package]]
 name = "pakery-opaque"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "pakery-core",
  "rand_core",
@@ -398,7 +398,7 @@ dependencies = [
 
 [[package]]
 name = "pakery-spake2"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "pakery-core",
  "rand_core",
@@ -408,7 +408,7 @@ dependencies = [
 
 [[package]]
 name = "pakery-spake2plus"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "pakery-core",
  "rand_core",
