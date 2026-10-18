@@ -2,7 +2,6 @@
 
 use alloc::vec::Vec;
 
-use p256::elliptic_curve::sec1::ToSec1Point;
 use p256::ProjectivePoint;
 use pakery_core::crypto::dh::DhGroup;
 use pakery_core::PakeError;
@@ -27,17 +26,10 @@ impl DhGroup for P256Dh {
     fn diffie_hellman(sk: &[u8], pk: &[u8]) -> Result<Zeroizing<Vec<u8>>, PakeError> {
         use subtle::ConstantTimeEq;
 
-        // ctgrind: launder the scalar validity check — `Scalar::from_repr`
-        // branches on a CtOption discriminant inside p256, and canonicity of
-        // an honestly generated secret key is public. The parse happens on a
-        // local copy (the caller's slice stays marked); the DH result is
-        // re-marked secret below so taint stays end-to-end.
-        let sk_arr: [u8; 32] = sk
-            .try_into()
-            .map_err(|_| PakeError::InvalidInput("invalid scalar length"))?;
-        let sk_arr = Zeroizing::new(sk_arr);
-        pakery_core::ct::declassify(&*sk_arr);
-        let scalar = scalar_from_bytes(&*sk_arr)?;
+        // ctgrind: the secret key stays secret through the parse (only the
+        // accept/reject decision is declassified), so the DH result is
+        // secret as well and its encoding below runs under taint.
+        let scalar = scalar_from_bytes(sk)?;
         let pk_point = point_from_bytes(pk)?;
         let result = pk_point * scalar;
 
@@ -45,9 +37,12 @@ impl DhGroup for P256Dh {
         if pakery_core::ct::declassify_choice(result.ct_eq(&ProjectivePoint::IDENTITY)) {
             return Err(PakeError::IdentityPoint);
         }
+        // The shared point is secret: `point_to_bytes` encodes it in constant
+        // time. sec1's compressed encoding branched on its y parity here
+        // before 0.6.1.
         let out = point_to_bytes(&result);
-        // ctgrind: the DH output is secret key material (re-mark after the
-        // laundered scalar parse above).
+        // ctgrind: the DH output is secret key material — already tainted
+        // through the scalar; marked again to keep the policy explicit.
         pakery_core::ct::mark_secret(&out);
         Ok(Zeroizing::new(out))
     }
@@ -56,14 +51,10 @@ impl DhGroup for P256Dh {
         use pakery_core::crypto::oprf::Oprf;
 
         let sk_bytes = P256Oprf::derive_key(seed, b"OPAQUE-DeriveDiffieHellmanKeyPair")?;
-        // ctgrind: launder the scalar validity check (public for an honestly
-        // derived key) on a local copy; `sk_bytes` itself stays marked. The
-        // derived public key is public by definition, so no re-mark.
-        let sk_copy = Zeroizing::new(sk_bytes.to_vec());
-        pakery_core::ct::declassify(&sk_copy);
-        let scalar = scalar_from_bytes(&sk_copy)?;
-        let pk_point = ProjectivePoint::GENERATOR * scalar;
-        let pk = pk_point.to_affine().to_sec1_point(true).as_bytes().to_vec();
+        let scalar = scalar_from_bytes(&sk_bytes)?;
+        let pk = point_to_bytes(&(ProjectivePoint::GENERATOR * scalar));
+        // ctgrind: the public key is public by definition.
+        pakery_core::ct::declassify(&pk);
         Ok((sk_bytes, pk))
     }
 
@@ -80,13 +71,10 @@ impl DhGroup for P256Dh {
     }
 
     fn public_key_from_private(sk: &[u8]) -> Result<Vec<u8>, PakeError> {
-        // ctgrind: launder the scalar validity check (public for an honestly
-        // generated key) on a local copy; the resulting public key is public.
-        let sk_copy = Zeroizing::new(sk.to_vec());
-        pakery_core::ct::declassify(&sk_copy);
-        let scalar = scalar_from_bytes(&sk_copy)?;
-        let pk_point = ProjectivePoint::GENERATOR * scalar;
-        let pk = pk_point.to_affine().to_sec1_point(true).as_bytes().to_vec();
+        let scalar = scalar_from_bytes(sk)?;
+        let pk = point_to_bytes(&(ProjectivePoint::GENERATOR * scalar));
+        // ctgrind: the public key is public by definition.
+        pakery_core::ct::declassify(&pk);
         Ok(pk)
     }
 }

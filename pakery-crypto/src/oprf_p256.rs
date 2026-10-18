@@ -4,13 +4,15 @@ use alloc::vec::Vec;
 
 use p256::elliptic_curve::ff::{Field, PrimeField};
 use p256::elliptic_curve::ops::Reduce;
-use p256::elliptic_curve::sec1::{FromSec1Point, ToSec1Point};
+use p256::elliptic_curve::point::AffineCoordinates;
+use p256::elliptic_curve::sec1::FromSec1Point;
 use p256::hash2curve::GroupDigest;
 use p256::{AffinePoint, FieldBytes, NistP256, ProjectivePoint, Scalar, Sec1Point};
 use pakery_core::crypto::oprf::{Oprf, OprfClientState};
 use pakery_core::PakeError;
 use rand_core::CryptoRng;
 use sha2::Sha256;
+use subtle::ConditionallySelectable;
 use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
 use crate::oprf_common::{expand_message_xmd, finalize_hash, i2osp_2};
@@ -20,7 +22,7 @@ const HASH_TO_GROUP_DST: &[u8] = b"HashToGroup-OPRFV1-\x00-P256-SHA256";
 const DERIVE_KEYPAIR_DST: &[u8] = b"DeriveKeyPairOPRFV1-\x00-P256-SHA256";
 
 /// 2^256 mod n (P-256 group order) — used for wide scalar reduction.
-fn r_constant() -> Scalar {
+pub(crate) fn r_constant() -> Scalar {
     Scalar::from_repr(p256::FieldBytes::from([
         0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         0x00, 0x43, 0x19, 0x05, 0x52, 0x58, 0xE8, 0x61, 0x7B, 0x0C, 0x46, 0x35, 0x3D, 0x03, 0x9C,
@@ -37,9 +39,39 @@ pub struct P256OprfClientState {
     blind: [u8; 32],
 }
 
-/// Serialize a `ProjectivePoint` as compressed SEC1 (33 bytes).
+/// Serialize a `ProjectivePoint` as compressed SEC1: 33 bytes, or the one-byte
+/// SEC1 identity encoding `0x00` for the identity — the bytes sec1's own
+/// `to_sec1_point(true)` produces, without its branches.
+///
+/// Constant time for a secret point. sec1's `Tag::compress_y` branches on the
+/// parity of `y` and `as_bytes` dispatches on the tag byte, so a secret point
+/// (an unblinded OPRF value, a Diffie-Hellman result) must not go through it;
+/// this goes through [`encode_point_ct`]. Only whether the point is the
+/// identity is declassified, and every caller treats that as public: it either
+/// rules the identity out first or sends the encoding.
 pub(crate) fn point_to_bytes(point: &ProjectivePoint) -> Vec<u8> {
-    point.to_affine().to_sec1_point(true).as_bytes().to_vec()
+    use subtle::ConstantTimeEq;
+    if pakery_core::ct::declassify_choice(point.ct_eq(&ProjectivePoint::IDENTITY)) {
+        return alloc::vec![0x00];
+    }
+    encode_point_ct(point).to_vec()
+}
+
+/// Serialize a non-identity point as compressed SEC1 (33 bytes) in constant
+/// time: `0x02 | y_is_odd || x`, which is exactly the SEC1 compressed encoding.
+///
+/// The affine conversion inverts `z` with a constant-time inversion, and the
+/// parity and the `x` bytes are read without a branch. The identity has no
+/// 33-byte encoding; for it this returns a meaningless `0x02 || 0^32`, so the
+/// caller must have ruled it out.
+pub(crate) fn encode_point_ct(point: &ProjectivePoint) -> [u8; 33] {
+    let affine = point.to_affine();
+    let mut out = [0u8; 33];
+    // A select rather than `0x02 | parity`: the same bytes, and no operator
+    // for a mutant to flip into an equivalent one (`|` and `^` agree here).
+    out[0] = u8::conditional_select(&0x02, &0x03, affine.y_is_odd());
+    out[1..].copy_from_slice(&affine.x());
+    out
 }
 
 /// Deserialize a compressed SEC1 point.
@@ -62,12 +94,25 @@ pub(crate) fn point_from_bytes(bytes: &[u8]) -> Result<ProjectivePoint, PakeErro
 }
 
 /// Deserialize a 32-byte big-endian scalar.
+///
+/// Constant time for a secret scalar (a key, a blind): `from_repr` decides
+/// canonicity without a branch, and only the accept/reject decision is
+/// declassified — a public outcome — so the scalar itself stays secret for
+/// the ctgrind harness rather than being parsed from a laundered copy.
 pub(crate) fn scalar_from_bytes(bytes: &[u8]) -> Result<Scalar, PakeError> {
-    let arr: [u8; 32] = bytes
+    // A reference, not a copy: the bytes go into `repr`, which is wiped below,
+    // and by value into `from_repr`'s argument, which cannot be.
+    let arr: &[u8; 32] = bytes
         .try_into()
         .map_err(|_| PakeError::InvalidInput("invalid scalar length"))?;
-    let fb = p256::FieldBytes::from(arr);
-    Option::from(Scalar::from_repr(fb)).ok_or(PakeError::InvalidInput("invalid P-256 scalar"))
+    let mut repr = p256::FieldBytes::default();
+    repr.copy_from_slice(arr);
+    let scalar = Scalar::from_repr(repr);
+    repr.zeroize();
+    if !pakery_core::ct::declassify_choice(scalar.is_some()) {
+        return Err(PakeError::InvalidInput("invalid P-256 scalar"));
+    }
+    Ok(scalar.unwrap_or(Scalar::ZERO))
 }
 
 /// Hash an arbitrary input to a P-256 point (RFC 9380 hash-to-curve).
@@ -81,27 +126,30 @@ fn hash_to_group(input: &[u8]) -> Result<ProjectivePoint, PakeError> {
 /// Uses expand_message_xmd with L=48 bytes, then reduces mod n.
 fn hash_to_scalar_with_dst(input: &[&[u8]], dst: &[u8]) -> Result<Scalar, PakeError> {
     // L = ceil((ceil(log2(r)) + k) / 8) = ceil((256 + 128) / 8) = 48
-    let uniform = expand_message_xmd::<Sha256>(input, dst, 48)?;
-    let arr: [u8; 48] = uniform
-        .try_into()
-        .expect("expand_message_xmd returned 48 bytes");
-    Ok(reduce_48_to_scalar(&arr))
+    // Both buffers hold the uniform bytes, which `derive_key` turns into a
+    // secret key, so both are wiped on drop.
+    let uniform = Zeroizing::new(expand_message_xmd::<Sha256>(input, dst, 48)?);
+    let mut wide = Zeroizing::new([0u8; 48]);
+    wide.copy_from_slice(&uniform);
+    Ok(reduce_48_to_scalar(&wide))
 }
 
 /// Reduce 48 big-endian bytes to a P-256 scalar.
 ///
 /// Interprets as `high * 2^256 + low` where high is 16 bytes and low is 32 bytes,
-/// then reduces modulo the group order n.
-fn reduce_48_to_scalar(bytes: &[u8; 48]) -> Scalar {
+/// then reduces modulo the group order n. The bytes can be secret (a derived
+/// key, a proof nonce), so this function wipes its own copies of both halves;
+/// the input buffer is the caller's to wipe.
+pub(crate) fn reduce_48_to_scalar(bytes: &[u8; 48]) -> Scalar {
     let mut high_fb = FieldBytes::default();
     high_fb[16..].copy_from_slice(&bytes[..16]);
     let high = <Scalar as Reduce<FieldBytes>>::reduce(&high_fb);
+    high_fb.zeroize();
 
-    let low_arr: [u8; 32] = bytes[16..]
-        .try_into()
-        .expect("bytes[16..] is exactly 32 bytes");
-    let low_fb = FieldBytes::from(low_arr);
+    let mut low_fb = FieldBytes::default();
+    low_fb.copy_from_slice(&bytes[16..]);
     let low = <Scalar as Reduce<FieldBytes>>::reduce(&low_fb);
+    low_fb.zeroize();
 
     high * r_constant() + low
 }
@@ -123,23 +171,22 @@ impl OprfClientState for P256OprfClientState {
             }
         }
 
-        // ctgrind: launder the scalar validity check on a local copy — the
-        // blind is our own canonical encoding, so its validity is public;
-        // p256's `from_repr` would otherwise branch on a CtOption
-        // discriminant. The OPRF output stays tainted via the password.
-        let blind_copy = Zeroizing::new(self.blind);
-        pakery_core::ct::declassify(&*blind_copy);
-        let blind_scalar = scalar_from_bytes(&*blind_copy)?;
+        // ctgrind: the blind stays secret through the parse and the inversion;
+        // only the two refusal decisions are declassified.
+        let blind_scalar = scalar_from_bytes(&self.blind)?;
         let r_inv = blind_scalar.invert();
-        if bool::from(r_inv.is_none()) {
+        if pakery_core::ct::declassify_choice(r_inv.is_none()) {
             return Err(PakeError::ProtocolError("blind scalar has no inverse"));
         }
-        let r_inv = r_inv.expect("checked above");
+        let r_inv = r_inv.unwrap_or(Scalar::ZERO);
 
+        // `n` is the PRF value before hashing, so it is secret and goes through
+        // the constant-time encoder. It is not the identity: `z` was rejected
+        // above if it was, and `r_inv` inverts a nonzero scalar.
         let n = z * r_inv;
+        let n_bytes = Zeroizing::new(encode_point_ct(&n));
         Ok(Zeroizing::new(finalize_hash::<Sha256>(
-            password,
-            &point_to_bytes(&n),
+            password, &*n_bytes,
         )?))
     }
 }
@@ -202,13 +249,10 @@ impl Oprf for P256Oprf {
     }
 
     fn server_evaluate(oprf_key: &[u8], blinded_bytes: &[u8]) -> Result<Vec<u8>, PakeError> {
-        // ctgrind: launder the scalar validity check (public for an honestly
-        // derived OPRF key) on a local copy; the caller's slice stays marked.
-        // The evaluated element goes on the wire, so no re-mark is needed.
-        let sk_copy = Zeroizing::new(oprf_key.to_vec());
-        pakery_core::ct::declassify(&sk_copy);
-        let sk = scalar_from_bytes(&sk_copy)?;
-        if bool::from(sk.is_zero()) {
+        // ctgrind: the key stays secret through the parse; only the refusal
+        // decisions are declassified.
+        let sk = scalar_from_bytes(oprf_key)?;
+        if pakery_core::ct::declassify_choice(sk.is_zero()) {
             return Err(PakeError::InvalidInput("OPRF key is zero"));
         }
         let blinded = point_from_bytes(blinded_bytes)?;
@@ -222,7 +266,10 @@ impl Oprf for P256Oprf {
         }
 
         let evaluated = blinded * sk;
-        Ok(point_to_bytes(&evaluated))
+        let evaluated_bytes = point_to_bytes(&evaluated);
+        // ctgrind: the evaluated element is a wire message.
+        pakery_core::ct::declassify(&evaluated_bytes);
+        Ok(evaluated_bytes)
     }
 
     fn derive_key(seed: &[u8], info: &[u8]) -> Result<Zeroizing<Vec<u8>>, PakeError> {
@@ -247,6 +294,36 @@ impl Oprf for P256Oprf {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use p256::elliptic_curve::sec1::ToSec1Point;
+
+    /// Both constant-time encoders agree with sec1's own compressed encoding,
+    /// which they replace: on the generator and its negation, on `k * G` for
+    /// `k = 1..=64`, on hash outputs (both y parities), and — for
+    /// `point_to_bytes` — on the identity, which sec1 encodes as `0x00`.
+    #[test]
+    fn constant_time_encoders_match_sec1() {
+        let sec1 = |p: &ProjectivePoint| p.to_affine().to_sec1_point(true).as_bytes().to_vec();
+        let mut parities = [false; 2];
+        let mut points = alloc::vec![ProjectivePoint::GENERATOR, -ProjectivePoint::GENERATOR];
+        let mut k = ProjectivePoint::IDENTITY;
+        for i in 0u8..64 {
+            k += ProjectivePoint::GENERATOR;
+            points.push(k);
+            points.push(hash_to_group(&[i]).unwrap());
+        }
+        for point in &points {
+            let ct = encode_point_ct(point);
+            assert_eq!(ct.as_slice(), sec1(point).as_slice());
+            assert_eq!(point_to_bytes(point), sec1(point));
+            parities[usize::from(ct[0] & 1)] = true;
+        }
+        assert_eq!(parities, [true, true], "both y parities covered");
+        assert_eq!(
+            point_to_bytes(&ProjectivePoint::IDENTITY),
+            sec1(&ProjectivePoint::IDENTITY)
+        );
+        assert_eq!(point_to_bytes(&ProjectivePoint::IDENTITY), [0x00]);
+    }
 
     fn hex(s: &str) -> Vec<u8> {
         (0..s.len())
