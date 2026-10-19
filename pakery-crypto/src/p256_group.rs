@@ -3,7 +3,8 @@
 use alloc::vec::Vec;
 use p256::elliptic_curve::ff::PrimeField;
 use p256::elliptic_curve::ops::Reduce;
-use p256::elliptic_curve::sec1::{FromSec1Point, Tag, ToSec1Point};
+use p256::elliptic_curve::point::AffineCoordinates;
+use p256::elliptic_curve::sec1::{FromSec1Point, Tag};
 use p256::hash2curve::GroupDigest;
 use p256::{AffinePoint, FieldBytes, NistP256, ProjectivePoint, Scalar, Sec1Point};
 use pakery_core::crypto::group::CpaceGroup;
@@ -36,12 +37,26 @@ impl CpaceGroup for P256Group {
     }
 
     fn to_bytes(&self) -> Vec<u8> {
-        // SEC1 uncompressed encoding (65 bytes, 0x04 prefix)
-        self.point
-            .to_affine()
-            .to_sec1_point(false)
-            .as_bytes()
-            .to_vec()
+        // SEC1 uncompressed encoding: `0x04 || x || y` (65 bytes), or the
+        // one-byte SEC1 identity encoding `0x00` for the identity -- the
+        // bytes sec1's own `to_sec1_point(false)` produces, without its
+        // dispatch on the tag byte. Constant time for a secret point (the
+        // shared `K` of CPace and SPAKE2, SPAKE2+'s `Z` and `V`): the affine
+        // conversion inverts `z` with a constant-time inversion, and the
+        // coordinates are read without a branch.
+        use subtle::ConstantTimeEq;
+        // ctgrind: whether the point is the identity is public: the length
+        // of the encoding shows it, and every caller that encodes a secret
+        // point has ruled the identity out first.
+        if pakery_core::ct::declassify_choice(self.point.ct_eq(&ProjectivePoint::IDENTITY)) {
+            return alloc::vec![0x00];
+        }
+        let affine = self.point.to_affine();
+        let mut out = Vec::with_capacity(65);
+        out.push(0x04);
+        out.extend_from_slice(&affine.x());
+        out.extend_from_slice(&affine.y());
+        out
     }
 
     fn from_bytes(bytes: &[u8]) -> Result<Self, PakeError> {
@@ -166,7 +181,39 @@ fn r_constant() -> Scalar {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use p256::elliptic_curve::sec1::ToSec1Point;
     use pakery_core::crypto::CpaceGroup;
+
+    /// The constant-time `to_bytes` agrees with sec1's own uncompressed
+    /// encoding, which it replaces: on the generator and its negation, on
+    /// `k * G` for `k = 1..=64`, on hash-to-curve outputs, and on the
+    /// identity, which sec1 encodes as `0x00`.
+    #[test]
+    fn to_bytes_matches_sec1() {
+        let sec1 = |p: &ProjectivePoint| p.to_affine().to_sec1_point(false).as_bytes().to_vec();
+        let mut points = alloc::vec![ProjectivePoint::GENERATOR, -ProjectivePoint::GENERATOR];
+        let mut k = ProjectivePoint::IDENTITY;
+        for i in 0u8..64 {
+            k += ProjectivePoint::GENERATOR;
+            points.push(k);
+            points.push(
+                <P256Group as CpaceGroup>::from_uniform_bytes(&[i; 64])
+                    .unwrap()
+                    .point,
+            );
+        }
+        for point in points {
+            let encoded = P256Group { point }.to_bytes();
+            assert_eq!(encoded.len(), 65);
+            assert_eq!(encoded, sec1(&point));
+        }
+        let identity = P256Group {
+            point: ProjectivePoint::IDENTITY,
+        }
+        .to_bytes();
+        assert_eq!(identity, sec1(&ProjectivePoint::IDENTITY));
+        assert_eq!(identity, [0x00]);
+    }
 
     /// `from_bytes` accepts compressed and uncompressed SEC1 but must reject
     /// the identity (`0x00`) and compact (`0x05`) tags — compact is a second,

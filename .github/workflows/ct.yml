@@ -50,7 +50,7 @@ jobs:
           # Suppressions: documented, dependency-internal accepted patterns
           # only — see pakery-tests/valgrind-ct.supp.
           CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER: >-
-            valgrind --track-origins=yes --error-exitcode=99 --quiet
+            valgrind --track-origins=yes --error-exitcode=99 -v --gen-suppressions=all
             --suppressions=${{ github.workspace }}/pakery-tests/valgrind-ct.supp
           # The debug leg disables cargo's panic instrumentation: overflow
           # checks and debug assertions branch on carry/validity flags of
