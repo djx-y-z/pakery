@@ -184,19 +184,18 @@ index is flagged — in debug **and** release (catches LLVM undoing `subtle`).
   routes the decision byte through `black_box` (without it, release LLVM
   branched on the pre-declassify register copy). The debug leg disables
   overflow-checks/debug-assertions (panic instrumentation floods memcheck on
-  intentionally-tainted CT arithmetic in deps). Suppressions cover two
-  P-256-only dependency-internal families. They exist for an invariant-true
-  `CtOption` assert in p256 hash2curve, and for sec1's tag-byte dispatch in
-  the *uncompressed* `P256Group::to_bytes`, whose tag reveals only whether the
-  point is the identity — which every caller has already ruled out. Each is
-  anchored on the call that reaches the pattern, with a leading `...`, so it
-  also hides everything else beneath that call: the hash-to-curve internals,
-  and the affine conversion of the encoded point. That conversion, a field
-  inversion, runs unsuppressed on secret points in every compressed P-256
-  encoding. Anchors are matched against mangled symbol names (inlined frames
-  by their bare names), not the demangled names Valgrind prints; narrowing
-  them further waits for a CI run whose `--gen-suppressions=all` output shows
-  the release-mode frames. curve25519-dalek needs none. OPAQUE uses
+  intentionally-tainted CT arithmetic in deps). The suppressions cover one
+  P-256-only, dependency-internal pattern: an invariant-true `CtOption`
+  assert in the OSSWU map of p256's hash-to-curve. There is one entry per
+  build, since release inlines the assert's `unwrap` and debug does not, and
+  each is the assert's own two frames, with no leading `...`. Valgrind
+  commons errors up by the top four code addresses on their stack, to which
+  an inlined frame adds none, so an entry also covers later errors that
+  share them; for these two entries that can only be the same assert.
+  Everything else runs unsuppressed: the rest of the hash-to-curve, the
+  field inversion, and every SEC1 encoding. Anchors are matched against
+  mangled symbol names (inlined frames by their bare names), not the
+  demangled names Valgrind prints. curve25519-dalek needs none. OPAQUE uses
   identity-KSF suites (Argon2id is data-dependent by design).
   The flows cover the RFC 9497 VOPRF / POPRF too — both suites and modes,
   random and deterministic blinds, single and batched, with the server key
@@ -210,11 +209,15 @@ index is flagged — in debug **and** release (catches LLVM undoing `subtle`).
   harness saw neither: the secret scalars were parsed from *laundered* copies,
   so the points carried no taint, and three suppressions anchored on the
   encoder's name would have hidden them anyway, on the false ground that only
-  public elements reached it. Every compressed P-256 encoding now goes through
-  a constant-time encoder, the secret scalars stay tainted through the parse
-  (only the accept/reject decision is declassified), and those three
-  suppressions are gone: under `ct.yml` the encoder now receives points
-  computed from tainted scalars, and no suppression covers it.
+  public elements reached it. Every P-256 encoding now goes through a
+  constant-time encoder: the compressed ones, and the uncompressed one in
+  `P256Group::to_bytes` (CPace, SPAKE2, SPAKE2+), whose sec1 tag dispatch
+  revealed only whether the point is the identity but needed a suppression
+  that, in the debug build, also took in every later tag dispatch through
+  sec1's `as_bytes`. The secret scalars stay tainted through the parse (only
+  the accept/reject decision is declassified), and no suppression touches
+  sec1 any more: a run that put either sec1 encoder back failed both legs of
+  `ct.yml`.
 
 ### Mutation testing (cargo-mutants)
 

@@ -3,133 +3,80 @@
 # Policy (see SECURITY_TESTING.md, "Constant-time verification"): a suppression is allowed only
 # for a KNOWN, ACCEPTED pattern inside a dependency that we cannot fix at our
 # boundary, and every entry must carry a justification. Anything not listed
-# here fails the run. Both families below are P-256-only; the
+# here fails the run. The one pattern below is P-256-only; the
 # curve25519-dalek paths run without any suppression.
 #
-# Verified against curve25519-dalek 4.1.3 / p256 0.13.2 / elliptic-curve
-# 0.13.8 / sec1 0.7.3 / subtle 2.6.1 (Valgrind 3.24, aarch64 + x86_64 Linux,
-# debug and release), 2026-07-06; re-triaged on CI 2026-07-10 (rustc 1.97.0,
-# Valgrind 3.22, x86_64) after a compiler bump changed release inlining.
-# The workspace has since moved to curve25519-dalek 5.0 / p256 0.14 /
-# elliptic-curve 0.14 / sec1 0.8; in 0.6.1 the compressed-point family was
-# removed rather than re-anchored (see Family 2). Re-triage on the next run
-# that reports a miss.
+# Verified against p256 0.14.0 / primeorder 0.14.0 / hash2curve 0.14.0 /
+# subtle 2.6.1 (rustc 1.99.1, Valgrind 3.22, x86_64 Linux, debug and
+# release), 2026-10-19, in a run with `-v`, which prints how many errors each
+# entry matched.
 # Re-triage when bumping these crates or on suppression misses after a
 # toolchain drift (ct.yml runs unpinned @stable by design, to catch codegen
-# that turns constant-time source leaky — so anchors must be drift-robust:
-# prefer a stable, uniquely-named frame over one whose match depends on
-# demangled generic-argument ordering).
-# Each family is listed for the error kinds observed or plausible across
-# codegen (Cond for flag-based branches, Value4/Value8 for tag-indexed
-# dispatch), same justification.
+# that turns constant-time source leaky). A miss fails the run; take the new
+# frames from a run with `--gen-suppressions=all`, which prints them in the
+# form they are matched in.
 #
-# Family 1: p256 hash-to-curve internals branch on a subtle::CtOption
-# discriminant that is invariant-true by construction. In p256 / primeorder
-# 0.14 the one such assert left is `tv4.invert().unwrap()` in the OSSWU map
-# (primeorder 0.14.0, src/osswu.rs:146): tv4 = A * CMOV(Z, -tv2, tv2 != 0)
-# is never zero for P-256 (A = -3, Z = -10), so the inversion always
-# succeeds, yet `CtOption::unwrap` still executes a hard `assert!` on that
-# (tainted) always-true flag. (Under p256 0.13 it was the affine
-# `decompress(..).unwrap()` in map_to_curve.) The condition never varies
-# with the secret input, so no timing signal exists; the taint is by design
-# (the hash-to-curve input is the password, or the private input of an
-# RFC 9497 OPRF / VOPRF / POPRF). Dependency-internal; cannot be declassified
-# at our boundary.
-# The glob covers more than that assert: the leading `...` suppresses every
-# error beneath `hash_from_bytes`, as far down the captured stack as
-# `--num-callers` reaches (12 return addresses by default, inlined frames on
-# top) — the OSSWU selects,
-# `sqrt_ratio_3mod4`, the 48-byte field reduction and the field inversion
-# itself. The same inversion code (crypto-bigint's safegcd) also runs
-# unsuppressed on secret points in every compressed P-256 encoding (see
-# Family 2), so a leak in it shows there too, unless inlining compiles it
-# differently at the two sites; the others run tainted only here and are
-# constant-time by source reading.
-# A narrower anchor (an `unwrap` frame first) is not used, for the reason
-# below: release inlining folds the unwrap into `hash_from_bytes`.
-# Anchored on `hash_from_bytes` (the hash-to-curve entry of the `hash2curve`
-# crate, which p256 0.14 re-exports) rather than the earlier
-# `*hash2curve*hash_from_bytes*`:
-# release inlining collapses osswu/map_to_curve/unwrap and names the inlined
-# frame, by its DWARF name, `hash_from_bytes<...::hash2curve::...>`, where
-# "hash2curve" no longer precedes the name — so the ordered pattern missed
-# under rustc 1.97.
+# How an entry matches. Valgrind compares `fun:` lines with *mangled* names,
+# not the demangled ones its log prints: an outlined frame by its raw symbol,
+# in which rustc's v0 mangling length-prefixes every identifier, and an
+# inlined frame by its bare DWARF name, which the log does print. An inlined
+# frame whose origin Valgrind cannot resolve is printed as `UnknownInlinedFun`
+# and has no name to match. Valgrind also commons errors up by four code
+# addresses, the place in the erring function and in each of its three
+# callers (its manual, under `--num-callers`). An inlined frame shares the
+# address of the function it is inlined into and adds none, so errors whose
+# top four printed frames match can still be counted apart. A later error
+# with the same four addresses is counted under the first one's record,
+# suppressed or not, wherever it comes from. An entry that reaches beneath
+# its pattern (a leading `...`), or whose justification holds only for some
+# callers, therefore covers more than it says. Each entry below is the
+# pattern's own two frames, innermost first, with no `...`, so only that
+# pattern can match it or join its errors; everything else, the rest of the
+# hash-to-curve and all of sec1 included, runs unsuppressed.
+#
+# The pattern: p256's hash-to-curve branches on a subtle::CtOption
+# discriminant that is invariant-true by construction, in
+# `tv4.invert().unwrap()` in the OSSWU map (primeorder 0.14.0, src/osswu.rs:146,
+# the only `unwrap` in that file). tv4 = A * CMOV(Z, -tv2, tv2 != 0) is never
+# zero for P-256 (A = -3, Z = -10), so the inversion always succeeds, yet
+# `CtOption::unwrap` still executes a hard `assert!` on that (tainted)
+# always-true flag. The condition never varies with the secret input, so no
+# timing signal exists; the taint is by design (the hash-to-curve input is the
+# password, or the private input of an RFC 9497 OPRF / VOPRF / POPRF).
+# Dependency-internal; cannot be declassified at our boundary. The assert is a
+# branch, so the entries are for Cond, the only kind reported for it.
+# The second frame is `<FieldElement as OsswuMap>::osswu`, whose symbol
+# contains `...8OsswuMap5osswu`; the length prefix keeps the glob off
+# `AffineOsswuMap`'s `osswu`, the function that calls it.
+
+# Release: `CtOption<FieldElement>::unwrap` is inlined into the outlined
+# `osswu` and matches by its bare name. The frames above it may have no name:
+# the 2026-10-19 build inlined the RFC 9497 suite's hash-to-curve into generic
+# callers that Valgrind printed as `UnknownInlinedFun`, so the entry does not
+# anchor on them.
 {
-   p256-hash2curve-invariant-ctoption-asserts-cond
+   p256-hash2curve-invariant-ctoption-assert-osswu-cond
    Memcheck:Cond
-   ...
-   fun:*hash_from_bytes*
-}
-{
-   p256-hash2curve-invariant-ctoption-asserts-value8
-   Memcheck:Value8
-   ...
-   fun:*hash_from_bytes*
-}
-{
-   p256-hash2curve-invariant-ctoption-asserts-value4
-   Memcheck:Value4
-   ...
-   fun:*hash_from_bytes*
+   fun:unwrap<*FieldElement>
+   fun:*8OsswuMap5osswu*
 }
 
-# Family 2: SEC1 *uncompressed* serialization in `P256Group::to_bytes`
-# (CPace, SPAKE2, SPAKE2+), which also encodes secret points such as the
-# shared K. `to_sec1_point(false)` never runs `Tag::compress_y`; it
-# constant-time-selects between the 0x04 encoding and the identity encoding
-# on `is_identity()`, and sec1 then dispatches on that tag byte
-# (`Tag::from_u8` via `EncodedPoint::tag/len/as_bytes`). The dispatched value
-# therefore reveals only whether the point is the identity — and every caller
-# that encodes a secret point has already aborted on the identity, a public
-# protocol decision, so it is always 0x04 there.
-# Valgrind matches suppressions against *mangled* names: an outlined frame by
-# its raw symbol, an inlined frame by its bare DWARF name (`to_bytes`) — not
-# the demangled names its error log prints. The method name is
-# length-prefixed in both the v0 and the legacy mangling: the symbol of
-# `<P256Group as CpaceGroup>::to_bytes` ends in `...8to_bytes` (in v0,
-# `...9P256Group...8to_bytes`), that of `scalar_to_bytes` in
-# `...15scalar_to_bytes`. Until 0.6.1 the glob was
-# `*P256Group*to_bytes*`, which matched both, and so also suppressed
-# `scalar_to_bytes`, run on the tainted SPAKE2 `w` and SPAKE2+ `w0`;
-# `*P256Group*8to_bytes*` matches `to_bytes` alone — checked against the
-# symbols of a debug build and of a release build with debug info, where
-# `to_bytes` is an outlined function. The leading `...` still suppresses
-# everything beneath the call (within `--num-callers`), the affine conversion
-# (a field inversion) included; the same conversion also runs unsuppressed on
-# secret points in every compressed encoding (below), so a leak in it shows
-# there too, unless inlining compiles it differently at the two sites.
-# Requiring a sec1 frame as well would be narrower, but release inlining can
-# fold sec1's dispatch into this frame, as it folds the hash-to-curve
-# internals in Family 1. That waits for the frames, as a CI run with
-# `--gen-suppressions=all` prints them (mangled, as matched).
-#
-# Compressed encodings are no longer suppressed at all. Until 0.6.1,
-# `oprf_p256::point_to_bytes` went through sec1's compressed form, whose
-# `compress_y` branches on the parity of y; three entries here suppressed it
-# on the stated ground that only public, wire-bound elements reached it.
-# That ground was false — the unblinded OPRF value and the P256Dh shared
-# point went through it too. Taint from those two never reached it, because
-# their secret scalars were parsed from laundered copies; what the three
-# entries did absorb was the blinded element, tainted through the password
-# and public by design. Both are fixed: every compressed P-256 encoding in
-# pakery-crypto now goes through a constant-time encoder, and the scalars
-# stay tainted, so a regression there fails this harness instead of being
-# suppressed.
+# Debug: both frames are outlined and match by their symbols; `unwrap`'s
+# contains `...8CtOption...12FieldElementE6unwrap`.
 {
-   p256-sec1-tag-dispatch-group-to-bytes-cond
+   p256-hash2curve-invariant-ctoption-assert-osswu-outlined-cond
    Memcheck:Cond
-   ...
-   fun:*P256Group*8to_bytes*
+   fun:*CtOption*FieldElement*6unwrap*
+   fun:*8OsswuMap5osswu*
 }
-{
-   p256-sec1-tag-dispatch-group-to-bytes-value8
-   Memcheck:Value8
-   ...
-   fun:*P256Group*8to_bytes*
-}
-{
-   p256-sec1-tag-dispatch-group-to-bytes-value4
-   Memcheck:Value4
-   ...
-   fun:*P256Group*8to_bytes*
-}
+
+# Until 0.6.1 this file also held broad entries, anchored on a call with a
+# leading `...`: this assert under `hash_from_bytes`, which hid the rest of
+# the hash-to-curve with it, the field inversion included, and sec1's tag
+# dispatch under `P256Group::to_bytes` (before that, three entries for sec1's
+# compressed encoder as well). Every P-256 encoding in pakery-crypto now goes
+# through a constant-time encoder, so no sec1 code runs on secret data. The
+# broad entries also covered more than their call: in the debug build, where
+# dependency code is outlined, every later tag dispatch through sec1's
+# `as_bytes` had the same top four addresses as the first, all of them in
+# sec1, and was counted under the sec1 entry whatever called it.
