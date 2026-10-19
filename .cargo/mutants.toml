@@ -33,10 +33,16 @@ test_package = [
 #   strongest oracle we have for pakery-opaque mutants, and since 0.5.0 the
 #   only one that constrains the Argon2id KSF parameters. opaque-ke is a
 #   dependency, built once, never rebuilt per mutant.
+# - `hazmat`: compiles `deterministic_blind` on the RFC 9497 VOPRF / POPRF
+#   clients (pakery-crypto/src/verifiable_oprf). Without it that path is cfg'd
+#   out and its mutants — the zero-blind rejection among them — would build
+#   unchanged and be reported as false survivors, exactly as `argon2` above.
+#   Its killing tests are the in-crate vector and behaviour tests, which run
+#   the RFC blinds through it.
 # - `__ctgrind` is deliberately NOT enabled: it is a CI-private Valgrind
 #   instrumentation feature (ct.yml); under it the ct helpers emit client
 #   requests that are meaningless (or panic-prone) outside Valgrind.
-features = ["p256", "argon2", "differential"]
+features = ["p256", "argon2", "differential", "hazmat"]
 
 # The baseline phase builds `--package=<mutated crates>` (the `test_package`
 # list above is not applied there), and the feature names above live in
@@ -92,12 +98,28 @@ exclude_re = [
     # the same loop stays IN scope: left-shifting drains `value` to 0 within
     # ~10 iterations, so it terminates with wrong output and is caught normally.
     "encoding\\.rs.*replace == with != in leb128_encode",
-    # pakery-spake2plus manual `Drop` impls delegate to `self.zeroize()`,
-    # which is itself covered by live-value zeroize tests (roadmap item 7).
-    # Deleting the drop body is untestable from safe Rust: observing memory
-    # after drop is UB — the documented item-7 scope decision. Verified by
-    # inspection; the delegation is one line.
-    "replace <impl Drop for (KeySchedule|VerifierState)>::drop with \\(\\)",
+    # Manual `Drop` impls that delegate to `self.zeroize()`, which is itself
+    # covered by live-value zeroize tests (roadmap item 7): pakery-spake2plus's
+    # `KeySchedule` / `VerifierState`, and since 0.6.1 the generic server and
+    # client-state cores of pakery-crypto's verifiable OPRF modes. Deleting the
+    # drop body is untestable from safe Rust: observing memory after drop is
+    # UB — the documented item-7 scope decision. Verified by inspection; each
+    # delegation is one line. cargo-mutants names the generic impls without a
+    # module path (`<impl Drop for ServerCore<G>>`), checked against 27.1.0.
+    "replace <impl Drop for (KeySchedule|VerifierState|ServerCore<G>|ClientStateCore<G>)>::drop with \\(\\)",
+    # pakery-crypto/src/verifiable_oprf/suite_{p256,ristretto255}.rs:
+    # `VoprfGroup::identity` and `scalar_zero` replaced with
+    # `Default::default()` are equivalent mutants: the curve types' `Default`
+    # is that same identity and zero. curve25519-dalek's `RistrettoPoint`
+    # returns `RistrettoPoint::identity()` and its `Scalar` `Scalar::ZERO`,
+    # primeorder's `ProjectivePoint` returns `Self::IDENTITY`, and p256's
+    # `Scalar` derives `Default` over a zero `U256` — read in dalek 5.0.0,
+    # primeorder 0.14.0 and p256 0.14.0 (first-run survivors, 2026-10-14).
+    # A dependency bump could change that, so the test
+    # `curve_defaults_are_the_identity_and_zero` in each suite file asserts it
+    # against the crates' own constants, and fails before this entry could
+    # hide a real mutant.
+    "verifiable_oprf/suite_(p256|ristretto255)\\.rs:.*replace <impl VoprfGroup for (P256|Ristretto255)>::(identity|scalar_zero) -> (ProjectivePoint|RistrettoPoint|Scalar) with Default::default\\(\\)$",
 ]
 
 # Floor on the auto-computed per-mutant test timeout. Mutants that break the

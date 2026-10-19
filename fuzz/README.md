@@ -17,6 +17,7 @@ see it. The layout is OSS-Fuzz-compatible (maps 1:1 to a future
 | `spake2_flow` | Honest SPAKE2 side receives fuzz share + fuzz confirmation MAC | fuzz MAC never verifies |
 | `spake2plus_flow` | Honest SPAKE2+ prover/verifier receives fuzz shareP / shareV+confirmV / confirmP | fuzz confirmV/confirmP never verify |
 | `opaque_flow` | Structure-aware (`arbitrary`) full registration + login, incl. `start_fake` and replace/XOR tampering of any wire message | honest flow completes with equal keys; tampered flow never completes; `start_fake` client never completes |
+| `verifiable_oprf` | Structure-aware (`arbitrary`) RFC 9497 VOPRF / POPRF, both suites: derived or raw server keys, batches of 1–4, POPRF infos at blind / evaluate / finalize, deterministic blinds (`hazmat`), a substituted finalize input, and replace/XOR tampering of the public key, a blinded or evaluated element, or the proof | honest flow finalizes to the server's `evaluate`; tampered flow never finalizes; a substituted finalize input, or a POPRF finalize info other than the blinded one, fails as `InputMismatch`; a server that evaluated under another info fails as `Verify`; raw keys round-trip or fail as `Deserialize`. Proof bytes are never compared (the nonce is hedged) |
 
 The fuzz profile builds with `overflow-checks` and `debug-assertions`
 enabled, so arithmetic and internal invariants are oracles too.

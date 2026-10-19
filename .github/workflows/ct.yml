@@ -64,7 +64,7 @@ jobs:
           # finding is triageable from the CI log alone.
           CARGO_PROFILE_RELEASE_DEBUG: "true"
         run: >-
-          cargo test -p pakery-tests --features __ctgrind,p256
+          cargo test -p pakery-tests --features __ctgrind,p256,hazmat
           --test ct_flows
           ${{ matrix.profile == 'release' && '--release' || '' }}
           -- --test-threads=1

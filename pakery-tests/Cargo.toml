@@ -23,7 +23,16 @@ argon2 = ["pakery-crypto/argon2"]
 # opaque-ke actually dispatches on. Argon2id output is identical across the
 # two lines, which those cases rely on and also prove: our side stretches with
 # 0.6, opaque-ke's with 0.5, and the results are byte-compared.
-differential = ["dep:opaque-ke", "dep:sha2-010", "dep:p256-013", "opaque-ke/argon2", "p256", "argon2"]
+#
+# Since 0.6.1 it also compares pakery-crypto's RFC 9497 VOPRF and POPRF with
+# `voprf` 0.5 (tests/differential_voprf.rs), for both suites.
+differential = ["dep:opaque-ke", "dep:sha2-010", "dep:p256-013", "dep:voprf", "opaque-ke/argon2", "p256", "argon2"]
+# Forwards pakery-crypto's `hazmat`, so tests can exercise
+# `deterministic_blind` (ct_flows, prop_voprf). Deliberately not on the
+# pakery-crypto dependency line below: feature unification would then build
+# every plain `cargo test --workspace` with it, and nothing would test the
+# build without it.
+hazmat = ["pakery-crypto/hazmat"]
 # PRIVATE (roadmap item 6): constant-time verification harness (ctgrind
 # pattern). Turns pakery-core's `ct` helpers into real Valgrind memcheck
 # client requests and enables the `ct_flows` integration test, which ct.yml
@@ -64,6 +73,12 @@ p256 = { workspace = true, optional = true }
 opaque-ke = { version = "4", default-features = false, features = ["ristretto255"], optional = true }
 sha2-010 = { package = "sha2", version = "0.10", default-features = false, optional = true }
 p256-013 = { package = "p256", version = "0.13", default-features = false, features = ["arithmetic", "hash2curve", "voprf"], optional = true }
+# The RFC 9497 peer for the VOPRF / POPRF differential. Already in the graph
+# through opaque-ke 4, on the same previous RustCrypto wave; named here with
+# the features this suite uses rather than relying on opaque-ke's. `alloc` is
+# for the batch API; `danger` is not needed — inputs are equalized through the
+# RNG.
+voprf = { version = "0.5", default-features = false, features = ["ristretto255-ciphersuite", "alloc"], optional = true }
 
 [dev-dependencies]
 # proptest 1.11+ requires MSRV 1.85, which the workspace now declares, so this

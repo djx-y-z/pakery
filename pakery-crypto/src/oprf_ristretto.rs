@@ -50,9 +50,10 @@ impl OprfClientState for Ristretto255OprfClientState {
         }
 
         // ctgrind: launder the canonicity check on a local copy — the blind
-        // is our own canonical encoding, so its validity is public; dalek's
-        // `from_canonical_bytes` would otherwise branch on a CtOption
-        // discriminant. The OPRF output stays tainted via the password.
+        // is our own canonical encoding, so its validity is public, and
+        // `.into_option()` below would otherwise branch on the CtOption
+        // discriminant (dalek's `from_canonical_bytes` itself is branch-free).
+        // The OPRF output stays tainted via the password.
         let blind_copy = Zeroizing::new(self.blind);
         pakery_core::ct::declassify(&*blind_copy);
         let blind_scalar = Scalar::from_canonical_bytes(*blind_copy)
@@ -76,11 +77,16 @@ pub struct Ristretto255Oprf;
 
 /// Hash an arbitrary input to a `RistrettoPoint`.
 fn hash_to_group(input: &[u8]) -> Result<RistrettoPoint, PakeError> {
-    let uniform = expand_message_xmd::<Sha512>(&[input], HASH_TO_GROUP_DST, 64)?;
-    let arr: [u8; 64] = uniform
-        .try_into()
-        .expect("expand_message_xmd returned 64 bytes");
-    Ok(RistrettoPoint::from_uniform_bytes(&arr))
+    // The uniform bytes are a hash of the password: both buffers are wiped on
+    // drop rather than freed as they are.
+    let uniform = Zeroizing::new(expand_message_xmd::<Sha512>(
+        &[input],
+        HASH_TO_GROUP_DST,
+        64,
+    )?);
+    let mut wide = Zeroizing::new([0u8; 64]);
+    wide.copy_from_slice(&uniform);
+    Ok(RistrettoPoint::from_uniform_bytes(&wide))
 }
 
 /// Hash concatenated inputs to a `Scalar` using the HashToScalar DST.
@@ -91,11 +97,12 @@ fn hash_to_scalar(input: &[&[u8]]) -> Result<Scalar, PakeError> {
 
 /// Hash concatenated inputs to a `Scalar` using the given DST.
 fn hash_to_scalar_with_dst(input: &[&[u8]], dst: &[u8]) -> Result<Scalar, PakeError> {
-    let uniform = expand_message_xmd::<Sha512>(input, dst, 64)?;
-    let arr: [u8; 64] = uniform
-        .try_into()
-        .expect("expand_message_xmd returned 64 bytes");
-    Ok(Scalar::from_bytes_mod_order_wide(&arr))
+    // Both buffers hold the uniform bytes, which `derive_key` turns into a
+    // secret key, so both are wiped on drop.
+    let uniform = Zeroizing::new(expand_message_xmd::<Sha512>(input, dst, 64)?);
+    let mut wide = Zeroizing::new([0u8; 64]);
+    wide.copy_from_slice(&uniform);
+    Ok(Scalar::from_bytes_mod_order_wide(&wide))
 }
 
 impl Oprf for Ristretto255Oprf {

@@ -114,11 +114,12 @@ impl DhGroup for Ristretto255Dh {
         let sk_bytes: [u8; 32] = sk
             .try_into()
             .map_err(|_| PakeError::InvalidInput("invalid secret key length"))?;
-        // ctgrind: launder the canonicity check — `from_canonical_bytes`
-        // branches on a CtOption discriminant inside dalek, and canonicity of
-        // an honestly generated secret key is public. `sk_bytes` is a local
-        // copy; the caller's slice stays marked. The DH result is re-marked
-        // secret below so taint stays end-to-end.
+        // ctgrind: launder the canonicity check — `.into_option()` below
+        // branches on the CtOption discriminant (dalek's `from_canonical_bytes`
+        // itself is branch-free), and canonicity of an honestly generated
+        // secret key is public. `sk_bytes` is a local copy; the caller's slice
+        // stays marked. The DH result is re-marked secret below so taint stays
+        // end-to-end.
         let sk_bytes = Zeroizing::new(sk_bytes);
         pakery_core::ct::declassify(&*sk_bytes);
         let scalar = Scalar::from_canonical_bytes(*sk_bytes)

@@ -34,6 +34,7 @@ jobs:
           - spake2_flow
           - spake2plus_flow
           - opaque_flow
+          - verifiable_oprf
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@nightly
@@ -167,12 +168,19 @@ jobs:
           key: fuzz-corpus-opaque_flow-${{ github.run_id }}
           restore-keys: |
             fuzz-corpus-opaque_flow-
+      - name: Restore corpus (verifiable_oprf)
+        uses: actions/cache/restore@v6
+        with:
+          path: fuzz/corpus/verifiable_oprf
+          key: fuzz-corpus-verifiable_oprf-${{ github.run_id }}
+          restore-keys: |
+            fuzz-corpus-verifiable_oprf-
       - name: Generate per-target coverage summaries
         run: |
           triple=x86_64-unknown-linux-gnu
           llvm_cov="$(rustc --print sysroot)/lib/rustlib/$triple/bin/llvm-cov"
           mkdir -p coverage-reports
-          for t in opaque_deserialize group_decode cpace_flow spake2_flow spake2plus_flow opaque_flow; do
+          for t in opaque_deserialize group_decode cpace_flow spake2_flow spake2plus_flow opaque_flow verifiable_oprf; do
             mkdir -p "fuzz/corpus/$t"
             cargo fuzz coverage --target "$triple" "$t" "fuzz/corpus/$t" "fuzz/seeds/$t" -s none
             # Locate the instrumented binary instead of hardcoding the path:

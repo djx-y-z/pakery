@@ -197,6 +197,32 @@ jobs:
       - run: cargo check -p pakery-spake2 --target wasm32-unknown-unknown
       - run: cargo check -p pakery-spake2plus --target wasm32-unknown-unknown
       - run: cargo check -p pakery-crypto --target wasm32-unknown-unknown
+      # The line above builds the default features, `std` included. The two
+      # below build the configuration without `std` — one group, with and
+      # without `hazmat` — for the wasm32 target. The no-std job above never
+      # checks pakery-crypto; feature-combinations builds it without `std`
+      # too, but only for the host.
+      - run: cargo check -p pakery-crypto --target wasm32-unknown-unknown --no-default-features --features ristretto255
+      - run: cargo check -p pakery-crypto --target wasm32-unknown-unknown --no-default-features --features ristretto255,hazmat
+      # getrandom is a dev-dependency of pakery-crypto, and nothing in its
+      # production graph may pull it in: on wasm32-unknown-unknown it needs a
+      # backend chosen by the final binary. `-e no-dev` is what keeps the
+      # dev-dependency out of the listing. The tree is captured first and the
+      # dalek line asserted, because `cargo tree | grep` would pass silently if
+      # `cargo tree` itself failed; the diff then proves `hazmat` adds no
+      # dependency.
+      - name: No getrandom in the no-std wasm graph; hazmat adds no dependency
+        run: |
+          set -euo pipefail
+          tree() {
+            cargo tree -p pakery-crypto --target wasm32-unknown-unknown \
+              --no-default-features --features "$1" -e no-dev --prefix none --format '{p}'
+          }
+          plain=$(tree ristretto255)
+          hazmat=$(tree ristretto255,hazmat)
+          grep -q '^curve25519-dalek v5' <<<"$hazmat" || { echo "dependency graph not resolved"; exit 1; }
+          if grep -i getrandom <<<"$hazmat"; then echo "getrandom in the production graph"; exit 1; fi
+          diff <(sort -u <<<"$plain") <(sort -u <<<"$hazmat")
 
   feature-combinations:
     name: Feature combinations
@@ -209,6 +235,9 @@ jobs:
           - argon2,ristretto255
           - ristretto255,p256
           - ristretto255,p256,argon2
+          - ristretto255,hazmat
+          - p256,hazmat
+          - hazmat
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable

@@ -26,6 +26,7 @@ pakery-crypto = { path = "../pakery-crypto", features = [
     "spake2",
     "spake2plus",
     "opaque",
+    "hazmat",
 ] }
 
 # This is a standalone workspace, deliberately excluded from the root one so
@@ -78,6 +79,13 @@ bench = false
 [[bin]]
 name = "opaque_flow"
 path = "fuzz_targets/opaque_flow.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "verifiable_oprf"
+path = "fuzz_targets/verifiable_oprf.rs"
 test = false
 doc = false
 bench = false

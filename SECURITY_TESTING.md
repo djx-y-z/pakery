@@ -26,6 +26,12 @@ point back to.
   | SPAKE2 | none -- not an RFC 9382 suite | RFC 9382 App. B |
   | SPAKE2+ | none -- not an RFC 9383 suite | RFC 9383 App. C.1 |
   | OPAQUE | RFC 9807 App. C.1.1/C.1.2 | RFC 9807 App. C.1.5/C.1.6 |
+
+  The RFC 9497 VOPRF and POPRF, added in `0.6.1`, have vectors for both
+  suites and both modes (App. A.1.2/A.1.3, A.3.2/A.3.3, batch vectors
+  included). They run as unit tests in pakery-crypto, through the public
+  types, except the "Proof" bytes: the proof nonce is hedged, so those are
+  checked through a test-only entry that takes the vectors' nonce.
 - CI: test, clippy `-D warnings`, fmt, doc, MSRV (1.85), no_std (thumbv7em),
   wasm, feature-combinations, minimal-versions, coverage, and the
   documentation gate (`ci/check-docs.py`); `cargo audit` and cargo-deny on
@@ -40,7 +46,10 @@ point back to.
   `deserialize` fns, identity-point rejection after every DH/scalar-mult.
 - Attack-surface audit (2026-07-05): zero unguarded panics on
   attacker-controlled input; every randomized op takes `&mut impl CryptoRng`,
-  so fully deterministic driving is possible everywhere.
+  so fully deterministic driving is possible everywhere. The RFC 9497 modes
+  added in `0.6.1` keep both properties: peer bytes reach them only through
+  decoders that return a `VoprfError`, which the `verifiable_oprf` fuzz
+  target checks, and every randomized operation takes the caller's RNG.
 
 ---
 
@@ -52,9 +61,14 @@ Self-play invariants that single-happy-path RFC vectors never exercise:
 agreement (both sides derive identical keys), mismatch (differing
 passwords/identities/context → confirmation MAC fails, keys never equal),
 single-byte tamper rejection, OPAQUE serialization roundtrip, and a truncation
-sweep — per protocol (CPace, SPAKE2, SPAKE2+, OPAQUE) × both groups.
+sweep — per protocol (CPace, SPAKE2, SPAKE2+, OPAQUE) × both groups. For the
+RFC 9497 VOPRF / POPRF: agreement with the server's `Evaluate`, single and
+batched; tamper rejection; that `finalize` is bound to the blinded input; the
+role of the POPRF `info` (finalizing succeeds exactly when it matches the
+server's); and, with `hazmat`, that the deterministic blind agrees with the
+random one fed the same bytes.
 
-- **Where:** `pakery-tests/tests/prop_{cpace,spake2,spake2plus,opaque}.rs`.
+- **Where:** `pakery-tests/tests/prop_{cpace,spake2,spake2plus,opaque,voprf}.rs`.
 - **Run:** `cargo test -p pakery-tests --all-features`.
 - **Notes:** randomness is driven through a seeded `rand_chacha` `CryptoRng`
   (no `test-utils` needed); case counts kept modest (32–64) and the identity
@@ -73,8 +87,10 @@ encodings across every entry point.
   `cpace_vectors.rs` / `cpace_p256_vectors.rs`.
 - **Coverage:** all 29 RFC 9496 A.2 invalid ristretto255 encodings, 6
   constructed bad P-256 encodings, zero + non-canonical scalars — driven
-  through `from_bytes`, DH, OPRF evaluate/finalize, and every
-  SPAKE2/SPAKE2+/OPAQUE step, both groups.
+  through `from_bytes`, DH, OPRF evaluate/finalize, every
+  SPAKE2/SPAKE2+/OPAQUE step, and every VOPRF / POPRF entry point that takes
+  peer bytes (the public key, blinded and evaluated elements single and
+  batched, the secret key, the proof's scalars), both groups.
 - **Notes:** CPace vectors are pinned to draft-21 (record the revision in test
   headers; re-check on each draft bump). This sweep found and fixed a real gap:
   OPRF `finalize` (both groups) accepted an identity evaluation element —
@@ -86,9 +102,12 @@ Coverage-guided fuzzing of everything that parses attacker-controlled bytes,
 plus full protocol state machines fed adversarial peer messages.
 
 - **Where:** standalone `fuzz/` workspace (excluded from the root workspace,
-  OSS-Fuzz-compatible layout). Six targets: `opaque_deserialize`,
-  `group_decode`, `cpace_flow`, `spake2_flow`, `spake2plus_flow`,
-  `opaque_flow` (structure-aware via `arbitrary`).
+  OSS-Fuzz-compatible layout). Seven targets: `opaque_deserialize`,
+  `group_decode`, `cpace_flow`, `spake2_flow`, `spake2plus_flow`, and the
+  structure-aware (`arbitrary`) `opaque_flow` and `verifiable_oprf`. A new
+  target is listed in four places — the `fuzz.yml` matrix, the
+  `fuzz-long.yml` matrix, its corpus-restore steps and its coverage loop —
+  and its seed directory must be committed: both workflows pass it.
 - **CI:** `.github/workflows/fuzz.yml` (PR smoke, 60 s/target) and
   `.github/workflows/fuzz-long.yml` (weekly + dispatch, fork mode, `cmin`
   corpus minimization, advisory coverage report; opens/updates a GitHub issue
@@ -99,11 +118,14 @@ plus full protocol state machines fed adversarial peer messages.
 - **Notes:** built with `overflow-checks` + `debug-assertions`; runs use
   `-s none` (no sanitizer — see "rejected alternatives"). MAC-verifying targets
   are seeded with zero MACs so their forgery asserts stay sound.
+  `verifiable_oprf` never compares proof bytes — the proof nonce is hedged —
+  only whether a proof verifies.
 
 ### Differential testing — OPAQUE vs opaque-ke v4
 
-Cross-implementation oracle for the one protocol with a same-spec peer:
-`opaque-ke` 4.x implements RFC 9807 final.
+Cross-implementation oracle for OPAQUE, which has a same-spec peer:
+`opaque-ke` 4.x implements RFC 9807 final. (The RFC 9497 VOPRF / POPRF have
+one too; see the next section.)
 
 - **Where:** `pakery-tests/tests/differential_opaque.rs`, behind the
   `differential` feature.
@@ -127,6 +149,27 @@ Cross-implementation oracle for the one protocol with a same-spec peer:
   ristretto255-SHA512, 32 for P256-SHA256). Costs are minimal (`m = 8`,
   `t = 1`, `p = 1`) — both properties are cost-independent.
 
+### Differential testing — VOPRF / POPRF vs voprf 0.5
+
+`voprf` 0.5, the RFC 9497 implementation `opaque-ke` builds on, as the peer
+for the verifiable modes added in `0.6.1`.
+
+- **Where:** `pakery-tests/tests/differential_voprf.rs`, behind the same
+  `differential` feature.
+- **Coverage:** both suites, both modes, batches of 1 to 4. Byte-compared: the
+  derived secret and public keys, blinded elements, evaluated elements, and the
+  PRF output four ways — each implementation's client finalizing each
+  implementation's proof — against both servers' `Evaluate`. Blinds are
+  equalized through a planned RNG that serves each call exactly one chunk of
+  exactly the planned length and fails if anything is left over, so a change in
+  either side's RNG consumption fails loudly.
+- **Not compared, deliberately:** proof bytes (pakery hedges the nonce; the
+  cross-verification is the comparison, and the RFC vectors pin the bytes),
+  and rejection of malformed input (`voprf` ignores trailing bytes, and on
+  P-256 decompacts SEC1 `0x05` encodings and zero-pads short keys, so it is
+  not an oracle for that). Two known divergences are pinned by their own tests.
+  Limits documented in `pakery-tests/README.md`.
+
 ### Constant-time verification (Valgrind + crabgrind)
 
 The graviola/ctgrind pattern: run real protocol flows under Valgrind memcheck
@@ -142,9 +185,36 @@ index is flagged — in debug **and** release (catches LLVM undoing `subtle`).
   branched on the pre-declassify register copy). The debug leg disables
   overflow-checks/debug-assertions (panic instrumentation floods memcheck on
   intentionally-tainted CT arithmetic in deps). Suppressions cover two
-  P-256-only dependency-internal families (invariant-true `CtOption` asserts in
-  p256 hash2curve; sec1 tag-byte dispatch); curve25519-dalek needs none.
-  OPAQUE uses identity-KSF suites (Argon2id is data-dependent by design).
+  P-256-only dependency-internal families. They exist for an invariant-true
+  `CtOption` assert in p256 hash2curve, and for sec1's tag-byte dispatch in
+  the *uncompressed* `P256Group::to_bytes`, whose tag reveals only whether the
+  point is the identity — which every caller has already ruled out. Each is
+  anchored on the call that reaches the pattern, with a leading `...`, so it
+  also hides everything else beneath that call: the hash-to-curve internals,
+  and the affine conversion of the encoded point. That conversion, a field
+  inversion, runs unsuppressed on secret points in every compressed P-256
+  encoding. Anchors are matched against mangled symbol names (inlined frames
+  by their bare names), not the demangled names Valgrind prints; narrowing
+  them further waits for a CI run whose `--gen-suppressions=all` output shows
+  the release-mode frames. curve25519-dalek needs none. OPAQUE uses
+  identity-KSF suites (Argon2id is data-dependent by design).
+  The flows cover the RFC 9497 VOPRF / POPRF too — both suites and modes,
+  random and deterministic blinds, single and batched, with the server key
+  taken three ways — and a guard test fails a run built without `p256` or
+  `hazmat`, whose flows would otherwise be compiled out in silence.
+- **The `0.6.1` P-256 fix, and why the harness had not caught it.** sec1's
+  *compressed* encoding branches on the parity of y. Until `0.6.1` it encoded
+  two secret points — the unblinded value in the base-mode OPRF's `finalize`
+  (and so OPAQUE P-256's client) and the `P256Dh` shared point (OPAQUE
+  P-256's 3DH, on the server a static key times a peer-chosen point) — and the
+  harness saw neither: the secret scalars were parsed from *laundered* copies,
+  so the points carried no taint, and three suppressions anchored on the
+  encoder's name would have hidden them anyway, on the false ground that only
+  public elements reached it. Every compressed P-256 encoding now goes through
+  a constant-time encoder, the secret scalars stay tainted through the parse
+  (only the accept/reject decision is declassified), and those three
+  suppressions are gone: under `ct.yml` the encoder now receives points
+  computed from tainted scalars, and no suppression covers it.
 
 ### Mutation testing (cargo-mutants)
 
@@ -170,15 +240,27 @@ branches, length guards.
   `test_workspace = true` is unusable (it injects a colliding `--workspace` and
   leaves the baseline building only the mutated crates, where the feature names
   do not resolve); `additional_cargo_args = ["--workspace"]` fixes baseline
-  feature resolution. Features `p256 + argon2 + differential`: argon2 must be
-  **ON** or `ksf.rs` is cfg'd out and its mutants become false survivors;
-  `__ctgrind` is **OFF**. `minimum_test_timeout = 120` catches mutants that
+  feature resolution. Features `p256 + argon2 + differential + hazmat`: argon2
+  and hazmat must be **ON** or `ksf.rs` and the deterministic-blind path are
+  cfg'd out and their mutants become false survivors; `__ctgrind` is **OFF**. `minimum_test_timeout = 120` catches mutants that
   break rejection-sampling loops (they hang → killed by timeout).
 - **Exclusions** (each justified in the config): the `ct.rs` no-op helpers, the
   `o_cat` `>`→`>=` equivalent mutant, the `leb128_encode` `==`→`!=` mutant
   (a genuine behavioural change whose OOM failure mode is unrecordable without a
-  per-process memory sandbox), and the two spake2plus `Drop` delegations
-  (drop-time observation is UB from safe Rust). Nine entries as of `0.5.0`.
+  per-process memory sandbox), four `Drop` delegations to `zeroize()` —
+  two in spake2plus, and the server and client-state cores of the verifiable
+  OPRF modes — matched by one entry (drop-time observation is UB from safe
+  Rust), and four equivalent mutants matched by one entry: the verifiable
+  modes' `identity` and `scalar_zero` replaced with `Default::default()`,
+  which the curve crates define as that same identity and zero. The test
+  `curve_defaults_are_the_identity_and_zero` in each suite file asserts that
+  against the crates' own constants, so a dependency bump that changed it
+  fails a test instead of hiding a mutant. Ten entries as of `0.6.1`: the
+  `Drop` entry's pattern was widened for the two cores rather than an entry
+  added, and the tenth is the group-constant one. The verifiable modes' public
+  types are generated by a `macro_rules!`, whose bodies cargo-mutants does not
+  mutate, so every branch lives in the generic core and the generated wrappers
+  only delegate.
 - **Coverage totals are reported, because `missed = 0` does not mean coverage
   held.** An `exclude_re` entry added to silence a survivor drives `missed` to
   zero while shrinking `caught`, and nothing else in the workflow reports
@@ -197,7 +279,9 @@ branches, length guards.
   in every crate, asserting all secret fields are zero after `.zeroize()` on a
   live value (catches a future field added without zeroization). The two
   spake2plus manual `Drop` impls were refactored to `impl Zeroize` + `Drop`
-  delegating to it, so they are testable on a live value.
+  delegating to it, so they are testable on a live value; the VOPRF / POPRF
+  server and client state follow the same pattern, and a wiped server or state
+  is refused rather than used.
 - **Scoped Miri:** `miri` job in `ci.yml`, pinned nightly,
   `-Zmiri-strict-provenance`, `cargo miri test -p pakery-core --lib`, default
   features only (protocol crates use dalek, impractical under Miri).
@@ -276,8 +360,8 @@ mechanical fix worth what it would cost.
   (a different protocol). Self-play property tests + spec vectors fill this gap.
 - **Crash-oracle fuzzing of pure group/scalar arithmetic** — documented
   low-yield (bugs there are silent wrong-output, invisible to crash oracles);
-  covered instead by RFC vectors, property tests, and the OPAQUE differential
-  oracle.
+  covered instead by RFC vectors, property tests, and the OPAQUE and VOPRF /
+  POPRF differential oracles.
 - **haybale-pitchfork** (dead since 2021), **Microwalk / DATA** (research-grade,
   Rust not first-class), **BINSEC** (per-function harnesses only fit tiny leaf
   primitives, which live in dalek/RustCrypto, not here).

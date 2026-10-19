@@ -1,7 +1,9 @@
 //! Concrete cryptographic implementations for PAKE protocols.
 //!
 //! Provides implementations of the traits defined in `pakery-core::crypto`
-//! backed by well-known cryptographic crates.
+//! backed by well-known cryptographic crates, and — in [`verifiable_oprf`] —
+//! the verifiable VOPRF and POPRF modes of RFC 9497, which stand on their own
+//! rather than behind a `pakery-core` trait.
 
 #![cfg_attr(not(feature = "std"), no_std)]
 // docs.rs passes `--cfg docsrs` (see `[package.metadata.docs.rs]`), which
@@ -32,6 +34,8 @@ pub mod oprf_ristretto;
 pub mod ristretto255;
 #[cfg(feature = "ristretto255")]
 pub mod spake2_constants;
+#[cfg(any(feature = "ristretto255", feature = "p256"))]
+pub mod verifiable_oprf;
 
 #[cfg(feature = "p256")]
 pub mod oprf_p256;
@@ -75,6 +79,13 @@ pub use oprf_ristretto::Ristretto255Oprf;
 pub use ristretto255::{Ristretto255Dh, Ristretto255Group};
 #[cfg(feature = "ristretto255")]
 pub use spake2_constants::{SPAKE2_M_COMPRESSED, SPAKE2_N_COMPRESSED, SPAKE2_S_COMPRESSED};
+#[cfg(any(feature = "ristretto255", feature = "p256"))]
+pub use verifiable_oprf::VoprfError;
+#[cfg(feature = "ristretto255")]
+pub use verifiable_oprf::{
+    Ristretto255PoprfClient, Ristretto255PoprfClientState, Ristretto255PoprfServer,
+    Ristretto255VoprfClient, Ristretto255VoprfClientState, Ristretto255VoprfServer,
+};
 
 // P-256 re-exports
 #[cfg(feature = "p256")]
@@ -91,6 +102,11 @@ pub use p256_dh::P256Dh;
 pub use p256_group::P256Group;
 #[cfg(feature = "p256")]
 pub use spake2_constants_p256::{SPAKE2_P256_M_COMPRESSED, SPAKE2_P256_N_COMPRESSED};
+#[cfg(feature = "p256")]
+pub use verifiable_oprf::{
+    P256PoprfClient, P256PoprfClientState, P256PoprfServer, P256VoprfClient, P256VoprfClientState,
+    P256VoprfServer,
+};
 
 // Pre-built ciphersuite re-exports
 #[cfg(all(feature = "cpace", feature = "p256"))]

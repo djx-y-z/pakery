@@ -8,6 +8,8 @@ Concrete cryptographic implementations for the [`pakery`](https://github.com/djx
 
 This crate provides implementations of the traits defined in [`pakery-core`](https://crates.io/crates/pakery-core), backed by well-known cryptographic libraries. Select the primitives you need via feature flags.
 
+It also implements the verifiable modes of RFC 9497 — VOPRF and POPRF — as standalone types; see [RFC 9497 VOPRF and POPRF](#rfc-9497-voprf-and-poprf) below.
+
 ## Usage
 
 ```toml
@@ -107,6 +109,73 @@ impl CpaceCiphersuite for MyCpaceSuite {
 }
 ```
 
+## RFC 9497 VOPRF and POPRF
+
+The base OPRF mode above (`Ristretto255Oprf`, `P256Oprf`) is what OPAQUE uses.
+The `verifiable_oprf` module adds RFC 9497's two verifiable modes, for both
+suites, as standalone types that exchange bytes only:
+
+| Suite (feature) | VOPRF (`0x01`) | POPRF (`0x02`) | Element | Output |
+|-----------------|----------------|----------------|---------|--------|
+| ristretto255-SHA512 (`ristretto255`) | `Ristretto255Voprf{Server,Client,ClientState}` | `Ristretto255Poprf{Server,Client,ClientState}` | 32 bytes | 64 bytes |
+| P256-SHA256 (`p256`) | `P256Voprf{Server,Client,ClientState}` | `P256Poprf{Server,Client,ClientState}` | 33 bytes | 32 bytes |
+
+- **VOPRF:** the server proves, with a DLEQ proof, that it evaluated with the
+  key behind its public key.
+- **POPRF:** additionally binds a public input `info`, known to both parties,
+  into the output.
+- Proofs are 64 bytes (`c || s`); errors are `VoprfError`, named after RFC
+  9497's. Batches of up to 65535 elements share one proof.
+- Every RFC 9497 Appendix A vector for both suites and both modes is a test;
+  the implementation is also differential-tested against
+  [`voprf`](https://crates.io/crates/voprf).
+
+```toml
+[dependencies]
+pakery-crypto = "0.6.1"
+# The example draws randomness from the OS; pakery-crypto itself only takes a
+# `rand_core::CryptoRng` and depends on no RNG.
+getrandom = { version = "0.4", features = ["sys_rng"] }
+rand_core = "0.10"
+```
+
+```rust
+use pakery_crypto::{Ristretto255PoprfClient, Ristretto255PoprfServer, VoprfError};
+
+fn main() -> Result<(), VoprfError> {
+    let mut rng = rand_core::UnwrapErr(getrandom::SysRng);
+
+    // Server: a key pair (or `derive` from a seed, or `from_secret_key`).
+    let server = Ristretto255PoprfServer::generate(&mut rng);
+    let public_key = server.public_key();
+
+    // Client: blind the private input under the public `info`.
+    let client = Ristretto255PoprfClient::new(&public_key)?;
+    let info = b"example-app/v1 epoch=42";
+    let (state, blinded) = client.blind(b"private input", info, &mut rng)?;
+
+    // Server: evaluate, with a proof.
+    let (evaluated, proof) = server.blind_evaluate(&blinded, info, &mut rng)?;
+
+    // Client: verify the proof and unblind.
+    let output = client.finalize(&state, b"private input", info, &evaluated, &proof)?;
+    assert_eq!(*output, *server.evaluate(b"private input", info)?);
+    Ok(())
+}
+```
+
+Read the [`verifiable_oprf` module documentation](https://docs.rs/pakery-crypto/latest/pakery_crypto/verifiable_oprf/)
+before deploying: it covers using one key per mode and application, key
+consistency, what RFC 9497's security analysis does and does not cover, the
+static Diffie-Hellman bound on how many evaluations a key should serve, and
+the proof-nonce hedging this crate adds.
+
+The `hazmat` feature adds `deterministic_blind`, which takes the blind as 64
+caller-supplied bytes instead of drawing it at random. That trades RFC 9497's
+unconditional input secrecy for a computational one and makes repeated
+requests linkable; its contract is in the module documentation, and it is a
+feature so that using it shows in the dependent's manifest.
+
 ## Features
 
 | Feature | Description |
@@ -119,12 +188,15 @@ impl CpaceCiphersuite for MyCpaceSuite {
 | `spake2` | Pre-built SPAKE2 ciphersuites (pulls in `pakery-spake2`) |
 | `spake2plus` | Pre-built SPAKE2+ ciphersuites (pulls in `pakery-spake2plus`) |
 | `opaque` | Pre-built OPAQUE ciphersuites (pulls in `pakery-opaque`) |
+| `hazmat` | `deterministic_blind` on the RFC 9497 VOPRF / POPRF clients (caller-supplied blind; read its contract first) |
 
 ## Security
 
 - `#![forbid(unsafe_code)]`
 - Constant-time comparisons via [`subtle`](https://crates.io/crates/subtle)
 - Secret values zeroized on drop via [`zeroize`](https://crates.io/crates/zeroize)
+- P-256 points that are secret are serialized by a constant-time encoder, not
+  the SEC1 crate's compression, which branches on the point
 
 ## MSRV
 

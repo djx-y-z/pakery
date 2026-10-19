@@ -319,6 +319,32 @@ fn opaque_flow_seeds() {
     write_seed("opaque_flow", "patterned", &patterned);
 }
 
+fn verifiable_oprf_seeds() {
+    // Structure-aware target: `arbitrary` decodes these blobs into a
+    // FlowInput whose first two fields pick the suite and the mode (a bool is
+    // the low bit of one byte). For each of the four, a run of zeros is the
+    // minimal honest flow. The patterned blob is only a seed for mutation:
+    // `arbitrary` reads a continue bit before every collection element, so
+    // the alternating parity of `i % 251` decodes to many empty inputs (the
+    // target keeps four), a two-byte blind info and every later option unset
+    // — no server or finalize info, no deterministic blind, no tamper. The
+    // fuzzer's mutations reach those arms.
+    let patterned: Vec<u8> = (0..256u16).map(|i| (i % 251) as u8).collect();
+    for (suite, mode, tag) in [
+        (0u8, 0u8, "r255-voprf"),
+        (0, 1, "r255-poprf"),
+        (1, 0, "p256-voprf"),
+        (1, 1, "p256-poprf"),
+    ] {
+        let mut zeros = vec![suite, mode];
+        zeros.extend_from_slice(&[0u8; 64]);
+        write_seed("verifiable_oprf", &format!("{tag}-zeros"), &zeros);
+        let mut blob = vec![suite, mode];
+        blob.extend_from_slice(&patterned);
+        write_seed("verifiable_oprf", &format!("{tag}-patterned"), &blob);
+    }
+}
+
 fn main() {
     opaque_deserialize_seeds();
     group_decode_seeds_for::<Ristretto255Group, Ristretto255Dh, Ristretto255Oprf>(0, "r255");
@@ -330,5 +356,6 @@ fn main() {
     spake2plus_seeds_for::<Spake2PlusRistretto255>(0, "r255");
     spake2plus_seeds_for::<Spake2PlusP256>(1, "p256");
     opaque_flow_seeds();
+    verifiable_oprf_seeds();
     println!("seeds written to {}", seed_dir("").display());
 }

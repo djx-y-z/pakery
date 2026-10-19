@@ -29,6 +29,12 @@ cpace = ["dep:pakery-cpace"]
 spake2 = ["dep:pakery-spake2"]
 spake2plus = ["dep:pakery-spake2plus"]
 opaque = ["dep:pakery-opaque"]
+# Exposes `deterministic_blind` on the RFC 9497 VOPRF / POPRF clients: the
+# blind is supplied by the caller instead of drawn at random. It is a
+# production API with a contract (see `verifiable_oprf`, "Deterministic
+# blinding"), kept behind a feature so that using it is visible in the
+# dependent's manifest. Adds no dependency.
+hazmat = []
 
 [dependencies]
 pakery-core = { workspace = true }

@@ -1,7 +1,8 @@
 //! Constant-time verification harness (ctgrind pattern, roadmap item 6).
 //!
-//! Runs full protocol flows for all four PAKEs on both groups with secret
-//! material marked *undefined* for Valgrind memcheck (via `pakery_core::ct`,
+//! Runs full protocol flows for all four PAKEs and for the RFC 9497 VOPRF /
+//! POPRF, on both groups, with secret material marked *undefined* for
+//! Valgrind memcheck (via `pakery_core::ct`,
 //! wired up by the `__ctgrind` feature). Under
 //! `valgrind --track-origins=yes --error-exitcode=99` any secret-dependent
 //! branch or memory index in the compiled artifact — including what LLVM
@@ -17,9 +18,12 @@
 //!   design in its second half (RFC 9106 accepts this hybrid trade-off), so
 //!   running it tainted would only flag Argon2's documented design choice.
 //! - Everything intentionally declassified (wire messages, MAC tags before
-//!   sending, accept/reject decisions, secret-scalar canonicity checks at
-//!   the dalek/p256 parse boundary) is documented at the `ct` call sites in
-//!   the library crates and summarized in `pakery_core::ct`'s module docs.
+//!   sending, accept/reject decisions, and the secret-scalar canonicity checks
+//!   of the base-mode ristretto255 OPRF and Diffie-Hellman parses, laundered
+//!   because their `.into_option()` branches; the P-256 parses since 0.6.1,
+//!   like the RFC 9497 modes' parses on both suites, keep the scalar tainted)
+//!   is documented at the `ct` call sites in the library crates and summarized
+//!   in `pakery_core::ct`'s module docs.
 //! - All randomness is a seeded `ChaCha20Rng`, so runs are deterministic.
 
 #![cfg(feature = "__ctgrind")]
@@ -52,6 +56,18 @@ fn ct_harness_is_armed() {
             "PAKERY_CT_EXPECT_ARMED is set but the ct helpers are no-ops \
              (crabgrind built without Valgrind headers?)"
         );
+    }
+}
+
+/// Guard against flows that silently vanish: the P-256 and `hazmat` flows
+/// below are compiled only with their features, so a CT run built without
+/// either would go green while checking less. ct.yml sets
+/// `PAKERY_CT_EXPECT_ARMED=1` and builds with both.
+#[test]
+fn ct_harness_covers_every_flow() {
+    if std::env::var_os("PAKERY_CT_EXPECT_ARMED").is_some() {
+        #[cfg(not(all(feature = "p256", feature = "hazmat")))]
+        panic!("the CT run must enable `p256` and `hazmat`, or their flows are compiled out");
     }
 }
 
@@ -300,4 +316,140 @@ fn ct_opaque_ristretto255() {
 #[test]
 fn ct_opaque_p256() {
     opaque_flow::<pakery_crypto::OpaqueP256>(10);
+}
+
+// ---------------------------------------------------------------------------
+// RFC 9497 VOPRF / POPRF
+// ---------------------------------------------------------------------------
+
+/// A copy of `bytes` marked secret (keys, seeds, deterministic blinds).
+fn secret_array<const N: usize>(bytes: [u8; N]) -> [u8; N] {
+    ct::mark_secret(&bytes);
+    bytes
+}
+
+/// One suite and mode. The server key comes three ways — `derive` from a
+/// marked seed, `from_secret_key` of a marked key, `generate` — and each runs a
+/// single request, a batch of three, the deterministic blind (with `hazmat`),
+/// and the rejection paths, all with the input marked secret. Wire values
+/// (public key, blinded and evaluated elements, proof) are compared with plain
+/// `assert_eq!`: memcheck would flag that comparison if the library had not
+/// declassified them, so it doubles as a check that it did.
+macro_rules! verifiable_flow {
+    ($name:ident, server: $server:ty, client: $client:ty, info: [$($info:expr)?] $(,)?) => {
+        fn $name(seed: u64) {
+            let mut rng = ChaCha20Rng::seed_from_u64(seed);
+            let derived = <$server>::derive(&secret_array([0x5a; 32]), b"ct-key-info").unwrap();
+            let imported = <$server>::from_secret_key(&secret_array(*derived.secret_key())).unwrap();
+            assert_eq!(derived.public_key(), imported.public_key());
+            let generated = <$server>::generate(&mut rng);
+
+            for server in [&derived, &imported, &generated] {
+                let client = <$client>::new(&server.public_key()).unwrap();
+                let input = secret_password(PASSWORD);
+
+                // A single request.
+                let (state, blinded) = client.blind(&input, $($info,)? &mut rng).unwrap();
+                let (evaluated, proof) = server.blind_evaluate(&blinded, $($info,)? &mut rng).unwrap();
+                let output = client.finalize(&state, &input, $($info,)? &evaluated, &proof).unwrap();
+                assert_secret_eq(&*output, &*server.evaluate(&input, $($info)?).unwrap());
+
+                // Rejections under taint: another input, a flipped proof byte.
+                let wrong = secret_password(WRONG_PASSWORD);
+                assert!(client.finalize(&state, &wrong, $($info,)? &evaluated, &proof).is_err());
+                let mut tampered = proof;
+                tampered[40] ^= 1;
+                assert!(client.finalize(&state, &input, $($info,)? &evaluated, &tampered).is_err());
+
+                // A batch of three.
+                let inputs = [secret_password(b"one"), secret_password(b"two"), input.clone()];
+                let mut states = Vec::new();
+                let mut batch = Vec::new();
+                for i in &inputs {
+                    let (state, b) = client.blind(i, $($info,)? &mut rng).unwrap();
+                    states.push(state);
+                    batch.push(b);
+                }
+                let (evaluated, proof) =
+                    server.blind_evaluate_batch(&batch, $($info,)? &mut rng).unwrap();
+                let outputs = client
+                    .finalize_batch(&states, &inputs, $($info,)? &evaluated, &proof)
+                    .unwrap();
+                assert_secret_eq(&*outputs[2], &*output);
+
+                // The deterministic blind: the bytes are secret, the blinded
+                // element is not.
+                #[cfg(feature = "hazmat")]
+                {
+                    let blind = secret_array([0x33; 64]);
+                    let (state, blinded) = client.deterministic_blind(&input, $($info,)? &blind).unwrap();
+                    let (_, again) = client.deterministic_blind(&input, $($info,)? &blind).unwrap();
+                    assert_eq!(blinded, again);
+                    let (evaluated, proof) = server.blind_evaluate(&blinded, $($info,)? &mut rng).unwrap();
+                    let det = client.finalize(&state, &input, $($info,)? &evaluated, &proof).unwrap();
+                    assert_secret_eq(&*det, &*output);
+                }
+            }
+        }
+    };
+}
+
+verifiable_flow!(
+    voprf_flow_ristretto255,
+    server: pakery_crypto::Ristretto255VoprfServer,
+    client: pakery_crypto::Ristretto255VoprfClient,
+    info: [],
+);
+verifiable_flow!(
+    poprf_flow_ristretto255,
+    server: pakery_crypto::Ristretto255PoprfServer,
+    client: pakery_crypto::Ristretto255PoprfClient,
+    info: [b"ct-info"],
+);
+#[cfg(feature = "p256")]
+verifiable_flow!(
+    voprf_flow_p256,
+    server: pakery_crypto::P256VoprfServer,
+    client: pakery_crypto::P256VoprfClient,
+    info: [],
+);
+#[cfg(feature = "p256")]
+verifiable_flow!(
+    poprf_flow_p256,
+    server: pakery_crypto::P256PoprfServer,
+    client: pakery_crypto::P256PoprfClient,
+    info: [b"ct-info"],
+);
+
+#[test]
+fn ct_voprf_ristretto255() {
+    voprf_flow_ristretto255(11);
+}
+
+#[test]
+fn ct_poprf_ristretto255() {
+    poprf_flow_ristretto255(12);
+    // A finalize info other than the blinded one is refused under taint too.
+    let server =
+        pakery_crypto::Ristretto255PoprfServer::generate(&mut ChaCha20Rng::seed_from_u64(13));
+    let client = pakery_crypto::Ristretto255PoprfClient::new(&server.public_key()).unwrap();
+    let mut rng = ChaCha20Rng::seed_from_u64(14);
+    let input = secret_password(PASSWORD);
+    let (state, blinded) = client.blind(&input, b"one", &mut rng).unwrap();
+    let (evaluated, proof) = server.blind_evaluate(&blinded, b"one", &mut rng).unwrap();
+    assert!(client
+        .finalize(&state, &input, b"two", &evaluated, &proof)
+        .is_err());
+}
+
+#[cfg(feature = "p256")]
+#[test]
+fn ct_voprf_p256() {
+    voprf_flow_p256(15);
+}
+
+#[cfg(feature = "p256")]
+#[test]
+fn ct_poprf_p256() {
+    poprf_flow_p256(16);
 }

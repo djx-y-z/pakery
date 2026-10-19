@@ -45,10 +45,12 @@ All protocol crates are generic over cryptographic primitives via traits defined
 
 ## Supported cipher suites
 
-| Feature | Group | Hash | KDF | MAC | OPRF |
+| Feature | Group | Hash | KDF | MAC | OPRF (RFC 9497) |
 |---------|-------|------|-----|-----|------|
-| `ristretto255` | Ristretto255 | SHA-512 | HKDF-SHA-512 | HMAC-SHA-512 | Ristretto255 VOPRF |
-| `p256` | P-256 | SHA-256 / SHA-512 | HKDF-SHA-256 | HMAC-SHA-256 | P-256 VOPRF |
+| `ristretto255` | Ristretto255 | SHA-512 | HKDF-SHA-512 | HMAC-SHA-512 | ristretto255-SHA512: OPRF, VOPRF, POPRF |
+| `p256` | P-256 | SHA-256 / SHA-512 | HKDF-SHA-256 | HMAC-SHA-256 | P256-SHA256: OPRF, VOPRF, POPRF |
+
+OPAQUE uses the base OPRF mode. The verifiable VOPRF and POPRF modes are standalone types in `pakery-crypto`'s `verifiable_oprf` module, not part of any PAKE.
 
 Optional: `argon2` feature enables Argon2id as a key-stretching function for OPAQUE.
 

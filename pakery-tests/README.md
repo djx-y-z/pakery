@@ -11,6 +11,7 @@ vectors, property-based tests, and differential testing. Not published.
 | Negative vectors (official CPace + home-grown sweep) | `negative_vectors.rs`, `cpace*_vectors.rs`, `vectors/negative_vectors.json` | yes |
 | Property-based tests (proptest) | `prop_*.rs` | yes |
 | Differential testing vs opaque-ke | `differential_opaque.rs` | no — `differential` feature |
+| Differential testing vs voprf (RFC 9497 VOPRF / POPRF) | `differential_voprf.rs` | no — `differential` feature |
 | Constant-time harness (ctgrind) | `ct_flows.rs` | no — `__ctgrind` feature |
 
 ## Feature flags
@@ -18,7 +19,9 @@ vectors, property-based tests, and differential testing. Not published.
 - `p256` — enables the P-256 suites in vector and property tests.
 - `argon2` — enables the Argon2id KSF tests.
 - `differential` — enables the OPAQUE differential suite against
-  [opaque-ke](https://crates.io/crates/opaque-ke) v4. Implies `p256` and
+  [opaque-ke](https://crates.io/crates/opaque-ke) v4, and the RFC 9497 VOPRF /
+  POPRF differential suite against [voprf](https://crates.io/crates/voprf)
+  0.5. Implies `p256` and
   `argon2` (the suite covers an Argon2id case on both sides, which is what
   pins the KSF salt and `T = Nh` against a conformant peer). Kept out
   of default runs because opaque-ke pulls a large dependency tree; CI covers it
@@ -27,6 +30,12 @@ vectors, property-based tests, and differential testing. Not published.
   --all-features` on 1.85, deliberately excluding this crate so that an
   opaque-ke release raising its own MSRV cannot redden a gate that exists to
   protect the *published* crates.
+- `hazmat` — forwards pakery-crypto's `hazmat`, so the property tests and
+  the constant-time harness also exercise the VOPRF / POPRF
+  `deterministic_blind`. It is deliberately not on the pakery-crypto
+  dependency line: feature unification would then build every plain
+  `cargo test --workspace` with it, and nothing would test the build without
+  it.
 - `__ctgrind` (private) — enables the constant-time verification harness
   (`ct_flows.rs`) and turns `pakery_core::ct`'s helpers into Valgrind
   memcheck client requests via [crabgrind](https://crates.io/crates/crabgrind).
@@ -41,11 +50,12 @@ vectors, property-based tests, and differential testing. Not published.
 
 ```bash
 cargo test -p pakery-tests --features differential --test differential_opaque
+cargo test -p pakery-tests --features differential --test differential_voprf
 
 # Constant-time harness (Linux with valgrind installed):
 CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER="valgrind --track-origins=yes --error-exitcode=99 --quiet" \
   PAKERY_CT_EXPECT_ARMED=1 \
-  cargo test -p pakery-tests --features __ctgrind,p256 --test ct_flows -- --test-threads=1
+  cargo test -p pakery-tests --features __ctgrind,p256,hazmat --test ct_flows -- --test-threads=1
 ```
 
 ## The differential oracle and its limits
@@ -82,3 +92,34 @@ own unit/property/fuzz tests instead.
 Cases: four fixed deterministic runs (default and explicit identities per
 suite) plus proptest-randomized inputs (16 cases per suite: passwords,
 credential ids, identities, context, seeds, nonces, blinds).
+
+## The VOPRF / POPRF oracle and its limits
+
+`differential_voprf.rs` compares pakery-crypto's RFC 9497 VOPRF and POPRF with
+`voprf` 0.5, the implementation opaque-ke builds on, for both suites
+(ristretto255-SHA512 and P256-SHA256). Keys come from `DeriveKeyPair` on both
+sides; blinds are equalized by feeding both the same RNG bytes through a
+planned RNG that serves each call exactly one chunk of exactly the planned
+length and checks on drop that nothing was left over.
+
+**Byte-compared:** secret and public keys, blinded elements, evaluated elements
+(single and batched), and the PRF output four ways — each implementation's
+client finalizing each implementation's proof — against both servers'
+`Evaluate`.
+
+**Not byte-compared:** proofs. pakery-crypto hedges the proof nonce with the key
+and the statement, so its proofs differ from `voprf`'s on equal RNG bytes; each
+client verifying the other's proof is the comparison, and the proof bytes are
+pinned by the RFC vectors in pakery-crypto. Nor is `voprf` used as an oracle
+for rejecting malformed bytes: its deserializers ignore trailing bytes, and
+its P-256 path decompacts SEC1 `0x05` encodings and zero-pads short keys in
+`new_with_key`.
+
+**Known divergences, pinned by their own tests:** a proof with a zero `c` or
+`s` is a deserialization error in `voprf` and a verification failure here
+(RFC 9497 §4 lets `DeserializeScalar` return any value in `[0, p - 1]`); and
+`voprf`'s POPRF `evaluate(input, None)` leaves out the `info` framing its own
+`finalize(.., None)` includes, so the suite always passes `Some(info)`.
+
+Cases: the RFC 9497 Appendix A key material as a fixed case, plus 16
+proptest-randomized cases per suite and mode (batches of 1 to 4).

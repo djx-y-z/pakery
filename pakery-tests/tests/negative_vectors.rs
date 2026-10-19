@@ -1,5 +1,5 @@
-//! Negative-vector sweep for OPAQUE, SPAKE2 and SPAKE2+
-//! (see SECURITY_TESTING.md, "Negative test vectors").
+//! Negative-vector sweep for OPAQUE, SPAKE2, SPAKE2+ and the RFC 9497
+//! VOPRF / POPRF (see SECURITY_TESTING.md, "Negative test vectors").
 //!
 //! RFC 9807 (OPAQUE), RFC 9382 (SPAKE2) and RFC 9383 (SPAKE2+) ship no
 //! negative test vectors, so `vectors/negative_vectors.json` carries
@@ -21,6 +21,11 @@
 //!   scalar);
 //! - `Oprf::server_evaluate` (bad blinded element, bad/zero OPRF key) and
 //!   `OprfClientState::finalize` (bad evaluated element);
+//! - the VOPRF / POPRF types of both suites: the client's public key, the
+//!   server's secret key, blinded elements (single and in a batch), evaluated
+//!   elements (single and in a batch), and the proof's two scalars — where a
+//!   non-canonical scalar is a deserialization error and a zero one a
+//!   verification failure, RFC 9497 §4 allowing `[0, p - 1]`;
 //! - SPAKE2 `finish` on both parties (bad peer share);
 //! - SPAKE2+ `Verifier::start` (bad prover share) and `Prover::finish`
 //!   (bad verifier share);
@@ -158,6 +163,145 @@ fn sweep_oprf<O: Oprf>(v: &GroupVectors) {
         );
     }
 }
+
+// --- RFC 9497 VOPRF / POPRF ---
+
+macro_rules! sweep_verifiable {
+    ($name:ident, server: $server:ty, client: $client:ty, info: [$($info:expr)?] $(,)?) => {
+        fn $name(v: &GroupVectors) {
+            use pakery_crypto::VoprfError;
+            let mut rng = rand_core::UnwrapErr(getrandom::SysRng);
+            let server = <$server>::derive(&[0x07; 32], b"negative-vector-sweep").expect("key");
+            let client = <$client>::new(&server.public_key()).expect("public key");
+            let (state, blinded) = client.blind(b"password", $($info,)? &mut rng).expect("blind");
+            let (evaluated, proof) = server
+                .blind_evaluate(&blinded, $($info,)? &mut rng)
+                .expect("evaluate");
+            // A batch of two, whose second evaluated element is replaced below;
+            // the untouched batch finalizes, so a rejection is the bad element's.
+            let batch_inputs = [b"password".as_slice(), b"second input".as_slice()];
+            let mut batch_states = Vec::new();
+            let mut batch_blinded = Vec::new();
+            for input in batch_inputs {
+                let (state, blinded) = client.blind(input, $($info,)? &mut rng).expect("blind");
+                batch_states.push(state);
+                batch_blinded.push(blinded);
+            }
+            let (batch_evaluated, batch_proof) = server
+                .blind_evaluate_batch(&batch_blinded, $($info,)? &mut rng)
+                .expect("evaluate batch");
+            client
+                .finalize_batch(
+                    &batch_states,
+                    &batch_inputs,
+                    $($info,)?
+                    &batch_evaluated,
+                    &batch_proof,
+                )
+                .expect("the untouched batch finalizes");
+
+            for e in bad_points(v) {
+                let bad = h(&e.hex);
+                let ctx = |what: &str| format!("{what} must reject {}: {}", e.name, e.reason);
+                assert_eq!(<$client>::new(&bad).unwrap_err(), VoprfError::Deserialize, "{}", ctx("Client::new"));
+                assert_eq!(
+                    server.blind_evaluate(&bad, $($info,)? &mut rng).unwrap_err(),
+                    VoprfError::Deserialize,
+                    "{}",
+                    ctx("blind_evaluate")
+                );
+                assert_eq!(
+                    server
+                        .blind_evaluate_batch(&[blinded.as_slice(), &bad], $($info,)? &mut rng)
+                        .unwrap_err(),
+                    VoprfError::Deserialize,
+                    "{}",
+                    ctx("blind_evaluate_batch")
+                );
+                assert_eq!(
+                    client.finalize(&state, b"password", $($info,)? &bad, &proof).unwrap_err(),
+                    VoprfError::Deserialize,
+                    "{}",
+                    ctx("finalize")
+                );
+                assert_eq!(
+                    client
+                        .finalize_batch(
+                            &batch_states,
+                            &batch_inputs,
+                            $($info,)?
+                            &[batch_evaluated[0].as_slice(), bad.as_slice()],
+                            &batch_proof,
+                        )
+                        .unwrap_err(),
+                    VoprfError::Deserialize,
+                    "{}",
+                    ctx("finalize_batch")
+                );
+            }
+            for e in bad_scalars(v) {
+                assert_eq!(
+                    <$server>::from_secret_key(&h(&e.hex)).unwrap_err(),
+                    VoprfError::Deserialize,
+                    "from_secret_key must reject {}: {}",
+                    e.name,
+                    e.reason
+                );
+            }
+            for e in &v.non_canonical_scalars {
+                let bad = h(&e.hex);
+                for half in [0..32, 32..64] {
+                    let mut tampered = proof;
+                    tampered[half].copy_from_slice(&bad);
+                    assert_eq!(
+                        client.finalize(&state, b"password", $($info,)? &evaluated, &tampered).unwrap_err(),
+                        VoprfError::Deserialize,
+                        "a proof scalar {} must not deserialize: {}",
+                        e.name,
+                        e.reason
+                    );
+                }
+            }
+            let zero = h(&v.zero_scalar.hex);
+            for half in [0..32, 32..64] {
+                let mut tampered = proof;
+                tampered[half].copy_from_slice(&zero);
+                assert_eq!(
+                    client.finalize(&state, b"password", $($info,)? &evaluated, &tampered).unwrap_err(),
+                    VoprfError::Verify,
+                    "a zero proof scalar deserializes (RFC 9497 §4) and must fail verification"
+                );
+            }
+        }
+    };
+}
+
+sweep_verifiable!(
+    sweep_ristretto255_voprf,
+    server: pakery_crypto::Ristretto255VoprfServer,
+    client: pakery_crypto::Ristretto255VoprfClient,
+    info: [],
+);
+sweep_verifiable!(
+    sweep_ristretto255_poprf,
+    server: pakery_crypto::Ristretto255PoprfServer,
+    client: pakery_crypto::Ristretto255PoprfClient,
+    info: [b"negative-vector-sweep info"],
+);
+#[cfg(feature = "p256")]
+sweep_verifiable!(
+    sweep_p256_voprf,
+    server: pakery_crypto::P256VoprfServer,
+    client: pakery_crypto::P256VoprfClient,
+    info: [],
+);
+#[cfg(feature = "p256")]
+sweep_verifiable!(
+    sweep_p256_poprf,
+    server: pakery_crypto::P256PoprfServer,
+    client: pakery_crypto::P256PoprfClient,
+    info: [b"negative-vector-sweep info"],
+);
 
 // --- SPAKE2 (RFC 9382) ---
 
@@ -376,6 +520,12 @@ fn ristretto255_oprf() {
 }
 
 #[test]
+fn ristretto255_verifiable_oprf() {
+    sweep_ristretto255_voprf(&vectors().ristretto255);
+    sweep_ristretto255_poprf(&vectors().ristretto255);
+}
+
+#[test]
 fn ristretto255_spake2() {
     sweep_spake2::<pakery_crypto::Spake2Ristretto255>(&vectors().ristretto255);
 }
@@ -409,6 +559,12 @@ mod p256_suite {
     #[test]
     fn p256_oprf() {
         sweep_oprf::<pakery_crypto::P256Oprf>(&vectors().p256);
+    }
+
+    #[test]
+    fn p256_verifiable_oprf() {
+        sweep_p256_voprf(&vectors().p256);
+        sweep_p256_poprf(&vectors().p256);
     }
 
     #[test]

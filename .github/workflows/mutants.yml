@@ -88,7 +88,7 @@ jobs:
       #
       # Exit-code handling: cargo-mutants exits 3 when a mutant TIMES OUT. A
       # timeout is a KILL, not a survivor — the rejection-sampling loops (e.g.
-      # `delete ! in client_blind`, oprf_p256.rs:173 / oprf_ristretto.rs:120)
+      # `delete ! in client_blind` in oprf_p256.rs and oprf_ristretto.rs)
       # spin forever when their accept condition is inverted, and
       # `minimum_test_timeout` in .cargo/mutants.toml exists precisely to catch
       # them. Survivors (exit 2) are gated independently by the `summarize` job,

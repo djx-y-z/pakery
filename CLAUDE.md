@@ -56,6 +56,15 @@
 
 - Methods that accept deterministic scalars/seeds (for RFC test vector validation) must be gated behind `#[cfg(feature = "test-utils")]` and documented with a `# Security` warning.
 - Never use `test-utils` methods in production code paths.
+- Prefer injecting test values through an existing argument over adding such a method: the RFC 9497 VOPRF/POPRF vectors replay their blinds through the `rng` argument, and the one value no public path reproduces (the hedged proof nonce) is injected through a `#[cfg(test)]` helper that never compiles into the library.
+
+### Hazmat APIs
+
+- A production API that is safe only under a caller-side contract the types cannot enforce is gated behind the `hazmat` cargo feature, never `test-utils`. Today that is `deterministic_blind` on the RFC 9497 VOPRF/POPRF clients in `pakery-crypto`.
+- Every `hazmat` item carries a `# Security` section stating the contract, and non-`hazmat` library code never calls it.
+- A `hazmat` item still rejects degenerate input with an error rather than trusting the caller — `deterministic_blind` refuses bytes that reduce to zero.
+- No crate in this repository switches `hazmat` on unconditionally, on a dependency line or in a `default` list: feature unification would switch it on for every build of the dependent, and nothing would test the code without it. A crate that needs it forwards it behind a feature of its own, as `pakery-tests` does. The one exception is the standalone, unpublished `fuzz/` workspace, which nothing depends on. Downstream code opts in on its own dependency line, which is where the opt-in is meant to show.
+- `hazmat` adds no dependency. It is listed in `.cargo/mutants.toml` and in CI's feature combinations; dropping it from either leaves its code unmutated or unbuilt.
 
 ## Build & test commands
 

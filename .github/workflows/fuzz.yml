@@ -26,6 +26,7 @@ jobs:
           - spake2_flow
           - spake2plus_flow
           - opaque_flow
+          - verifiable_oprf
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@nightly
