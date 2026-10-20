@@ -25,7 +25,9 @@ permissions:
 env:
   CARGO_TERM_COLOR: always
   # Fail the ct_harness_is_armed test if the ct helpers compiled to no-ops
-  # (e.g. crabgrind fell back to its stub headers) instead of going green
+  # (e.g. crabgrind fell back to its stub headers), if the binary is not
+  # running under Valgrind at all (crabgrind's `running_mode`), or if
+  # memcheck is not the tool answering its requests, instead of going green
   # without checking anything.
   PAKERY_CT_EXPECT_ARMED: "1"
 

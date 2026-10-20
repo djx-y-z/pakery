@@ -39,7 +39,8 @@ hazmat = ["pakery-crypto/hazmat"]
 # runs under `valgrind --track-origins=yes --error-exitcode=99` in debug and
 # release. Outside Valgrind the marks are runtime no-ops, so this feature is
 # safe (if pointless) in ordinary `--all-features` test runs. It also names
-# crabgrind directly, for the harness's check that it runs under Valgrind.
+# crabgrind directly, for the harness's checks that it runs under Valgrind
+# and that memcheck answers it.
 __ctgrind = ["pakery-core/__ctgrind", "dep:crabgrind"]
 
 [dependencies]
@@ -58,7 +59,8 @@ curve25519-dalek = { workspace = true }
 p256 = { workspace = true, optional = true }
 # Already in the graph through pakery-core's `__ctgrind`; the edge exists so
 # `ct_harness_is_armed` can ask crabgrind whether the binary runs under
-# Valgrind at all (`valgrind::running_mode`).
+# Valgrind at all (`valgrind::running_mode`) and whether memcheck answers its
+# marking requests (`memcheck::mark_memory`).
 crabgrind = { version = "0.4.0", optional = true }
 # Differential-testing deps (see SECURITY_TESTING.md, "Differential testing"). Cargo does
 # not support optional dev-dependencies, so these live in [dependencies] behind

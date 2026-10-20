@@ -1,9 +1,10 @@
 //! Constant-time verification harness (ctgrind pattern, roadmap item 6).
 //!
 //! Runs full protocol flows for all four PAKEs and for the RFC 9497 VOPRF /
-//! POPRF, on both groups, with secret material marked *undefined* for
-//! Valgrind memcheck (via `pakery_core::ct`,
-//! wired up by the `__ctgrind` feature). Under
+//! POPRF, plus the one `DhGroup` function OPAQUE's flows leave out
+//! (`public_key_from_private`), on both groups, with secret material marked
+//! *undefined* for Valgrind memcheck (via `pakery_core::ct`, wired up by the
+//! `__ctgrind` feature). Under
 //! `valgrind --track-origins=yes --error-exitcode=99` any secret-dependent
 //! branch or memory index in the compiled artifact — including what LLVM
 //! makes of `subtle` in release mode — surfaces as a memcheck error.
@@ -28,7 +29,7 @@
 
 #![cfg(feature = "__ctgrind")]
 
-use pakery_core::crypto::{CpaceGroup, Hash};
+use pakery_core::crypto::{CpaceGroup, DhGroup, Hash};
 use pakery_core::ct;
 use pakery_cpace::{CpaceInitiator, CpaceMode, CpaceResponder};
 use pakery_crypto::Sha512Hash;
@@ -48,8 +49,10 @@ const WRONG_PASSWORD: &[u8] = b"correct horse battery stable";
 /// `pakery_core::ct::is_active`), and every client request is a no-op when
 /// the binary is not running under Valgrind at all, as it would be if ct.yml's
 /// cargo runner setting stopped applying (another runner architecture, a
-/// renamed target). ct.yml sets `PAKERY_CT_EXPECT_ARMED=1`, so either case
-/// fails loudly instead of going green without checking anything.
+/// renamed target), or when it runs under a Valgrind tool other than memcheck,
+/// which handles none of memcheck's requests. ct.yml sets
+/// `PAKERY_CT_EXPECT_ARMED=1`, so each case fails loudly instead of going
+/// green without checking anything.
 #[test]
 fn ct_harness_is_armed() {
     if std::env::var_os("PAKERY_CT_EXPECT_ARMED").is_some() {
@@ -62,6 +65,21 @@ fn ct_harness_is_armed() {
             crabgrind::valgrind::running_mode().is_valgrind(),
             "PAKERY_CT_EXPECT_ARMED is set but the harness is not running \
              under Valgrind (did the cargo runner setting stop applying?)"
+        );
+        // Memcheck answers a marking request with `MAKE_MEM_OK`; anything
+        // else leaves the request's default, which crabgrind reports as an
+        // error. Marking a public buffer defined changes nothing.
+        let probe = [0u8; 1];
+        assert!(
+            crabgrind::memcheck::mark_memory(
+                probe.as_ptr().cast(),
+                probe.len(),
+                crabgrind::memcheck::MemState::Defined,
+            )
+            .is_ok(),
+            "PAKERY_CT_EXPECT_ARMED is set but memcheck did not handle a \
+             marking request (is ct.yml's runner a Valgrind tool other than \
+             memcheck?)"
         );
     }
 }
@@ -377,6 +395,29 @@ fn ct_opaque_ristretto255() {
 #[test]
 fn ct_opaque_p256() {
     opaque_flow::<pakery_crypto::OpaqueP256>(10);
+}
+
+/// `DhGroup::public_key_from_private`, which no OPAQUE flow calls, on a
+/// secret key: the key is marked here as well as through `generate_keypair`'s
+/// seed, and the public key it rebuilds must be the one `generate_keypair`
+/// returned. P-256 keeps the scalar tainted through the parse; ristretto255
+/// launders its canonicity check on a copy, by design.
+fn dh_public_key_flow<D: DhGroup>(seed: u64) {
+    let mut rng = ChaCha20Rng::seed_from_u64(seed);
+    let (sk, pk) = D::generate_keypair(&mut rng).unwrap();
+    ct::mark_secret(&sk);
+    assert_eq!(D::public_key_from_private(&sk).unwrap(), pk);
+}
+
+#[test]
+fn ct_dh_public_key_ristretto255() {
+    dh_public_key_flow::<pakery_crypto::Ristretto255Dh>(17);
+}
+
+#[cfg(feature = "p256")]
+#[test]
+fn ct_dh_public_key_p256() {
+    dh_public_key_flow::<pakery_crypto::P256Dh>(18);
 }
 
 // ---------------------------------------------------------------------------
