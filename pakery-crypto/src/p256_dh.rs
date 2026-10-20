@@ -50,6 +50,10 @@ impl DhGroup for P256Dh {
     fn derive_keypair(seed: &[u8]) -> Result<(Zeroizing<Vec<u8>>, Vec<u8>), PakeError> {
         use pakery_core::crypto::oprf::Oprf;
 
+        // ctgrind: the seed is secret key material whoever drew it, and
+        // OPAQUE passes its ephemeral key shares' RNG bytes straight in.
+        // Marked here, the key and every product with it run tainted.
+        pakery_core::ct::mark_secret(seed);
         let sk_bytes = P256Oprf::derive_key(seed, b"OPAQUE-DeriveDiffieHellmanKeyPair")?;
         let scalar = scalar_from_bytes(&sk_bytes)?;
         let pk = point_to_bytes(&(ProjectivePoint::GENERATOR * scalar));

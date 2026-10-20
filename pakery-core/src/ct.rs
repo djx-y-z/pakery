@@ -18,6 +18,14 @@
 //!
 //! Marked secret at their byte boundaries: passwords, scalar/private-key
 //! bytes, DH outputs, OPRF outputs, PRKs and derived keys, envelope contents.
+//! Random scalars are marked from the start. ristretto255 marks its wide
+//! bytes before the branch-free reduction (where a zero is redrawn, only
+//! whether the candidate is zero is declassified); P-256 rejection-samples
+//! 32 bytes, deciding on an unmarked candidate, then marks the accepted
+//! bytes and re-derives the scalar from them. pakery-crypto's
+//! `DhGroup::derive_keypair` implementations mark their seed, so a key
+//! derived from random bytes nobody marked, as OPAQUE's ephemeral key
+//! shares are, is secret too.
 //!
 //! Declassified (each call site carries a justification comment):
 //! - public-key and key-share encodings before wire serialization — public
@@ -26,15 +34,19 @@
 //! - ciphertext (e.g. OPAQUE `masked_response`) before wire output;
 //! - boolean accept/reject decisions after a `subtle::ct_eq` comparison
 //!   ([`declassify_choice`]) — the abort/continue outcome is public;
-//! - copies of secret-scalar encodings fed to `curve25519-dalek` /
-//!   `p256` deserializers ([`declassify`] on a temporary copy): their
-//!   canonicity checks branch on a `subtle::CtOption` discriminant, which
-//!   memcheck would flag inside the dependency. Canonicity of an honestly
-//!   generated key is public information, and constant-time verification of
-//!   dependency-internal primitives is out of scope here (tracked upstream;
-//!   see SECURITY_TESTING.md, "Constant-time verification"). Where a parse is laundered
-//!   this way, the *result* of the following group operation is re-marked
-//!   secret so taint stays end-to-end.
+//! - copies of secret-scalar encodings fed to `curve25519-dalek`'s
+//!   deserializer in the base-mode ristretto255 OPRF and Diffie-Hellman
+//!   parses ([`declassify`] on a temporary copy): the `.into_option()` after
+//!   dalek's branch-free `from_canonical_bytes` branches on the
+//!   `subtle::CtOption` discriminant, which memcheck would flag. Canonicity
+//!   of an honestly generated key is public information. Where a
+//!   Diffie-Hellman computation launders its parse this way, its output is
+//!   re-marked so taint stays end-to-end; the base-mode ristretto255
+//!   `finalize`, which launders its blind, gets its output's taint from the
+//!   password instead.
+//!   The P-256 parses, like the RFC 9497 modes' parses on both suites, keep
+//!   the scalar tainted instead and declassify only the accept/reject
+//!   decision.
 
 /// Whether the helpers emit real Valgrind client requests.
 ///

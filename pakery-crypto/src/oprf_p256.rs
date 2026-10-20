@@ -217,9 +217,11 @@ impl Oprf for P256Oprf {
         // RNG, and the bound here was rand_core 0.9 — but that is no longer
         // what stops us: the byte contract above is.
         //
-        // ctgrind: candidate bytes are deliberately NOT marked secret —
-        // rejection sampling branches on each candidate's validity (a public
-        // retry decision). The accepted blind is marked secret below.
+        // ctgrind: candidates are not marked — accepting or rejecting one is a
+        // public retry decision taken before the value means anything. The
+        // accepted blind is the secret: it is marked, and the scalar re-derived
+        // from the marked bytes, so the blinding multiplication and the
+        // encoding of the blind below run tainted, as in the RFC 9497 suites.
         let mut r = loop {
             let mut bytes = Zeroizing::new([0u8; 32]);
             rng.fill_bytes(&mut *bytes);
@@ -228,7 +230,11 @@ impl Oprf for P256Oprf {
             fb.zeroize();
             if let Some(s) = result {
                 if !bool::from(s.is_zero()) {
-                    break s;
+                    pakery_core::ct::mark_secret(&*bytes);
+                    let mut fb = p256::FieldBytes::from(*bytes);
+                    let r = Scalar::from_repr(fb).unwrap_or(Scalar::ZERO);
+                    fb.zeroize();
+                    break r;
                 }
             }
         };
@@ -238,8 +244,8 @@ impl Oprf for P256Oprf {
         let blind: [u8; 32] = r.to_repr().into();
         r.zeroize();
 
-        // ctgrind: the accepted blind is secret key material (taint enters
-        // here rather than in the rejection loop above).
+        // ctgrind: the blind is secret key material — already tainted through
+        // `r`; marked again to keep the policy explicit.
         pakery_core::ct::mark_secret(&blind);
         let blinded_bytes = point_to_bytes(&blinded);
         // ctgrind: the blinded element is the OPRF wire message — public by

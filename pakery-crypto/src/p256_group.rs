@@ -101,29 +101,35 @@ impl CpaceGroup for P256Group {
     }
 
     fn random_scalar(rng: &mut impl CryptoRng) -> Scalar {
-        // Generate a uniformly-random non-zero scalar by 32-byte rejection sampling:
-        // draw 32 bytes, accept iff they are a canonical scalar. That
-        // byte-consumption pattern is what the RFC 9497 / RFC 9807 vector tests
-        // depend on — they replay a deterministic 32-byte scalar through a test
-        // RNG — so it is a fixed contract of this function, not an imitation of
-        // whatever `Scalar::random` does internally. Until 0.4.0 it was also
-        // out of reach — `ff` 0.14's `Field::random` takes a rand_core 0.10
-        // RNG, and the bound here was rand_core 0.9 — but that is no longer
-        // what stops us: the byte contract above is.
+        // Generate a uniformly-random scalar by 32-byte rejection sampling:
+        // draw 32 bytes, accept iff they are a canonical scalar (zero
+        // included: the trait asks only for a random scalar). The base-mode
+        // OPRF's blind draws the same 32 bytes per candidate (and redraws
+        // zero too), and the RFC 9497 / RFC 9807 vector tests replay a
+        // deterministic scalar through it; no vector replays through this
+        // function (the P-256 CPace, SPAKE2 and SPAKE2+ vectors pass their
+        // scalars in directly), so `random_scalar_redraws_on_out_of_range`
+        // below pins its byte consumption instead.
         //
-        // ctgrind: candidate bytes are deliberately NOT marked secret here —
-        // rejection sampling branches on each candidate's validity (a public
-        // retry decision), which memcheck would flag inside p256's CtOption.
-        // Taint enters downstream at byte boundaries instead (the protocol
-        // crates mark K/w/Z/V byte encodings secret).
+        // ctgrind: candidates are not marked — accepting or rejecting one is a
+        // public retry decision taken before the value means anything, and
+        // memcheck would flag it inside p256's CtOption. The accepted value is
+        // the secret: it is marked, and the scalar re-derived from the marked
+        // bytes, so the taint carries into every operation on it (CPace's
+        // `K`, the SPAKE2 and SPAKE2+ ephemerals, the SPAKE2+ verifier's
+        // `V`), as in the RFC 9497 suites' `random_scalar`.
         loop {
             let mut bytes = Zeroizing::new([0u8; 32]);
             rng.fill_bytes(&mut *bytes);
             let mut fb = FieldBytes::from(*bytes);
             let result = Option::<Scalar>::from(Scalar::from_repr(fb));
             fb.zeroize();
-            if let Some(s) = result {
-                return s;
+            if result.is_some() {
+                pakery_core::ct::mark_secret(&*bytes);
+                let mut fb = FieldBytes::from(*bytes);
+                let scalar = Scalar::from_repr(fb).unwrap_or(Scalar::ZERO);
+                fb.zeroize();
+                return scalar;
             }
         }
     }
@@ -188,6 +194,46 @@ mod tests {
     use super::*;
     use p256::elliptic_curve::sec1::ToSec1Point;
     use pakery_core::crypto::CpaceGroup;
+
+    /// `random_scalar` draws exactly 32 bytes per candidate, redraws on one
+    /// that is not a canonical scalar, and returns the first that is.
+    #[test]
+    fn random_scalar_redraws_on_out_of_range() {
+        /// Replays `.0` and panics if a draw would run past its end.
+        struct ScriptedRng<'a>(&'a [u8]);
+        impl rand_core::TryRng for ScriptedRng<'_> {
+            type Error = core::convert::Infallible;
+            fn try_next_u32(&mut self) -> Result<u32, Self::Error> {
+                let mut b = [0u8; 4];
+                self.try_fill_bytes(&mut b)?;
+                Ok(u32::from_le_bytes(b))
+            }
+            fn try_next_u64(&mut self) -> Result<u64, Self::Error> {
+                let mut b = [0u8; 8];
+                self.try_fill_bytes(&mut b)?;
+                Ok(u64::from_le_bytes(b))
+            }
+            fn try_fill_bytes(&mut self, dst: &mut [u8]) -> Result<(), Self::Error> {
+                let (head, rest) = self.0.split_at(dst.len());
+                dst.copy_from_slice(head);
+                self.0 = rest;
+                Ok(())
+            }
+        }
+        impl rand_core::TryCryptoRng for ScriptedRng<'_> {}
+
+        // `0xff..ff` is not below the group order, so it is redrawn; the next
+        // 32 bytes are, and are returned as they stand, nothing left over.
+        let accepted = [0x11u8; 32];
+        let script = [[0xffu8; 32].as_slice(), &accepted].concat();
+        let mut rng = ScriptedRng(&script);
+        let scalar = <P256Group as CpaceGroup>::random_scalar(&mut rng);
+        assert!(rng.0.is_empty());
+        assert_eq!(
+            scalar,
+            Scalar::from_repr(FieldBytes::from(accepted)).unwrap()
+        );
+    }
 
     /// The constant-time `to_bytes` agrees with sec1's own uncompressed
     /// encoding, which it replaces: on the generator and its negation, on

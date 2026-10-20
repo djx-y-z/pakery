@@ -149,6 +149,11 @@ impl DhGroup for Ristretto255Dh {
         use crate::oprf_ristretto::Ristretto255Oprf;
         use pakery_core::crypto::oprf::Oprf;
 
+        // ctgrind: the seed is secret key material whoever drew it, and
+        // OPAQUE passes its ephemeral key shares' RNG bytes straight in.
+        // Marked here, the returned key is tainted; the multiplications below
+        // and in `diffie_hellman` launder their scalar parse, by design.
+        pakery_core::ct::mark_secret(seed);
         let sk_bytes = Ristretto255Oprf::derive_key(seed, b"OPAQUE-DeriveDiffieHellmanKeyPair")?;
         let sk_arr: [u8; 32] = sk_bytes
             .as_slice()

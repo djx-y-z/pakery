@@ -168,9 +168,10 @@ impl<C: Spake2PlusCiphersuite> Verifier<C> {
         let z_bytes = Zeroizing::new(z.to_bytes());
         let v_bytes = Zeroizing::new(v.to_bytes());
         let w0_bytes = Zeroizing::new(C::Group::scalar_to_bytes(w0));
-        // ctgrind: Z, V, and w0 are secret transcript inputs (P-256 group
-        // ops launder taint through the scalar parse, so re-mark at the
-        // byte boundary).
+        // ctgrind: Z, V, and w0 are secret transcript inputs. Z and V are
+        // already tainted through the ephemeral scalar, and w0 is too where it
+        // was derived from a marked password, as in the CT harness; all three
+        // are marked again to keep the policy explicit.
         pakery_core::ct::mark_secret(&z_bytes);
         pakery_core::ct::mark_secret(&v_bytes);
         pakery_core::ct::mark_secret(&w0_bytes);

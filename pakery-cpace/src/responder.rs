@@ -59,9 +59,9 @@ impl<C: CpaceCiphersuite> CpaceResponder<C> {
         }
 
         let k_bytes = Zeroizing::new(k.to_bytes());
-        // ctgrind: the raw DH result K is secret key material (P-256 group
-        // ops launder taint through the scalar parse, so re-mark at the byte
-        // boundary).
+        // ctgrind: the raw DH result K is secret key material — already
+        // tainted through the ephemeral scalar on both groups; marked again
+        // to keep the policy explicit.
         pakery_core::ct::mark_secret(&k_bytes);
 
         // Derive ISK

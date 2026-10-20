@@ -78,6 +78,60 @@ fn ct_harness_covers_every_flow() {
     }
 }
 
+/// Guard against a mark that stops reaching an ephemeral secret: a green run
+/// looks the same whether it runs tainted or its mark was lost on the way.
+/// Memcheck's `GET_VBITS` reads definedness without reporting an error. Each
+/// group's `random_scalar` must return a scalar some of whose bits are
+/// undefined, and each group's `DhGroup::derive_keypair` a secret key with
+/// undefined bits from a seed nobody marked, which is how OPAQUE draws its
+/// ephemeral key shares; each seed is checked to be unmarked first. (The
+/// base-mode blind is drawn inside `client_blind` and cannot be reached from
+/// here.)
+#[test]
+fn ct_ephemeral_secrets_are_marked() {
+    fn vbits(bytes: &[u8]) -> Vec<u8> {
+        let mut vbits = vec![0u8; bytes.len()];
+        crabgrind::memcheck::vbits(bytes.as_ptr().cast(), &mut vbits)
+            .expect("memcheck answers GET_VBITS");
+        vbits
+    }
+    fn assert_marked(what: &str, bytes: &[u8]) {
+        assert!(
+            vbits(bytes).iter().any(|&v| v != 0),
+            "{what} returned a secret with no undefined bits"
+        );
+        ct::declassify(bytes);
+    }
+    if std::env::var_os("PAKERY_CT_EXPECT_ARMED").is_some() {
+        use pakery_core::crypto::DhGroup as Dh;
+        let mut rng = ChaCha20Rng::seed_from_u64(19);
+        let s = <pakery_crypto::Ristretto255Group as CpaceGroup>::random_scalar(&mut rng);
+        assert_marked(
+            "Ristretto255Group::random_scalar",
+            &<pakery_crypto::Ristretto255Group as CpaceGroup>::scalar_to_bytes(&s),
+        );
+        // A stack seed of its own per group: a literal `&[0x5a; 32]` would be
+        // promoted to one static, which the first call would leave marked.
+        let ristretto_seed = [0x5au8; 32];
+        assert!(vbits(&ristretto_seed).iter().all(|&v| v == 0));
+        let (sk, _) =
+            <pakery_crypto::Ristretto255Dh as Dh>::derive_keypair(&ristretto_seed).unwrap();
+        assert_marked("Ristretto255Dh::derive_keypair", &sk);
+        #[cfg(feature = "p256")]
+        {
+            let s = <pakery_crypto::P256Group as CpaceGroup>::random_scalar(&mut rng);
+            assert_marked(
+                "P256Group::random_scalar",
+                &<pakery_crypto::P256Group as CpaceGroup>::scalar_to_bytes(&s),
+            );
+            let p256_seed = [0xa5u8; 32];
+            assert!(vbits(&p256_seed).iter().all(|&v| v == 0));
+            let (sk, _) = <pakery_crypto::P256Dh as Dh>::derive_keypair(&p256_seed).unwrap();
+            assert_marked("P256Dh::derive_keypair", &sk);
+        }
+    }
+}
+
 /// Compare two secret byte strings inside the harness. The pass/fail outcome
 /// of a test assertion is public, so both sides are declassified first —
 /// otherwise the comparison itself would (correctly) be flagged.

@@ -123,8 +123,9 @@ impl<C: Spake2Ciphersuite> PartyAState<C> {
         let k_bytes = Zeroizing::new(k.to_bytes());
         let w_bytes = Zeroizing::new(C::Group::scalar_to_bytes(&self.w));
         // ctgrind: the raw group element K and the password scalar w are
-        // secret transcript inputs (P-256 group ops launder taint through
-        // the scalar parse, so re-mark at the byte boundary).
+        // secret transcript inputs. K is already tainted through the ephemeral
+        // scalar, and w is too where it was derived from a marked password, as
+        // in the CT harness; both are marked again to keep the policy explicit.
         pakery_core::ct::mark_secret(&k_bytes);
         pakery_core::ct::mark_secret(&w_bytes);
 
