@@ -182,8 +182,8 @@ index is flagged — in debug **and** release (catches LLVM undoing `subtle`).
 - **Notes:** crabgrind panics at runtime if built without real Valgrind
   headers, so the helpers guard on `ct::is_active()`. Under `ct.yml`, which
   sets `PAKERY_CT_EXPECT_ARMED=1`, `ct_harness_is_armed` fails the run unless
-  the helpers are armed and the binary is actually running under Valgrind.
-  `declassify_choice`
+  the helpers are armed, the binary is actually running under Valgrind, and
+  memcheck is the tool answering its requests. `declassify_choice`
   routes the decision byte through `black_box` (without it, release LLVM
   branched on the pre-declassify register copy). The debug leg disables
   overflow-checks/debug-assertions (panic instrumentation floods memcheck on
@@ -196,14 +196,38 @@ index is flagged — in debug **and** release (catches LLVM undoing `subtle`).
   an inlined frame adds none, so an entry also covers later errors that
   share them; for these two entries that can only be the same assert.
   Everything else runs unsuppressed: the rest of the hash-to-curve, the
-  field inversion, and every SEC1 encoding. Anchors are matched against
-  mangled symbol names (inlined frames by their bare names), not the
-  demangled names Valgrind prints. curve25519-dalek needs none. OPAQUE uses
-  identity-KSF suites (Argon2id is data-dependent by design).
+  field inversion, and every SEC1 encoding. Nothing has to take that on
+  trust: `ct.yml` runs Valgrind with `-s`, which lists each entry used and
+  how many errors it absorbed, and `ci/check-ct-suppressions.py` fails the
+  run unless that list is exactly the one `pakery-tests/valgrind-ct.expected`
+  gives for the build — an entry missing, an entry not listed (Valgrind's
+  default ones included) or a count that moves all fail it, and
+  `ci/test-check-ct-suppressions.py` break-tests the check on every run.
+  Anchors are matched against mangled symbol names (inlined frames by their
+  bare names), not the demangled names Valgrind prints. curve25519-dalek
+  needs none. OPAQUE uses identity-KSF suites (Argon2id is data-dependent by
+  design).
   The flows cover the RFC 9497 VOPRF / POPRF too — both suites and modes,
   random and deterministic blinds, single and batched, with the server key
-  taken three ways — and a guard test fails a run built without `p256` or
-  `hazmat`, whose flows would otherwise be compiled out in silence.
+  taken three ways — and `DhGroup::public_key_from_private`, which no OPAQUE
+  flow calls (tainted on P-256; ristretto255 launders its canonicity check
+  by design, so there it only runs). A guard test fails a run built without
+  `p256` or `hazmat`, whose flows would otherwise be compiled out in silence.
+  Ephemeral secrets are marked from the start: the rejection sampling of
+  P-256's `random_scalar` and base-mode blind decides on an unmarked
+  candidate and then marks the accepted bytes and re-derives the scalar
+  from them, as the RFC 9497 suites do; `DhGroup::derive_keypair` marks its
+  seed on both groups, which OPAQUE fills from the RNG for its ephemeral
+  key shares; and a guard test asks memcheck (`GET_VBITS`) whether each
+  group's `random_scalar` and `derive_keypair` return marked secrets. Until
+  `0.6.1` these scalars went unmarked until after use (the base-mode blind
+  was marked only after `t * r`), so every P-256 multiplication by one ran
+  with that scalar unmarked: CPace's `K`, the SPAKE2+ verifier's `V`, the
+  fixed-base `x * G` and `y * G` of SPAKE2 and SPAKE2+, and OPAQUE's
+  ephemeral public keys and the Diffie-Hellman products computed with an
+  ephemeral key carried no taint at all, and the others (CPace's shares,
+  SPAKE2's `K`, SPAKE2+'s `Z`, the base-mode `t * r`) were tainted only
+  through their points.
 - **The `0.6.1` P-256 fix, and why the harness had not caught it.** sec1's
   *compressed* encoding branches on the parity of y. Until `0.6.1` it encoded
   two secret points — the unblinded value in the base-mode OPRF's `finalize`
