@@ -19,8 +19,9 @@ updates:
       # `group`, `ff` and `generic-array` were dropped from this list when
       # they stopped being direct dependencies; they now arrive only
       # transitively via elliptic-curve. `zeroize` / `zeroize_derive` are here
-      # because zeroize_derive pins an exact zeroize version, so the two must
-      # move together.
+      # because zeroize's `derive` feature depends on zeroize_derive (zeroize
+      # 1.9 requires `^1.5`) and pakery-core names both, so the two move
+      # together. zeroize_derive itself does not depend on zeroize.
       crypto-stack:
         patterns:
           - "digest"
