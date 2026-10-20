@@ -3,7 +3,8 @@
 # Policy (see SECURITY_TESTING.md, "Constant-time verification"): a suppression is allowed only
 # for a KNOWN, ACCEPTED pattern inside a dependency that we cannot fix at our
 # boundary, and every entry must carry a justification. Anything not listed
-# here fails the run. The one pattern below is P-256-only; the
+# here, or in the default suppressions Valgrind loads for system libraries,
+# fails the run. The one pattern below is P-256-only; the
 # curve25519-dalek paths run without any suppression.
 #
 # Verified against p256 0.14.0 / primeorder 0.14.0 / hash2curve 0.14.0 /
@@ -20,8 +21,8 @@
 # not the demangled ones its log prints: an outlined frame by its raw symbol,
 # in which rustc's v0 mangling length-prefixes every identifier, and an
 # inlined frame by its bare DWARF name, which the log does print. An inlined
-# frame whose origin Valgrind cannot resolve is printed as `UnknownInlinedFun`
-# and has no name to match. Valgrind also commons errors up by four code
+# frame whose origin Valgrind cannot resolve is printed, and matched, as the
+# literal `UnknownInlinedFun`. Valgrind also commons errors up by four code
 # addresses, the place in the erring function and in each of its three
 # callers (its manual, under `--num-callers`). An inlined frame shares the
 # address of the function it is inlined into and adds none, so errors whose
@@ -52,8 +53,8 @@
 # Release: `CtOption<FieldElement>::unwrap` is inlined into the outlined
 # `osswu` and matches by its bare name. The frames above it may have no name:
 # the 2026-10-19 build inlined the RFC 9497 suite's hash-to-curve into generic
-# callers that Valgrind printed as `UnknownInlinedFun`, so the entry does not
-# anchor on them.
+# callers, and Valgrind printed the frames inlined between them and
+# `map_to_curve` as `UnknownInlinedFun`, so the entry does not anchor on them.
 {
    p256-hash2curve-invariant-ctoption-assert-osswu-cond
    Memcheck:Cond
@@ -71,11 +72,11 @@
 }
 
 # Until 0.6.1 this file also held broad entries, anchored on a call with a
-# leading `...`: this assert under `hash_from_bytes`, which hid the rest of
-# the hash-to-curve with it, the field inversion included, and sec1's tag
+# leading `...`: this assert under `hash_from_bytes`, whose `...` also reached
+# the rest of the hash-to-curve, the field inversion included, and sec1's tag
 # dispatch under `P256Group::to_bytes` (before that, three entries for sec1's
 # compressed encoder as well). Every P-256 encoding in pakery-crypto now goes
-# through a constant-time encoder, so no sec1 code runs on secret data. The
+# through a constant-time encoder, so no sec1 encoder runs on secret data. The
 # broad entries also covered more than their call: in the debug build, where
 # dependency code is outlined, every later tag dispatch through sec1's
 # `as_bytes` had the same top four addresses as the first, all of them in

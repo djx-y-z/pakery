@@ -45,16 +45,18 @@ impl CpaceGroup for P256Group {
         // conversion inverts `z` with a constant-time inversion, and the
         // coordinates are read without a branch.
         use subtle::ConstantTimeEq;
-        // ctgrind: only whether the point is the identity is declassified,
-        // and every caller in this workspace treats that as public: it rules
-        // the identity out first for a secret point (CPace's and SPAKE2's
-        // `K`, SPAKE2+'s `Z` and `V`), and otherwise encodes a point it sends
-        // (the key shares, SPAKE2+'s `L`) or a public constant (SPAKE2+'s `M`
-        // and `N`).
+        // ctgrind: only whether the point is the identity is declassified.
+        // The length of the encoding shows it to any caller anyway, and every
+        // caller in this workspace treats it as public: it rules the identity
+        // out first for a secret point (CPace's and SPAKE2's `K`, SPAKE2+'s
+        // `Z` and `V`), and otherwise encodes a point it sends (the key
+        // shares, SPAKE2+'s `L`) or a public constant (SPAKE2+'s `M` and `N`).
         if pakery_core::ct::declassify_choice(self.point.ct_eq(&ProjectivePoint::IDENTITY)) {
             return alloc::vec![0x00];
         }
         let affine = self.point.to_affine();
+        // Room for all 65 bytes up front: the pushes below never reallocate,
+        // so no copy of the coordinates is left unwiped in a freed buffer.
         let mut out = Vec::with_capacity(65);
         out.push(0x04);
         out.extend_from_slice(&affine.x());
