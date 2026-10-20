@@ -238,7 +238,7 @@ mod tests {
     /// The constant-time `to_bytes` agrees with sec1's own uncompressed
     /// encoding, which it replaces: on the generator and its negation, on
     /// `k * G` for `k = 1..=64`, on hash-to-curve outputs, and on the
-    /// identity, which sec1 encodes as `0x00`.
+    /// identity, canonical and computed, which sec1 encodes as `0x00`.
     #[test]
     fn to_bytes_matches_sec1() {
         let sec1 = |p: &ProjectivePoint| p.to_affine().to_sec1_point(false).as_bytes().to_vec();
@@ -264,6 +264,13 @@ mod tests {
         .to_bytes();
         assert_eq!(identity, sec1(&ProjectivePoint::IDENTITY));
         assert_eq!(identity, [0x00]);
+        // A computed identity need not have the canonical coordinates
+        // `(0:1:0)`; only `z` decides, so `G + (-G)` encodes the same.
+        let computed = P256Group {
+            point: ProjectivePoint::GENERATOR + -ProjectivePoint::GENERATOR,
+        }
+        .to_bytes();
+        assert_eq!(computed, [0x00]);
     }
 
     /// `from_bytes` accepts compressed and uncompressed SEC1 but must reject
