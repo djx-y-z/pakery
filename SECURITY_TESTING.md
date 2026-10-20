@@ -180,7 +180,10 @@ index is flagged — in debug **and** release (catches LLVM undoing `subtle`).
   no-ops without it); harness `pakery-tests/tests/ct_flows.rs`; suppressions
   `pakery-tests/valgrind-ct.supp`; workflow `.github/workflows/ct.yml`.
 - **Notes:** crabgrind panics at runtime if built without real Valgrind
-  headers, so the helpers guard on `ct::is_active()`. `declassify_choice`
+  headers, so the helpers guard on `ct::is_active()`. Under `ct.yml`, which
+  sets `PAKERY_CT_EXPECT_ARMED=1`, `ct_harness_is_armed` fails the run unless
+  the helpers are armed and the binary is actually running under Valgrind.
+  `declassify_choice`
   routes the decision byte through `black_box` (without it, release LLVM
   branched on the pre-declassify register copy). The debug leg disables
   overflow-checks/debug-assertions (panic instrumentation floods memcheck on

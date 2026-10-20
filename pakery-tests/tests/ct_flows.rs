@@ -43,11 +43,13 @@ use rand_core::SeedableRng;
 const PASSWORD: &[u8] = b"correct horse battery staple";
 const WRONG_PASSWORD: &[u8] = b"correct horse battery stable";
 
-/// Guard against a silently disarmed run: the ct helpers downgrade to no-ops
+/// Guard against a silently disarmed run. The ct helpers downgrade to no-ops
 /// when crabgrind was built without real Valgrind headers (see
-/// `pakery_core::ct::is_active`). ct.yml sets `PAKERY_CT_EXPECT_ARMED=1`, so
-/// a CI image that lost its Valgrind headers fails loudly instead of going
-/// green without checking anything.
+/// `pakery_core::ct::is_active`), and every client request is a no-op when
+/// the binary is not running under Valgrind at all, as it would be if ct.yml's
+/// cargo runner setting stopped applying (another runner architecture, a
+/// renamed target). ct.yml sets `PAKERY_CT_EXPECT_ARMED=1`, so either case
+/// fails loudly instead of going green without checking anything.
 #[test]
 fn ct_harness_is_armed() {
     if std::env::var_os("PAKERY_CT_EXPECT_ARMED").is_some() {
@@ -55,6 +57,11 @@ fn ct_harness_is_armed() {
             ct::is_active(),
             "PAKERY_CT_EXPECT_ARMED is set but the ct helpers are no-ops \
              (crabgrind built without Valgrind headers?)"
+        );
+        assert!(
+            crabgrind::valgrind::running_mode().is_valgrind(),
+            "PAKERY_CT_EXPECT_ARMED is set but the harness is not running \
+             under Valgrind (did the cargo runner setting stop applying?)"
         );
     }
 }

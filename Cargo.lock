@@ -822,6 +822,7 @@ dependencies = [
 name = "pakery-tests"
 version = "0.6.1"
 dependencies = [
+ "crabgrind",
  "curve25519-dalek 5.0.0",
  "getrandom 0.4.3",
  "hex",

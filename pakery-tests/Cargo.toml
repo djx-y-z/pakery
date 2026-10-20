@@ -38,8 +38,9 @@ hazmat = ["pakery-crypto/hazmat"]
 # client requests and enables the `ct_flows` integration test, which ct.yml
 # runs under `valgrind --track-origins=yes --error-exitcode=99` in debug and
 # release. Outside Valgrind the marks are runtime no-ops, so this feature is
-# safe (if pointless) in ordinary `--all-features` test runs.
-__ctgrind = ["pakery-core/__ctgrind"]
+# safe (if pointless) in ordinary `--all-features` test runs. It also names
+# crabgrind directly, for the harness's check that it runs under Valgrind.
+__ctgrind = ["pakery-core/__ctgrind", "dep:crabgrind"]
 
 [dependencies]
 pakery-core = { workspace = true, default-features = true }
@@ -55,6 +56,10 @@ rand_core = { workspace = true }
 getrandom = { workspace = true }
 curve25519-dalek = { workspace = true }
 p256 = { workspace = true, optional = true }
+# Already in the graph through pakery-core's `__ctgrind`; the edge exists so
+# `ct_harness_is_armed` can ask crabgrind whether the binary runs under
+# Valgrind at all (`valgrind::running_mode`).
+crabgrind = { version = "0.3.1", optional = true }
 # Differential-testing deps (see SECURITY_TESTING.md, "Differential testing"). Cargo does
 # not support optional dev-dependencies, so these live in [dependencies] behind
 # the `differential` feature (this crate is publish = false and test-only, so
