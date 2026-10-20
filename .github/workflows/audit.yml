@@ -53,4 +53,7 @@ jobs:
         with:
           command: check
           arguments: --all-features --exclude-unpublished
-          command-arguments: bans
+          # A deny.toml `skip` that no longer matches, or that no duplicate
+          # needs any more, fails the check; cargo-deny would otherwise only
+          # warn about either.
+          command-arguments: -D unmatched-skip -D unnecessary-skip bans
