@@ -47,12 +47,19 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y valgrind
           valgrind --version
+      - name: Break-test the suppression check
+        run: python3 ci/test-check-ct-suppressions.py
       - name: Run CT harness under Valgrind
+        # bash, not the default `bash -e`: it adds pipefail, so the exit
+        # status of `cargo test` survives the pipe into `tee`.
+        shell: bash
         env:
           # Suppressions: documented, dependency-internal accepted patterns
-          # only — see pakery-tests/valgrind-ct.supp.
+          # only — see pakery-tests/valgrind-ct.supp. `-s` lists each one
+          # used and the errors it absorbed at exit, which `--quiet` would
+          # otherwise hide; the next step checks the list.
           CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER: >-
-            valgrind --track-origins=yes --error-exitcode=99 --quiet
+            valgrind --track-origins=yes --error-exitcode=99 --quiet -s
             --suppressions=${{ github.workspace }}/pakery-tests/valgrind-ct.supp
           # The debug leg disables cargo's panic instrumentation: overflow
           # checks and debug assertions branch on carry/validity flags of
@@ -62,11 +69,18 @@ jobs:
           CARGO_PROFILE_DEV_OVERFLOW_CHECKS: "false"
           CARGO_PROFILE_DEV_DEBUG_ASSERTIONS: "false"
           # Debug info in release (no codegen change): lets Valgrind name
-          # inlined frames, so suppression matching stays robust and any
-          # finding is triageable from the CI log alone.
+          # most inlined frames (the rest print as `UnknownInlinedFun`), so
+          # any finding is triageable from the CI log alone.
           CARGO_PROFILE_RELEASE_DEBUG: "true"
         run: >-
           cargo test -p pakery-tests --features __ctgrind,p256,hazmat
           --test ct_flows
           ${{ matrix.profile == 'release' && '--release' || '' }}
-          -- --test-threads=1
+          -- --test-threads=1 2>&1 | tee "$RUNNER_TEMP/ct.log"
+      - name: Check what each suppression absorbed
+        # Also after a failed run: the list helps triage. A suppression can
+        # absorb errors its pattern never matched (Valgrind commons errors by
+        # their top four code addresses), so the run fails unless the list is
+        # exactly pakery-tests/valgrind-ct.expected's for this build.
+        if: ${{ !cancelled() }}
+        run: python3 ci/check-ct-suppressions.py ${{ matrix.profile }} "$RUNNER_TEMP/ct.log"

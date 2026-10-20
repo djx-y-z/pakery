@@ -7,15 +7,18 @@
 # fails the run. The one pattern below is P-256-only; the
 # curve25519-dalek paths run without any suppression.
 #
-# Verified against p256 0.14.0 / primeorder 0.14.0 / hash2curve 0.14.0 /
+# Written against p256 0.14.0 / primeorder 0.14.0 / hash2curve 0.14.0 /
 # subtle 2.6.1 (rustc 1.99.1, Valgrind 3.22, x86_64 Linux, debug and
-# release), 2026-10-19, in a run with `-v`, which prints how many errors each
-# entry matched.
+# release) and first verified on 2026-10-19 in a run with `-v`; the debug
+# entry's glob was narrowed after that. Every ct.yml run checks both entries:
+# Valgrind's `-s` lists how many errors each one absorbed, and
+# ci/check-ct-suppressions.py fails the run unless that list is exactly the
+# one valgrind-ct.expected gives for the build.
 # Re-triage when bumping these crates or on suppression misses after a
 # toolchain drift (ct.yml runs unpinned @stable by design, to catch codegen
-# that turns constant-time source leaky). A miss fails the run; take the new
-# frames from a run with `--gen-suppressions=all`, which prints them in the
-# form they are matched in.
+# that turns constant-time source leaky). A miss fails the run, and so does
+# a count that moves; take the new frames from a run with
+# `--gen-suppressions=all`, which prints them in the form they are matched in.
 #
 # How an entry matches. Valgrind compares `fun:` lines with *mangled* names,
 # not the demangled ones its log prints: an outlined frame by its raw symbol,
@@ -62,12 +65,15 @@
    fun:*8OsswuMap5osswu*
 }
 
-# Debug: both frames are outlined and match by their symbols; `unwrap`'s
-# contains `...8CtOption...12FieldElementE6unwrap`.
+# Debug: both frames are outlined and match by their symbols. `unwrap`'s is
+# `subtle::CtOption<p256::...::FieldElement>::unwrap`, which contains
+# `...6subtle...8CtOption...12FieldElementE6unwrap`: the `E` that closes the
+# generic arguments just before `6unwrap` keeps the glob off a
+# `...16unwrap_unchecked` and off `Option<CtOption<FieldElement>>::unwrap`.
 {
    p256-hash2curve-invariant-ctoption-assert-osswu-outlined-cond
    Memcheck:Cond
-   fun:*CtOption*FieldElement*6unwrap*
+   fun:*6subtle*8CtOption*12FieldElementE6unwrap*
    fun:*8OsswuMap5osswu*
 }
 

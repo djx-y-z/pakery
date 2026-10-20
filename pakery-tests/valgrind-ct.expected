@@ -1,0 +1,23 @@
+# What each entry of valgrind-ct.supp absorbs in one ct.yml run of the
+# `ct_flows` harness, per build: `<profile> <count> <suppression name>`.
+#
+# Valgrind commons errors up by the top four code addresses on their stack,
+# so an entry can also absorb later errors its pattern never matched, and
+# `--quiet` hides the counts. ct.yml runs Valgrind with `-s`, which lists
+# every entry used and its count at exit, and ci/check-ct-suppressions.py
+# fails the run unless that list is exactly the one below for the build:
+# an entry missing, an entry not listed here (Valgrind's default ones
+# included) or a different count all fail it. Every stanza of
+# valgrind-ct.supp must appear here for at least one build.
+#
+# A count should move only when the flows change how often the pattern runs
+# on tainted data; change it in the same commit as the flows, and say why.
+# Anything else that moves it (an entry absorbing other errors, a dependency
+# bump, codegen drift) is what this check is for: explain the new number
+# before writing it here, and never copy it from the run being checked.
+#
+# 184: how many times the invariant `CtOption` assert in p256's OSSWU map
+# runs on tainted input in these flows. Debug matches it with the outlined
+# entry, release with the inlined one, and each build uses only its own.
+debug 184 p256-hash2curve-invariant-ctoption-assert-osswu-outlined-cond
+release 184 p256-hash2curve-invariant-ctoption-assert-osswu-cond

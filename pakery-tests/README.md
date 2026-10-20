@@ -40,22 +40,33 @@ vectors, property-based tests, and differential testing. Not published.
   (`ct_flows.rs`) and turns `pakery_core::ct`'s helpers into Valgrind
   memcheck client requests via [crabgrind](https://crates.io/crates/crabgrind).
   The `ct.yml` workflow runs it under
-  `valgrind --track-origins=yes --error-exitcode=99` in debug and release;
+  `valgrind --track-origins=yes --error-exitcode=99` with
+  `valgrind-ct.supp`, in debug and release, and then checks what each
+  suppression absorbed against `valgrind-ct.expected`;
   secret-dependent branches or memory indexing fail the run. Outside Valgrind
   (or when crabgrind was built without real Valgrind headers, e.g. on macOS)
   the marks are no-ops, so `--all-features` runs stay harmless. The marking
   and declassification policy — including the accepted dependency-boundary
-  laundering of dalek/p256 scalar canonicity checks — is documented in
-  `pakery_core::ct`'s module docs and at each `ctgrind:` call-site comment.
+  laundering of dalek's scalar canonicity checks (the P-256 parses keep the
+  scalar tainted) — is documented in `pakery_core::ct`'s module docs and at
+  each `ctgrind:` call-site comment.
 
 ```bash
 cargo test -p pakery-tests --features differential --test differential_opaque
 cargo test -p pakery-tests --features differential --test differential_voprf
 
-# Constant-time harness (Linux with valgrind installed):
-CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER="valgrind --track-origins=yes --error-exitcode=99 --quiet" \
+# Constant-time harness (Linux with valgrind installed), as ct.yml's debug leg
+# runs it, then the check of what each suppression absorbed. For the release
+# leg add `--release` and CARGO_PROFILE_RELEASE_DEBUG=true, and check `release`.
+# The counts in valgrind-ct.expected are measured with ct.yml's toolchain
+# (x86_64, its rustc and Valgrind); a run elsewhere that counts differently
+# needs explaining before anything is changed.
+set -o pipefail
+CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER="valgrind --track-origins=yes --error-exitcode=99 --quiet -s --suppressions=$PWD/pakery-tests/valgrind-ct.supp" \
+  CARGO_PROFILE_DEV_OVERFLOW_CHECKS=false CARGO_PROFILE_DEV_DEBUG_ASSERTIONS=false \
   PAKERY_CT_EXPECT_ARMED=1 \
-  cargo test -p pakery-tests --features __ctgrind,p256,hazmat --test ct_flows -- --test-threads=1
+  cargo test -p pakery-tests --features __ctgrind,p256,hazmat --test ct_flows -- --test-threads=1 2>&1 | tee ct.log
+python3 ci/check-ct-suppressions.py debug ct.log
 ```
 
 ## The differential oracle and its limits
