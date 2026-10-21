@@ -1,4 +1,4 @@
-## [0.6.1] - 2026-10-18
+## [0.6.1] - 2026-10-21
 
 Additive release. It adds the two verifiable modes of RFC 9497 — the VOPRF and the POPRF — for both ciphersuites the crate already supports, and it fixes a constant-time defect in the P-256 base-mode OPRF and Diffie-Hellman group that every release since `0.1.0` shipped.
 
