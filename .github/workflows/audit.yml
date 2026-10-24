@@ -18,6 +18,12 @@ jobs:
       - uses: rustsec/audit-check@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          # crypto-bigint 0.5.5 has no fixed release for this advisory and only
+          # pakery-tests' differential suite pulls it in; deny.toml (`[graph]
+          # exclude`) has the reasoning. cargo-audit can ignore an advisory
+          # only by id, for every version, so it is cargo-deny below that
+          # still fails the run on the 0.7 line the published crates use.
+          ignore: RUSTSEC-2026-0387
 
   # Complements `cargo audit` (advisories only) with license, source and
   # duplicate-version checks — see deny.toml, which carries the rationale for

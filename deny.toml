@@ -31,13 +31,27 @@
 # deliberate: measured on a feature-gated duplicate, the key alone catches it
 # and the flag alone catches it; only deleting both makes it invisible.
 all-features = true
+# One version is taken out of the graph: elliptic-curve 0.13.8, with the seven
+# crates only it pulls in. Among them is crypto-bigint 0.5.5, which
+# RUSTSEC-2026-0387 covers and which has no fixed 0.5 release (the fix is
+# 0.7.6). Like the rest of the previous RustCrypto wave, it is reached only
+# through `pakery-tests` (publish = false), whose differential suite runs it
+# as the other implementation; nothing published links it. Excluding the
+# version, not ignoring the advisory, keeps RUSTSEC-2026-0387 an error for
+# the crypto-bigint 0.7 line that the published crates do pull in. The pin is
+# exact on purpose: any change to that line brings it back into the graph and
+# the advisory back with it. cargo-audit (audit.yml) still scans the excluded
+# crates for every other advisory.
+exclude = ["elliptic-curve@0.13.8"]
 
 [advisories]
 # 0.16+ denies vulnerabilities, unmaintained, unsound and yanked by default;
-# there is no severity threshold knob any more. Nothing is ignored: this
-# workspace has no accepted advisories, and an empty list is a deliberate
-# statement rather than an oversight. Add entries here only with a comment
-# explaining why the advisory does not apply.
+# there is no severity threshold knob any more. Nothing is ignored, and an
+# empty list is a deliberate statement rather than an oversight: the one
+# accepted advisory is handled by `[graph] exclude` above, which drops the
+# affected test-only version instead of silencing the advisory for every
+# version. Add entries here only with a comment explaining why the advisory
+# does not apply.
 ignore = []
 
 [licenses]
