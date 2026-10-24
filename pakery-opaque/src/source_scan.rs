@@ -17,9 +17,10 @@
 //! the shape is one this workspace already uses.
 //!
 //! This needs `std`, which `cargo test` has by default. Under
-//! `--no-default-features` the guards compile out; CI only ever runs
-//! `cargo check` there, which does not build `#[cfg(test)]` code at all, so
-//! nothing is lost that was previously covered.
+//! `--no-default-features` the guards compile out. CI's "Tests without std"
+//! job runs the crate's other unit tests in that configuration, and the
+//! guards read source text, which no feature changes, so the `test` job's
+//! default-features run covers them.
 //!
 //! # What this cannot catch
 //!

@@ -300,6 +300,7 @@ impl Oprf for P256Oprf {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloc::vec;
     use p256::elliptic_curve::sec1::ToSec1Point;
 
     /// Both constant-time encoders agree with sec1's own compressed encoding,

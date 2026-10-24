@@ -183,6 +183,26 @@ jobs:
       - run: cargo check -p pakery-spake2 --target thumbv7em-none-eabihf --no-default-features
       - run: cargo check -p pakery-spake2plus --target thumbv7em-none-eabihf --no-default-features
 
+  # The no_std job above only runs `cargo check`, which never compiles
+  # `#[cfg(test)]` code. A unit test that builds only with `std` -- a `vec!`
+  # with no import, which only the std prelude provides -- therefore went
+  # unnoticed in pakery-core and pakery-crypto. This builds and runs each
+  # crate's unit tests with `std` off, on the host. `--lib` because the
+  # published crates have no `tests/` and their doctests assume the default
+  # features. pakery-crypto runs in the feature-combinations matrix instead,
+  # once per feature set.
+  test-no-std:
+    name: Tests without std
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo test -p pakery-core --no-default-features --lib
+      - run: cargo test -p pakery-cpace --no-default-features --lib
+      - run: cargo test -p pakery-opaque --no-default-features --lib
+      - run: cargo test -p pakery-spake2 --no-default-features --lib
+      - run: cargo test -p pakery-spake2plus --no-default-features --lib
+
   wasm:
     name: WASM
     runs-on: ubuntu-latest
@@ -242,6 +262,10 @@ jobs:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo check -p pakery-crypto --no-default-features --features ${{ matrix.features }}
+      # The unit tests too, which `cargo check` does not compile: see
+      # test-no-std. One package at a time, so no other crate's features can
+      # stand in for one this crate dropped.
+      - run: cargo test -p pakery-crypto --no-default-features --features ${{ matrix.features }} --lib
 
   minimal-versions:
     name: Minimal versions

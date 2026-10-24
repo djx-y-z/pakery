@@ -66,6 +66,7 @@ pub fn o_cat(a: &[u8], b: &[u8]) -> Vec<u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloc::vec;
 
     #[test]
     fn test_leb128_zero() {
