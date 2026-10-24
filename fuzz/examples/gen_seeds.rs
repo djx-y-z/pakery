@@ -312,8 +312,13 @@ fn spake2plus_seeds_for<C: Spake2PlusCiphersuite>(suite_bit: u8, tag: &str) {
 
 fn opaque_flow_seeds() {
     // Structure-aware target: `arbitrary` decodes these blobs into a
-    // FlowInput. A run of zeros is the minimal honest ristretto255 flow;
-    // the patterned blob exercises longer inputs and the tamper arm.
+    // FlowInput. A run of zeros is the minimal honest ristretto255 flow. The
+    // patterned blob is a seed for mutation, and it decodes to less than its
+    // shape suggests: `arbitrary` reads a continue bit before every collection
+    // element, so it becomes a ristretto255 `start_fake` login (`fake` is set)
+    // with an empty password, a 120-byte `cred_id`, `context = [2, 4]`, empty
+    // identities and no tamper. It exercises the fake-credential arm with a
+    // long identifier; the fuzzer's mutations reach the tamper arm.
     write_seed("opaque_flow", "zeros", &[0u8; 64]);
     let patterned: Vec<u8> = (0..256u16).map(|i| (i % 251) as u8).collect();
     write_seed("opaque_flow", "patterned", &patterned);

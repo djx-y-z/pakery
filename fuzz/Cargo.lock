@@ -374,6 +374,7 @@ name = "pakery-fuzz"
 version = "0.0.0"
 dependencies = [
  "arbitrary",
+ "crypto-bigint",
  "hex",
  "libfuzzer-sys",
  "pakery-core",

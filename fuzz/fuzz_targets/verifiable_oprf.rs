@@ -12,7 +12,13 @@
 //! - No step ever panics or overflows.
 //! - Raw key bytes either load, and then `secret_key()` returns them, or are
 //!   rejected as `Deserialize`.
-//! - A deterministic blind fails only as `InvalidInput`.
+//! - A deterministic blind is refused, as `InvalidInput`, when its 64 bytes
+//!   reduce to zero modulo the group order, which an independent model
+//!   computes here, and is accepted otherwise. The one other refusal allowed
+//!   is in the POPRF after a tampered public key, which can put the tweaked
+//!   key at the identity. An input that hashes to the identity would be
+//!   refused as well; finding one would break the hash-to-curve, so it is
+//!   not modelled.
 //! - A finalize input other than the blinded one, or a POPRF finalize `info`
 //!   other than the one blinded with, fails as `InputMismatch`, whatever else
 //!   was tampered — those checks come before anything the server sent is
@@ -28,10 +34,33 @@
 #![no_main]
 
 use arbitrary::Arbitrary;
+use crypto_bigint::{NonZero, U256, U512};
 use libfuzzer_sys::fuzz_target;
 use pakery_crypto::VoprfError;
 use rand_chacha::ChaCha8Rng;
 use rand_core::SeedableRng;
+
+/// ristretto255's group order, `2^252 + 27742317777372353535851937790883648493`.
+const ORDER_RISTRETTO255: NonZero<U256> = NonZero::<U256>::new_unwrap(U256::from_be_hex(
+    "1000000000000000000000000000000014def9dea2f79cd65812631a5cf5d3ed",
+));
+
+/// P-256's group order.
+const ORDER_P256: NonZero<U256> = NonZero::<U256>::new_unwrap(U256::from_be_hex(
+    "ffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551",
+));
+
+/// Whether `deterministic_blind`'s bytes reduce to zero, read little-endian as
+/// ristretto255 reads them. A model of the reduction, not a copy of it: this is
+/// crypto-bigint's generic division, not the curve crate's.
+fn blind_is_zero_ristretto255(wide: &[u8; 64]) -> bool {
+    U512::from_le_slice(wide).rem(&ORDER_RISTRETTO255) == U256::ZERO
+}
+
+/// The same for P-256, which reads the bytes big-endian.
+fn blind_is_zero_p256(wide: &[u8; 64]) -> bool {
+    U512::from_be_slice(wide).rem(&ORDER_P256) == U256::ZERO
+}
 
 #[derive(Arbitrary, Debug)]
 enum Key {
@@ -105,7 +134,7 @@ fn normalize(tamper: &Option<(Stage, TamperMode)>, n: usize) -> Option<(Stage, &
 }
 
 macro_rules! flow {
-    ($name:ident, server: $server:ty, client: $client:ty, info: [$($info:ident)?]) => {
+    ($name:ident, server: $server:ty, client: $client:ty, zero: $zero:ident, info: [$($info:ident)?]) => {
         fn $name(inp: &FlowInput) {
             let mut inputs: Vec<&[u8]> = inp.inputs.iter().take(4).map(|i| cap(i, 64)).collect();
             if inputs.is_empty() {
@@ -140,6 +169,10 @@ macro_rules! flow {
             };
 
             let (pk, mut dirty) = mangle(&server.public_key(), Stage::PublicKey, &tamper);
+            // Only the POPRF's blind reads the public key, which it tweaks; a
+            // tampered blinded element of an earlier input changes nothing
+            // about the next one's.
+            $(let pk_dirty = { let _ = $info; dirty };)?
             let client = match <$client>::new(&pk) {
                 Ok(client) => client,
                 Err(e) => {
@@ -154,9 +187,18 @@ macro_rules! flow {
                 let result = match &inp.deterministic_blind {
                     Some(bytes) => {
                         let result = client.deterministic_blind(input, $({ let _ = $info; blind_info },)? bytes);
-                        if let Err(e) = &result {
-                            assert_eq!(*e, VoprfError::InvalidInput, "deterministic blind error");
-                            return;
+                        let zero = $zero(bytes);
+                        // Bytes that reduce to zero must be refused. Nothing
+                        // else may be, but in the POPRF, where a tampered
+                        // public key can put the tweaked key at the identity.
+                        let refusable = zero $(|| { let _ = $info; pk_dirty })?;
+                        match &result {
+                            Err(e) => {
+                                assert_eq!(*e, VoprfError::InvalidInput, "deterministic blind error");
+                                assert!(refusable, "a valid deterministic blind was refused");
+                                return;
+                            }
+                            Ok(_) => assert!(!zero, "a deterministic blind that reduces to zero was accepted"),
                         }
                         result
                     }
@@ -243,10 +285,10 @@ macro_rules! flow {
     };
 }
 
-flow!(voprf_ristretto255, server: pakery_crypto::Ristretto255VoprfServer, client: pakery_crypto::Ristretto255VoprfClient, info: []);
-flow!(poprf_ristretto255, server: pakery_crypto::Ristretto255PoprfServer, client: pakery_crypto::Ristretto255PoprfClient, info: [info]);
-flow!(voprf_p256, server: pakery_crypto::P256VoprfServer, client: pakery_crypto::P256VoprfClient, info: []);
-flow!(poprf_p256, server: pakery_crypto::P256PoprfServer, client: pakery_crypto::P256PoprfClient, info: [info]);
+flow!(voprf_ristretto255, server: pakery_crypto::Ristretto255VoprfServer, client: pakery_crypto::Ristretto255VoprfClient, zero: blind_is_zero_ristretto255, info: []);
+flow!(poprf_ristretto255, server: pakery_crypto::Ristretto255PoprfServer, client: pakery_crypto::Ristretto255PoprfClient, zero: blind_is_zero_ristretto255, info: [info]);
+flow!(voprf_p256, server: pakery_crypto::P256VoprfServer, client: pakery_crypto::P256VoprfClient, zero: blind_is_zero_p256, info: []);
+flow!(poprf_p256, server: pakery_crypto::P256PoprfServer, client: pakery_crypto::P256PoprfClient, zero: blind_is_zero_p256, info: [info]);
 
 fuzz_target!(|inp: FlowInput| {
     match (inp.suite_p256, inp.poprf) {
