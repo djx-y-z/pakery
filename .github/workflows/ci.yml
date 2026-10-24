@@ -133,7 +133,7 @@ jobs:
   #
   # `--exclude pakery-tests` is equally deliberate: this gate protects
   # *published* crates, and pakery-tests is publish = false. Including it drags
-  # opaque-ke (rust-version 1.85, zero headroom), voprf and the whole previous
+  # opaque-ke, voprf and the whole previous
   # RustCrypto wave into the gate, so an opaque-ke patch release raising its
   # MSRV would redden this job while no published crate is affected. Nothing is
   # lost: every optional feature is declared on the published crate itself
@@ -141,13 +141,13 @@ jobs:
   # `cargo check` also does not build dev-dependencies, so proptest stays
   # invisible here either way.
   msrv:
-    name: MSRV (1.85)
+    name: MSRV (1.88)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: "1.85"
+          toolchain: "1.88"
       - run: cargo check --workspace --exclude pakery-tests --all-features
 
   # Scoped Miri (roadmap item 7, crypto-bigint pattern): pakery-core only —

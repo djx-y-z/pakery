@@ -90,13 +90,13 @@ multiple-versions = "deny"
 # zeroize_derive still use syn 2; bindgen is a build-dependency of crabgrind,
 # which `all-features` reaches through pakery-core's private `__ctgrind`
 # feature and which no compiled artifact links. Pinned to the exact version on
-# purpose: should bindgen move off syn 3.0.5 the skip stops matching, and
+# purpose: should bindgen move off syn 3.0.9 the skip stops matching, and
 # should syn 2 leave the published graph it stops being needed, after which a
 # new syn 2 user would pass as a skipped duplicate. audit.yml runs the check
 # with `-D unmatched-skip -D unnecessary-skip`, so either case fails it rather
 # than quietly absorbing the change; without the flags cargo-deny only warns.
 skip = [
-    { crate = "syn@3.0.5", reason = "bindgen <- crabgrind build-dep, never linked" },
+    { crate = "syn@3.0.9", reason = "bindgen <- crabgrind build-dep, never linked" },
 ]
 # A `*` version requirement in a published crate is never intentional here.
 # Evaluated on the pruned graph, which is what that sentence always meant.

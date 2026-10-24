@@ -88,7 +88,7 @@ p256-013 = { package = "p256", version = "0.13", default-features = false, featu
 voprf = { version = "0.5", default-features = false, features = ["ristretto255-ciphersuite", "alloc"], optional = true }
 
 [dev-dependencies]
-# proptest 1.11+ requires MSRV 1.85, which the workspace now declares, so this
+# proptest 1.12 requires Rust 1.88, which the workspace now declares, so this
 # needs no pin. (It is also a dev-dependency of a publish = false crate, and
 # the MSRV CI job does not build dev-dependencies.)
 proptest = "1"

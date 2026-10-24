@@ -3,10 +3,10 @@ name = "pakery-dudect"
 version = "0.0.0"
 publish = false
 edition = "2021"
-# Matches the workspace MSRV (1.85). This crate stays a standalone workspace
+# Matches the workspace MSRV (1.88). This crate stays a standalone workspace
 # for its dependency tree (clap 2 era), not for its MSRV; the dudect.yml
 # workflow runs it on current stable.
-rust-version = "1.85"
+rust-version = "1.88"
 
 [dependencies]
 dudect-bencher = "0.7"

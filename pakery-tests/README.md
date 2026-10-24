@@ -27,7 +27,7 @@ vectors, property-based tests, and differential testing. Not published.
   of default runs because opaque-ke pulls a large dependency tree; CI covers it
   through the `--all-features` test/check jobs. Note the MSRV job does **not**
   cover it: `ci.yml` runs `cargo check --workspace --exclude pakery-tests
-  --all-features` on 1.85, deliberately excluding this crate so that an
+  --all-features` on 1.88, deliberately excluding this crate so that an
   opaque-ke release raising its own MSRV cannot redden a gate that exists to
   protect the *published* crates.
 - `hazmat` — forwards pakery-crypto's `hazmat`, so the property tests and

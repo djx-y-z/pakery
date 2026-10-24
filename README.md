@@ -133,7 +133,7 @@ is described in [SECURITY_TESTING.md](SECURITY_TESTING.md).
 
 ## MSRV
 
-The minimum supported Rust version is **1.85**.
+The minimum supported Rust version is **1.88**.
 
 ## License
 

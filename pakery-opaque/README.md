@@ -131,7 +131,7 @@ assert_eq!(client_session_key, server_session_key);
 
 ## MSRV
 
-The minimum supported Rust version is **1.85**.
+The minimum supported Rust version is **1.88**.
 
 ## License
 

@@ -77,7 +77,7 @@ impl fmt::Display for VoprfError {
     }
 }
 
-// `core::error::Error` is stable since Rust 1.81, below the 1.85 MSRV, so the
+// `core::error::Error` is stable since Rust 1.81, below the 1.88 MSRV, so the
 // impl does not depend on `std`: a `no_std` build gets it as well.
 impl core::error::Error for VoprfError {}
 
