@@ -9,8 +9,8 @@
 #
 # One pattern is never accepted: a report in crypto-bigint's `safegcd`
 # inversion, which p256's field and scalar inversions go through (the
-# constant-time variant, `invert_odd_mod::<LIMBS, false>`). It is constant
-# time by construction: a fixed number of iterations, selects instead of
+# constant-time variant, `invert_odd_mod::<LIMBS, false>`). It is written to
+# be constant time: a fixed number of iterations, selects instead of
 # branches, and no data-dependent branch but `debug_assert!`s, which ct.yml's
 # debug leg turns off. A report there is a branch or an index on secret data
 # inside that inversion. memcheck shows taint, not timing: whether it

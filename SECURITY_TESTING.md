@@ -209,7 +209,7 @@ index is flagged — in debug **and** release (catches LLVM undoing `subtle`).
   bare names), not the demangled names Valgrind prints. curve25519-dalek
   needs none. One pattern is never suppressed: a report in crypto-bigint's
   `safegcd` inversion, which p256's field and scalar inversions use and which
-  is constant time by construction. Such a report is a branch or an index on
+  is written to be constant time. Such a report is a branch or an index on
   secret data inside it; whether that diverges in time is for the assembly
   and upstream to settle, and nothing at pakery's boundary can fix or justify
   it. So no release is tagged, no entry is added, and it is reported
