@@ -34,7 +34,8 @@ point back to.
   checked through a test-only entry that takes the vectors' nonce.
 - CI: test, clippy `-D warnings`, fmt, doc, MSRV (1.85), no_std (thumbv7em),
   wasm, feature-combinations, minimal-versions, coverage, and the
-  documentation gate (`ci/check-docs.py`); `cargo audit` and cargo-deny on
+  documentation gate (`ci/check-docs.py`); `cargo audit` (over all three
+  lockfiles: the workspace's, `fuzz/`'s and `dudect/`'s) and cargo-deny on
   every push and PR plus a weekly cron. cargo-deny runs twice, over two
   different graphs: advisories, licences and sources over every crate cargo
   resolves, and duplicate versions over the published graph alone

@@ -15,7 +15,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: rustsec/audit-check@v2
+      - name: Audit Cargo.lock
+        uses: rustsec/audit-check@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           # crypto-bigint 0.5.5 has no fixed release for this advisory and only
@@ -24,12 +25,37 @@ jobs:
           # only by id, for every version, so it is cargo-deny below that
           # still fails the run on the 0.7 line the published crates use.
           ignore: RUSTSEC-2026-0387
+      # fuzz/ and dudect/ are separate workspaces with lockfiles of their own,
+      # which the step above does not read: it scans ./Cargo.lock only. Both
+      # build the library against what their lockfiles hold. Each runs even
+      # if an earlier step failed, so one standing advisory cannot hide
+      # another lockfile's.
+      - name: Audit fuzz/Cargo.lock
+        if: ${{ !cancelled() }}
+        uses: rustsec/audit-check@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          working-directory: fuzz
+      - name: Audit dudect/Cargo.lock
+        if: ${{ !cancelled() }}
+        uses: rustsec/audit-check@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          working-directory: dudect
+          # Informational, and from the harness's command line only:
+          # dudect-bencher 0.7, the latest, parses it with clap 2, which pulls
+          # atty and ansi_term, both unmaintained. atty's unaligned read is
+          # Windows-only, and dudect.yml runs on Linux. Warnings fail this
+          # step too, on push and on the cron: the action then tries to
+          # publish a report, which this repository's read-only token cannot.
+          # So these three are named here; anything else still fails it.
+          ignore: RUSTSEC-2021-0139,RUSTSEC-2021-0145,RUSTSEC-2024-0375
 
   # Complements `cargo audit` (advisories only) with license, source and
   # duplicate-version checks — see deny.toml, which carries the rationale for
   # each gate. Runs on the root workspace; `fuzz/` and `dudect/` are separate
-  # workspaces excluded from it by design and are covered by the scheduled
-  # `cargo audit` above.
+  # workspaces excluded from it by design, whose lockfiles the audit job
+  # above scans for advisories.
   #
   # Two invocations on purpose, for two different graphs — deny.toml carries
   # the reasoning. Advisories, licences and sources want every crate cargo
