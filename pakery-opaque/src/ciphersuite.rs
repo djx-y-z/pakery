@@ -68,10 +68,14 @@ pub trait OpaqueCiphersuite: Sized + 'static {
 /// Compile-time check that a ciphersuite's declared lengths agree with the
 /// primitives it names and with the two values RFC 9807 fixes outright.
 ///
-/// Called from every public entry point that takes a `C: OpaqueCiphersuite`,
-/// so the check runs when the suite is monomorphized. A mismatch is a build
-/// error naming the offending constant, not a silent change to the wire
-/// format.
+/// Called first by every protocol entry point that takes a
+/// `C: OpaqueCiphersuite` (`ServerSetup::new` and `new_with_key`, and the
+/// registration and login `start` functions), so the check runs when the
+/// suite is monomorphized through one. The building blocks the crate also
+/// exports (the `oprf`, `envelope` and `key_derivation` functions, and the
+/// message parsers) do not call it; `every_entry_point_asserts_lengths`
+/// keeps both lists explicit. A mismatch is a build error naming the
+/// offending constant, not a silent change to the wire format.
 ///
 /// These are post-monomorphization const evaluations, so they fire on
 /// `cargo build` and `cargo test` — which is where CI catches them — but not
@@ -175,8 +179,55 @@ mod tests {
         assert_eq!(assert_lengths::<MockSuite>(), 10);
     }
 
-    /// Every public constructor and `start` entry point must call
-    /// [`assert_lengths`] as its first statement.
+    /// Whether a parameter list, as written after its `(`, opens with a `self`
+    /// receiver: `self`, `mut self`, `&self`, `&mut self`, `&'a self`, or any
+    /// of them with a type (`self: Box<Self>`).
+    #[cfg(feature = "std")]
+    fn has_receiver(params: &str) -> bool {
+        let mut p = params.trim_start();
+        if let Some(rest) = p.strip_prefix('&') {
+            p = rest.trim_start();
+            if let Some(rest) = p.strip_prefix('\'') {
+                p = rest
+                    .trim_start_matches(|c: char| c.is_alphanumeric() || c == '_')
+                    .trim_start();
+            }
+        }
+        if let Some(rest) = p.strip_prefix("mut ") {
+            p = rest.trim_start();
+        }
+        p.strip_prefix("self")
+            .is_some_and(|rest| !rest.starts_with(|c: char| c.is_alphanumeric() || c == '_'))
+    }
+
+    #[cfg(feature = "std")]
+    #[test]
+    fn has_receiver_reads_every_receiver_form() {
+        for params in [
+            "self) {",
+            "mut self, ke3: &KE3) {",
+            "&self) -> &[u8] {",
+            "&mut self) {",
+            "&'a self) {",
+            "& 'a mut self) {",
+            "self: Box<Self>) {",
+        ] {
+            assert!(has_receiver(params), "{params}");
+        }
+        for params in [
+            "",
+            ") -> usize {",
+            "bytes: &[u8]) {",
+            "selfish: u8) {",
+            "self_key: &[u8]) {",
+        ] {
+            assert!(!has_receiver(params), "{params}");
+        }
+    }
+
+    /// Every public function with no `self` receiver must call
+    /// [`assert_lengths`] as its first statement, unless it is listed below as
+    /// not an entry point.
     ///
     /// The compile-time length checks only fire for a ciphersuite that is
     /// actually monomorphized through one of these functions, so an entry
@@ -189,32 +240,116 @@ mod tests {
     /// fail-open exactly where it matters: an entry point in a file added
     /// later is invisible, and because the missed site never increments the
     /// counter, the `checked` total below does not notice either.
+    ///
+    /// It finds entry points by shape, not by name. It used to look only for
+    /// `pub fn new` and `pub fn start`, so an entry point under any other verb
+    /// was invisible to it, and the `checked` total did not notice that
+    /// either. Now every receiver-less `pub fn` is either an entry point,
+    /// which must assert, or a row of `NOT_ENTRY_POINTS`, with the number of
+    /// functions of that name in that file and the reason. A new one fails
+    /// here until someone decides which it is; so does a table row that no
+    /// longer matches. Methods are not scanned: they need a value, and the
+    /// protocol states come only from entry points.
     #[cfg(feature = "std")]
     #[test]
     fn every_entry_point_asserts_lengths() {
         use crate::source_scan::rust_sources;
+        use std::collections::BTreeMap;
+
+        // Why a function is not an entry point. Calling one of these directly
+        // with a ciphersuite skips the compile-time checks.
+        const NOT_GENERIC: &str = "not generic over a ciphersuite";
+        const BLOCK: &str = "a building block, which the protocol calls after an entry point";
+        const PARSER: &str = "a message parser, length-checked against the suite's constants";
+        const LENGTH: &str = "a length computed from the suite's constants";
+        // (file, function, how many of that name the file has, why).
+        const NOT_ENTRY_POINTS: &[(&str, &str, usize, &str)] = &[
+            ("envelope.rs", "build_cleartext_credentials", 1, NOT_GENERIC),
+            ("envelope.rs", "store", 1, BLOCK),
+            ("envelope.rs", "recover", 1, BLOCK),
+            ("key_derivation.rs", "expand_label", 1, BLOCK),
+            ("key_derivation.rs", "derive_secret", 1, BLOCK),
+            ("key_derivation.rs", "derive_randomized_password", 1, BLOCK),
+            ("key_derivation.rs", "build_preamble", 1, NOT_GENERIC),
+            ("key_derivation.rs", "derive_keys", 1, BLOCK),
+            ("key_derivation.rs", "triple_dh_ikm", 1, BLOCK),
+            ("messages.rs", "deserialize", 8, PARSER),
+            ("messages.rs", "size", 2, LENGTH),
+            ("oprf.rs", "oprf_client_blind", 1, BLOCK),
+            ("oprf.rs", "oprf_client_finalize", 1, BLOCK),
+            ("oprf.rs", "oprf_server_evaluate", 1, BLOCK),
+            ("oprf.rs", "derive_oprf_key", 1, BLOCK),
+        ];
 
         let mut checked = 0;
+        let mut not_asserting: BTreeMap<(String, String), usize> = BTreeMap::new();
         for (name, src) in rust_sources() {
             let lines: Vec<&str> = src.lines().collect();
             for (i, line) in lines.iter().enumerate() {
-                let sig = line.trim_start();
-                if !(sig.starts_with("pub fn new") || sig.starts_with("pub fn start")) {
+                let Some(mut rest) = line.trim_start().strip_prefix("pub ") else {
                     continue;
+                };
+                while let Some(r) = ["const ", "async ", "unsafe "]
+                    .iter()
+                    .find_map(|q| rest.strip_prefix(q))
+                {
+                    rest = r;
                 }
-                // Walk forward to the line that opens the body.
+                let Some(rest) = rest.strip_prefix("fn ") else {
+                    continue;
+                };
+                let func: String = rest
+                    .chars()
+                    .take_while(|c| c.is_alphanumeric() || *c == '_')
+                    .collect();
+                // Collect the signature up to the line that opens the body.
                 let mut j = i;
-                while j < lines.len() && !lines[j].trim_end().ends_with('{') {
+                let mut signature = String::new();
+                while j < lines.len() {
+                    signature.push_str(lines[j].trim());
+                    signature.push(' ');
+                    if lines[j].trim_end().ends_with('{') {
+                        break;
+                    }
                     j += 1;
                 }
+                let params = signature.split_once('(').map_or("", |(_, p)| p);
+                if has_receiver(params) {
+                    continue;
+                }
                 let first_stmt = lines.get(j + 1).map(|l| l.trim()).unwrap_or("");
-                assert!(
-                    first_stmt.contains("assert_lengths::<C>()"),
-                    "{name}: `{sig}` must call assert_lengths::<C>() as its first \
-                     statement, found `{first_stmt}`"
-                );
-                checked += 1;
+                if first_stmt.contains("assert_lengths::<C>()") {
+                    checked += 1;
+                } else {
+                    *not_asserting.entry((name.clone(), func)).or_insert(0) += 1;
+                }
             }
+        }
+
+        for ((file, func), found) in &not_asserting {
+            let row = NOT_ENTRY_POINTS
+                .iter()
+                .find(|(f, n, _, _)| f == file && n == func);
+            let Some((_, _, listed, _)) = row else {
+                panic!(
+                    "{file}: `pub fn {func}` takes no `self` and does not call \
+                     assert_lengths::<C>() as its first statement: make that its \
+                     first statement, or list it in NOT_ENTRY_POINTS with the \
+                     reason it is not an entry point"
+                );
+            };
+            assert_eq!(
+                found, listed,
+                "{file}: NOT_ENTRY_POINTS lists {listed} `pub fn {func}`, the file \
+                 has {found} that do not assert: classify the difference"
+            );
+        }
+        for (file, func, _, _) in NOT_ENTRY_POINTS {
+            assert!(
+                not_asserting.contains_key(&(file.to_string(), func.to_string())),
+                "NOT_ENTRY_POINTS lists {file} `{func}`, which the file no longer \
+                 has without the assert: drop the row"
+            );
         }
         assert_eq!(checked, 9, "expected 9 entry points, found {checked}");
     }
