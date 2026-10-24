@@ -106,7 +106,7 @@ assert_eq!(
 
 ## MSRV
 
-The minimum supported Rust version is **1.85**.
+The minimum supported Rust version is **1.88**.
 
 ## License
 

@@ -32,9 +32,10 @@ point back to.
   included). They run as unit tests in pakery-crypto, through the public
   types, except the "Proof" bytes: the proof nonce is hedged, so those are
   checked through a test-only entry that takes the vectors' nonce.
-- CI: test, clippy `-D warnings`, fmt, doc, MSRV (1.85), no_std (thumbv7em),
+- CI: test, clippy `-D warnings`, fmt, doc, MSRV (1.88), no_std (thumbv7em),
   wasm, feature-combinations, minimal-versions, coverage, and the
-  documentation gate (`ci/check-docs.py`); `cargo audit` and cargo-deny on
+  documentation gate (`ci/check-docs.py`); `cargo audit` (over all three
+  lockfiles: the workspace's, `fuzz/`'s and `dudect/`'s) and cargo-deny on
   every push and PR plus a weekly cron. cargo-deny runs twice, over two
   different graphs: advisories, licences and sources over every crate cargo
   resolves, and duplicate versions over the published graph alone
@@ -74,8 +75,9 @@ random one fed the same bytes.
   (no `test-utils` needed); case counts kept modest (32–64) and the identity
   KSF is used so Argon2 does not dominate runtime — the KSF itself is covered
   by the differential Argon2id cases instead (see "Differential testing"). proptest is left
-  **unpinned**: since the workspace moved to MSRV 1.85 its 1.11+ releases are
-  within range, and the MSRV job does not build dev-dependencies anyway.
+  **unpinned**: its 1.12 releases require Rust 1.88, the workspace MSRV, so
+  they are within range, and the MSRV job does not build dev-dependencies
+  anyway.
 
 ### Negative test vectors
 
@@ -207,7 +209,7 @@ index is flagged — in debug **and** release (catches LLVM undoing `subtle`).
   bare names), not the demangled names Valgrind prints. curve25519-dalek
   needs none. One pattern is never suppressed: a report in crypto-bigint's
   `safegcd` inversion, which p256's field and scalar inversions use and which
-  is constant time by construction. Such a report is a branch or an index on
+  is written to be constant time. Such a report is a branch or an index on
   secret data inside it; whether that diverges in time is for the assembly
   and upstream to settle, and nothing at pakery's boundary can fix or justify
   it. So no release is tagged, no entry is added, and it is reported

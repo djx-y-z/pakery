@@ -87,7 +87,7 @@ assert_eq!(init_out.isk.as_bytes(), resp_out.isk.as_bytes());
 
 ## MSRV
 
-The minimum supported Rust version is **1.85**.
+The minimum supported Rust version is **1.88**.
 
 ## License
 
