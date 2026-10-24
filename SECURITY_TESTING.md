@@ -205,8 +205,15 @@ index is flagged — in debug **and** release (catches LLVM undoing `subtle`).
   `ci/test-check-ct-suppressions.py` break-tests the check on every run.
   Anchors are matched against mangled symbol names (inlined frames by their
   bare names), not the demangled names Valgrind prints. curve25519-dalek
-  needs none. OPAQUE uses identity-KSF suites (Argon2id is data-dependent by
-  design).
+  needs none. One pattern is never suppressed: a report in crypto-bigint's
+  `safegcd` inversion, which p256's field and scalar inversions use and which
+  is constant time by construction. Such a report is a branch or an index on
+  secret data inside it; whether that diverges in time is for the assembly
+  and upstream to settle, and nothing at pakery's boundary can fix or justify
+  it. So no release is tagged, no entry is added, and it is reported
+  upstream with the log. `valgrind-ct.supp`'s header states the rule, and
+  `ci/check-ct-suppressions.py` refuses an entry that names `safegcd`. OPAQUE uses identity-KSF suites (Argon2id is
+  data-dependent by design).
   The flows cover the RFC 9497 VOPRF / POPRF too — both suites and modes,
   random and deterministic blinds, single and batched, with the server key
   taken three ways — and `DhGroup::public_key_from_private`, which no OPAQUE

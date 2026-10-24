@@ -19,7 +19,9 @@ account for:
     (Valgrind's default suppressions included), or a different count;
   - a summary total that is not the sum of the entries' counts;
   - an expectation naming no stanza of valgrind-ct.supp, or a stanza that no
-    build expects.
+    build expects;
+  - a stanza that names crypto-bigint's `safegcd` inversion, which is never
+    suppressed (valgrind-ct.supp's header says why).
 
 Break-tested by ci/test-check-ct-suppressions.py.
 
@@ -84,6 +86,39 @@ def load_expected(text: str, source: str) -> dict[str, dict[str, int]]:
             raise ValueError(f"{source}:{lineno}: `{name}` is listed twice for {profile}")
         expected[profile][name] = count
     return expected
+
+
+# crypto-bigint's `safegcd` inversion is constant time by construction, so a
+# report in it is a defect to take upstream, never a pattern to accept. Matched
+# without regard to case on every line of a stanza, its name included: the
+# mangled names spell it in the module path (`7safegcd`) and in the type
+# (`15SafeGcdInverter`).
+FORBIDDEN = re.compile(r"safegcd", re.IGNORECASE)
+
+
+def check_forbidden(supp_text: str) -> list[str]:
+    """No stanza of the supp file may name crypto-bigint's `safegcd`."""
+    problems = []
+    name = None
+    in_stanza = expect_name = False
+    for raw in supp_text.splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line == "{":
+            in_stanza = expect_name = True
+            continue
+        if line == "}":
+            in_stanza = False
+            continue
+        if expect_name:
+            name, expect_name = line, False
+        if in_stanza and FORBIDDEN.search(line):
+            problems.append(
+                f"valgrind-ct.supp: `{name}` names crypto-bigint's `safegcd` inversion "
+                f"({line}), which is reported upstream, never suppressed"
+            )
+    return problems
 
 
 def check_registry(expected: dict[str, dict[str, int]], stanzas: list[str]) -> list[str]:
@@ -164,7 +199,9 @@ def main(argv: list[str]) -> int:
     except ValueError as err:
         print(f"FAIL: {err}", file=sys.stderr)
         return 1
-    problems = check_registry(expected, stanza_names(SUPP.read_text()))
+    supp_text = SUPP.read_text()
+    problems = check_registry(expected, stanza_names(supp_text))
+    problems += check_forbidden(supp_text)
     problems += check_log(log.read_text(errors="replace"), expected[profile])
     print(f"Suppressions expected for the {profile} build (pakery-tests/valgrind-ct.expected):")
     for name, count in sorted(expected[profile].items()):

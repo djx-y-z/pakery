@@ -7,6 +7,20 @@
 # fails the run. The one pattern below is P-256-only; the
 # curve25519-dalek paths run without any suppression.
 #
+# One pattern is never accepted: a report in crypto-bigint's `safegcd`
+# inversion, which p256's field and scalar inversions go through (the
+# constant-time variant, `invert_odd_mod::<LIMBS, false>`). It is constant
+# time by construction: a fixed number of iterations, selects instead of
+# branches, and no data-dependent branch but `debug_assert!`s, which ct.yml's
+# debug leg turns off. A report there is a branch or an index on secret data
+# inside that inversion. memcheck shows taint, not timing: whether it
+# actually diverges is for the assembly and upstream to settle, and nothing
+# at pakery's boundary can fix or justify it. If a ct.yml leg is ever red on
+# `safegcd` frames: first check that the debug leg still disables debug
+# assertions; then do not tag a release, do not add an entry here, and report
+# it upstream with the log.
+# ci/check-ct-suppressions.py refuses any entry whose frames name `safegcd`.
+#
 # Written against p256 0.14.0 / primeorder 0.14.0 / hash2curve 0.14.0 /
 # subtle 2.6.1 (rustc 1.99.1, Valgrind 3.22, x86_64 Linux, debug and
 # release) and first verified on 2026-10-19 in a run with `-v`; the debug
