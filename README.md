@@ -126,6 +126,9 @@ crates offer `test-utils`. See each crate's README.
 - Secret values zeroized on drop via [`zeroize`](https://crates.io/crates/zeroize)
 - Validated against RFC test vectors where available
 
+To report a vulnerability, see [SECURITY.md](SECURITY.md). How pakery is tested
+is described in [SECURITY_TESTING.md](SECURITY_TESTING.md).
+
 **Disclaimer:** This library has not been independently audited. Use at your own risk in production systems.
 
 ## MSRV

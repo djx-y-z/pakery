@@ -183,7 +183,7 @@ matching version, so publishing `pakery-crypto` before them is rejected.
 
 ## Reporting security issues
 
-If you discover a security vulnerability, please **do not** open a public issue. Instead, report it privately via GitHub's [security advisory](https://github.com/djx-y-z/pakery/security/advisories/new) feature.
+If you discover a security vulnerability, please **do not** open a public issue. Instead, report it privately via GitHub's [security advisory](https://github.com/djx-y-z/pakery/security/advisories/new) feature. [SECURITY.md](SECURITY.md) says what to include and what happens next.
 
 ## License
 
