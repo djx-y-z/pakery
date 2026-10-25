@@ -14,9 +14,10 @@
 # `--exclude-unpublished` drops `publish = false` workspace members as graph
 # roots, leaving the dependency trees consumers actually get, which is what
 # `[bans]` below is about. The other three checks want the opposite: today
-# that flag would take 38 of 114 crates — the whole previous RustCrypto wave,
-# where an advisory is most likely to land — out of advisory, licence and
-# source scope.
+# that flag would take 32 of 106 crates — most of the previous RustCrypto
+# wave, where an advisory is most likely to land — out of advisory, licence
+# and source scope. (`[graph] exclude` below already takes eight crates of
+# that wave out of every check.)
 #
 # Schema and both spellings verified on cargo-deny 0.19.4 and on 0.20.2, the
 # version cargo-deny-action@v2 pins.
@@ -45,13 +46,19 @@ all-features = true
 exclude = ["elliptic-curve@0.13.8"]
 
 [advisories]
-# 0.16+ denies vulnerabilities, unmaintained, unsound and yanked by default;
-# there is no severity threshold knob any more. Nothing is ignored, and an
-# empty list is a deliberate statement rather than an oversight: the one
-# accepted advisory is handled by `[graph] exclude` above, which drops the
-# affected test-only version instead of silencing the advisory for every
-# version. Add entries here only with a comment explaining why the advisory
-# does not apply.
+# By default cargo-deny (0.20.2, the version cargo-deny-action@v2 runs)
+# denies vulnerabilities and unmaintained crates in the whole graph, but an
+# unsound advisory only for a crate a workspace member depends on directly,
+# and a yanked version only with a warning. The two lines below raise both to
+# the whole graph and an error, so an unsound or yanked transitive dependency
+# fails the check too. There is no severity threshold knob any more.
+unsound = "all"
+yanked = "deny"
+# Nothing is ignored, and an empty list is a deliberate statement rather than
+# an oversight: the one accepted advisory is handled by `[graph] exclude`
+# above, which drops the affected test-only version instead of silencing the
+# advisory for every version. Add entries here only with a comment explaining
+# why the advisory does not apply.
 ignore = []
 
 [licenses]
