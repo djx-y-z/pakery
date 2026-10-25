@@ -28,10 +28,11 @@ impl DhGroup for P256Dh {
 
         // ctgrind: the secret key stays secret through the parse (only the
         // accept/reject decision is declassified), so the DH result is
-        // secret as well and its encoding below runs under taint.
-        let scalar = scalar_from_bytes(sk)?;
+        // secret as well and its encoding below runs under taint. The key and
+        // the shared point are wiped on every path out.
+        let scalar = Zeroizing::new(scalar_from_bytes(sk)?);
         let pk_point = point_from_bytes(pk)?;
-        let result = pk_point * scalar;
+        let result = Zeroizing::new(pk_point * *scalar);
 
         // ctgrind: the identity-rejection outcome is a public protocol abort.
         if pakery_core::ct::declassify_choice(result.ct_eq(&ProjectivePoint::IDENTITY)) {
@@ -55,8 +56,8 @@ impl DhGroup for P256Dh {
         // Marked here, the key and every product with it run tainted.
         pakery_core::ct::mark_secret(seed);
         let sk_bytes = P256Oprf::derive_key(seed, b"OPAQUE-DeriveDiffieHellmanKeyPair")?;
-        let scalar = scalar_from_bytes(&sk_bytes)?;
-        let pk = point_to_bytes(&(ProjectivePoint::GENERATOR * scalar));
+        let scalar = Zeroizing::new(scalar_from_bytes(&sk_bytes)?);
+        let pk = point_to_bytes(&(ProjectivePoint::GENERATOR * *scalar));
         // ctgrind: the public key is public by definition.
         pakery_core::ct::declassify(&pk);
         Ok((sk_bytes, pk))
@@ -75,8 +76,8 @@ impl DhGroup for P256Dh {
     }
 
     fn public_key_from_private(sk: &[u8]) -> Result<Vec<u8>, PakeError> {
-        let scalar = scalar_from_bytes(sk)?;
-        let pk = point_to_bytes(&(ProjectivePoint::GENERATOR * scalar));
+        let scalar = Zeroizing::new(scalar_from_bytes(sk)?);
+        let pk = point_to_bytes(&(ProjectivePoint::GENERATOR * *scalar));
         // ctgrind: the public key is public by definition.
         pakery_core::ct::declassify(&pk);
         Ok(pk)

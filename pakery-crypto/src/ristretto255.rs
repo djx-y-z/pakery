@@ -33,7 +33,11 @@ impl CpaceGroup for Ristretto255Group {
     }
 
     fn to_bytes(&self) -> Vec<u8> {
-        self.point.compress().to_bytes().to_vec()
+        // The points encoded here can be secret (CPace's and SPAKE2's `K`,
+        // SPAKE2+'s `Z` and `V`): the compressed form is wiped, and its bytes
+        // are read by reference. The returned `Vec` is the caller's.
+        let compressed = Zeroizing::new(self.point.compress());
+        compressed.as_bytes().to_vec()
     }
 
     fn from_bytes(bytes: &[u8]) -> Result<Self, PakeError> {
@@ -93,7 +97,10 @@ impl CpaceGroup for Ristretto255Group {
     }
 
     fn scalar_to_bytes(scalar: &Scalar) -> Vec<u8> {
-        scalar.to_bytes().to_vec()
+        // Read by reference rather than through a by-value array: the
+        // scalars encoded here can be secret (SPAKE2's `w`, SPAKE2+'s `w0`).
+        // The returned `Vec` is the caller's.
+        scalar.as_bytes().to_vec()
     }
 }
 
@@ -136,8 +143,9 @@ impl DhGroup for Ristretto255Dh {
         let sk: &[u8; 32] = sk
             .try_into()
             .map_err(|_| PakeError::InvalidInput("invalid secret key length"))?;
-        let scalar =
-            scalar_from_canonical_secret(sk).ok_or(PakeError::InvalidInput("invalid scalar"))?;
+        let scalar = Zeroizing::new(
+            scalar_from_canonical_secret(sk).ok_or(PakeError::InvalidInput("invalid scalar"))?,
+        );
 
         let pk_bytes: [u8; 32] = pk
             .try_into()
@@ -146,12 +154,14 @@ impl DhGroup for Ristretto255Dh {
             .decompress()
             .ok_or(PakeError::InvalidInput("invalid public key point"))?;
 
-        let result = scalar * pk_point;
+        // The key and the shared point are wiped on every path out.
+        let result = Zeroizing::new(*scalar * pk_point);
         // ctgrind: the identity-rejection outcome is a public protocol abort.
         if pakery_core::ct::declassify_choice(result.ct_eq(&RistrettoPoint::identity())) {
             return Err(PakeError::IdentityPoint);
         }
-        let out = result.compress().to_bytes().to_vec();
+        let compressed = Zeroizing::new(result.compress());
+        let out = compressed.as_bytes().to_vec();
         // ctgrind: the DH output is secret key material — already tainted
         // through the scalar; marked again to keep the policy explicit.
         pakery_core::ct::mark_secret(&out);
@@ -171,11 +181,11 @@ impl DhGroup for Ristretto255Dh {
             .as_slice()
             .try_into()
             .map_err(|_| PakeError::ProtocolError("invalid key size"))?;
-        let scalar = scalar_from_canonical_secret(sk).ok_or(PakeError::ProtocolError(
-            "invalid scalar from DeriveKeyPair",
-        ))?;
+        let scalar = Zeroizing::new(scalar_from_canonical_secret(sk).ok_or(
+            PakeError::ProtocolError("invalid scalar from DeriveKeyPair"),
+        )?);
 
-        let pk = (scalar * RISTRETTO_BASEPOINT_POINT)
+        let pk = (*scalar * RISTRETTO_BASEPOINT_POINT)
             .compress()
             .to_bytes()
             .to_vec();
@@ -202,9 +212,10 @@ impl DhGroup for Ristretto255Dh {
         let sk: &[u8; 32] = sk
             .try_into()
             .map_err(|_| PakeError::InvalidInput("invalid secret key length"))?;
-        let scalar =
-            scalar_from_canonical_secret(sk).ok_or(PakeError::InvalidInput("invalid scalar"))?;
-        let pk = (scalar * RISTRETTO_BASEPOINT_POINT)
+        let scalar = Zeroizing::new(
+            scalar_from_canonical_secret(sk).ok_or(PakeError::InvalidInput("invalid scalar"))?,
+        );
+        let pk = (*scalar * RISTRETTO_BASEPOINT_POINT)
             .compress()
             .to_bytes()
             .to_vec();

@@ -53,17 +53,20 @@ impl OprfClientState for Ristretto255OprfClientState {
         // ctgrind: the blind stays secret through the parse (only the
         // accept/reject decisions are declassified), so its inverse and the
         // unblinded `N` are secret too.
-        let blind_scalar = scalar_from_canonical_secret(&self.blind)
-            .ok_or(PakeError::ProtocolError("invalid blind scalar"))?;
+        let blind_scalar = Zeroizing::new(
+            scalar_from_canonical_secret(&self.blind)
+                .ok_or(PakeError::ProtocolError("invalid blind scalar"))?,
+        );
         if pakery_core::ct::declassify_choice(blind_scalar.ct_eq(&Scalar::ZERO)) {
             return Err(PakeError::ProtocolError("blind scalar is zero"));
         }
-        let r_inv = blind_scalar.invert();
+        let r_inv = Zeroizing::new(blind_scalar.invert());
 
-        let n = r_inv * z;
-        // `N` is the unblinded evaluation, which determines the output: its
-        // encoding is wiped on drop, as on P-256.
-        let n_bytes = Zeroizing::new(n.compress().to_bytes());
+        let n = Zeroizing::new(*r_inv * z);
+        // `N` is the unblinded evaluation, which determines the output: it,
+        // its compressed form and its encoding are wiped on drop, as on P-256.
+        let compressed = Zeroizing::new(n.compress());
+        let n_bytes = Zeroizing::new(compressed.to_bytes());
         finalize_hash::<Sha512>(password, &*n_bytes)
     }
 }
@@ -115,7 +118,7 @@ impl Oprf for Ristretto255Oprf {
         // `Scalar::random` from curve25519-dalek 5.0, which is not even
         // compiled here: it is `#[cfg(feature = "rand_core")]`, and that
         // feature is off since we dropped dalek's `group`.
-        let mut r = loop {
+        let r = Zeroizing::new(loop {
             let mut wide = Zeroizing::new([0u8; 64]);
             rng.fill_bytes(&mut *wide);
             // ctgrind: fresh blind material is secret; the wide reduction is
@@ -127,12 +130,12 @@ impl Oprf for Ristretto255Oprf {
             if !pakery_core::ct::declassify_choice(s.ct_eq(&Scalar::ZERO)) {
                 break s;
             }
-        };
+        });
 
-        let t = hash_to_group(password)?;
-        let blinded = r * t;
+        // `r` and the hashed password are wiped on every path out.
+        let t = Zeroizing::new(hash_to_group(password)?);
+        let blinded = *r * *t;
         let blind = r.to_bytes();
-        r.zeroize();
 
         let blinded_bytes = blinded.compress().to_bytes().to_vec();
         // ctgrind: the blinded element is the OPRF wire message — public by
@@ -147,8 +150,9 @@ impl Oprf for Ristretto255Oprf {
         let sk: &[u8; 32] = oprf_key
             .try_into()
             .map_err(|_| PakeError::InvalidInput("invalid OPRF key length"))?;
-        let sk =
-            scalar_from_canonical_secret(sk).ok_or(PakeError::InvalidInput("invalid OPRF key"))?;
+        let sk = Zeroizing::new(
+            scalar_from_canonical_secret(sk).ok_or(PakeError::InvalidInput("invalid OPRF key"))?,
+        );
         if pakery_core::ct::declassify_choice(sk.ct_eq(&Scalar::ZERO)) {
             return Err(PakeError::InvalidInput("OPRF key is zero"));
         }
@@ -169,7 +173,7 @@ impl Oprf for Ristretto255Oprf {
             }
         }
 
-        let evaluated = sk * blinded;
+        let evaluated = *sk * blinded;
         let evaluated_bytes = evaluated.compress().to_bytes().to_vec();
         // ctgrind: the evaluated element is a wire message.
         pakery_core::ct::declassify(&evaluated_bytes);

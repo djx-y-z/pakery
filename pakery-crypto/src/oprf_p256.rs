@@ -54,7 +54,10 @@ pub(crate) fn point_to_bytes(point: &ProjectivePoint) -> Vec<u8> {
     if pakery_core::ct::declassify_choice(point.ct_eq(&ProjectivePoint::IDENTITY)) {
         return alloc::vec![0x00];
     }
-    encode_point_ct(point).to_vec()
+    // The encoding can be secret (a Diffie-Hellman result): the array is
+    // wiped; the returned `Vec` is the caller's.
+    let encoded = Zeroizing::new(encode_point_ct(point));
+    encoded.to_vec()
 }
 
 /// Serialize a non-identity point as compressed SEC1 (33 bytes) in constant
@@ -63,14 +66,19 @@ pub(crate) fn point_to_bytes(point: &ProjectivePoint) -> Vec<u8> {
 /// The affine conversion inverts `z` with a constant-time inversion, and the
 /// parity and the `x` bytes are read without a branch. The identity has no
 /// 33-byte encoding; for it this returns a meaningless `0x02 || 0^32`, so the
-/// caller must have ruled it out.
+/// caller must have ruled it out. The points it encodes are often secret
+/// (the unblinded OPRF value, a Diffie-Hellman result), so it wipes its
+/// affine copy and the `x` bytes; the returned array is the caller's.
 pub(crate) fn encode_point_ct(point: &ProjectivePoint) -> [u8; 33] {
-    let affine = point.to_affine();
+    let mut affine = point.to_affine();
     let mut out = [0u8; 33];
     // A select rather than `0x02 | parity`: the same bytes, and no operator
     // for a mutant to flip into an equivalent one (`|` and `^` agree here).
     out[0] = u8::conditional_select(&0x02, &0x03, affine.y_is_odd());
-    out[1..].copy_from_slice(&affine.x());
+    let mut x = affine.x();
+    out[1..].copy_from_slice(&x);
+    x.zeroize();
+    affine.zeroize();
     out
 }
 
@@ -177,18 +185,19 @@ impl OprfClientState for P256OprfClientState {
         }
 
         // ctgrind: the blind stays secret through the parse and the inversion;
-        // only the two refusal decisions are declassified.
-        let blind_scalar = scalar_from_bytes(&self.blind)?;
+        // only the two refusal decisions are declassified. The blind, its
+        // inverse and `n` are wiped on every path out.
+        let blind_scalar = Zeroizing::new(scalar_from_bytes(&self.blind)?);
         let r_inv = blind_scalar.invert();
         if pakery_core::ct::declassify_choice(r_inv.is_none()) {
             return Err(PakeError::ProtocolError("blind scalar has no inverse"));
         }
-        let r_inv = r_inv.unwrap_or(Scalar::ZERO);
+        let r_inv = Zeroizing::new(r_inv.unwrap_or(Scalar::ZERO));
 
         // `n` is the PRF value before hashing, so it is secret and goes through
         // the constant-time encoder. It is not the identity: `z` was rejected
         // above if it was, and `r_inv` inverts a nonzero scalar.
-        let n = z * r_inv;
+        let n = Zeroizing::new(z * *r_inv);
         let n_bytes = Zeroizing::new(encode_point_ct(&n));
         finalize_hash::<Sha256>(password, &*n_bytes)
     }
@@ -225,7 +234,7 @@ impl Oprf for P256Oprf {
         // accepted blind is the secret: it is marked, and the scalar re-derived
         // from the marked bytes, so the blinding multiplication and the
         // encoding of the blind below run tainted, as in the RFC 9497 suites.
-        let mut r = loop {
+        let r = Zeroizing::new(loop {
             let mut bytes = Zeroizing::new([0u8; 32]);
             rng.fill_bytes(&mut *bytes);
             // Copied in place rather than through a by-value array, and the
@@ -246,17 +255,17 @@ impl Oprf for P256Oprf {
                 fb.zeroize();
                 break r;
             }
-        };
+        });
 
-        let t = hash_to_group(password)?;
-        let blinded = t * r;
+        // `r` and the hashed password are wiped on every path out.
+        let t = Zeroizing::new(hash_to_group(password)?);
+        let blinded = *t * *r;
         // Copied in place rather than through a by-value array, and the
         // encoding wiped.
         let mut repr = r.to_repr();
         let mut blind = [0u8; 32];
         blind.copy_from_slice(&repr);
         repr.zeroize();
-        r.zeroize();
 
         // ctgrind: the blind is secret key material — already tainted through
         // `r`; marked again to keep the policy explicit.
@@ -271,7 +280,7 @@ impl Oprf for P256Oprf {
     fn server_evaluate(oprf_key: &[u8], blinded_bytes: &[u8]) -> Result<Vec<u8>, PakeError> {
         // ctgrind: the key stays secret through the parse; only the refusal
         // decisions are declassified.
-        let sk = scalar_from_bytes(oprf_key)?;
+        let sk = Zeroizing::new(scalar_from_bytes(oprf_key)?);
         if pakery_core::ct::declassify_choice(sk.is_zero()) {
             return Err(PakeError::InvalidInput("OPRF key is zero"));
         }
@@ -285,7 +294,7 @@ impl Oprf for P256Oprf {
             }
         }
 
-        let evaluated = blinded * sk;
+        let evaluated = blinded * *sk;
         let evaluated_bytes = point_to_bytes(&evaluated);
         // ctgrind: the evaluated element is a wire message.
         pakery_core::ct::declassify(&evaluated_bytes);

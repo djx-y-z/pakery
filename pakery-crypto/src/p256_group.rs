@@ -54,13 +54,20 @@ impl CpaceGroup for P256Group {
         if pakery_core::ct::declassify_choice(self.point.ct_eq(&ProjectivePoint::IDENTITY)) {
             return alloc::vec![0x00];
         }
-        let affine = self.point.to_affine();
+        let mut affine = self.point.to_affine();
         // Room for all 65 bytes up front: the pushes below never reallocate,
         // so no copy of the coordinates is left unwiped in a freed buffer.
+        // The affine copy and the coordinate bytes are wiped; the returned
+        // `Vec` is the caller's.
         let mut out = Vec::with_capacity(65);
         out.push(0x04);
-        out.extend_from_slice(&affine.x());
-        out.extend_from_slice(&affine.y());
+        let mut x = affine.x();
+        out.extend_from_slice(&x);
+        x.zeroize();
+        let mut y = affine.y();
+        out.extend_from_slice(&y);
+        y.zeroize();
+        affine.zeroize();
         out
     }
 
@@ -192,7 +199,13 @@ impl CpaceGroup for P256Group {
     }
 
     fn scalar_to_bytes(scalar: &Scalar) -> Vec<u8> {
-        scalar.to_repr().to_vec()
+        // The scalars encoded here can be secret (SPAKE2's `w`, SPAKE2+'s
+        // `w0`), so the `FieldBytes` is wiped; the returned `Vec` is the
+        // caller's.
+        let mut repr = scalar.to_repr();
+        let out = repr.to_vec();
+        repr.zeroize();
+        out
     }
 }
 
