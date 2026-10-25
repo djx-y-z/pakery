@@ -1,3 +1,40 @@
+## [0.6.2] - 2026-10-25
+
+Maintenance release. It raises the minimum supported Rust version to `1.88`, wipes more secret material — the SHA-2 hasher state, two of argon2's internal hashes, and a set of stack temporaries in `pakery-crypto` — and keeps ristretto255's base-mode secret scalars secret through their parse, so that the constant-time harness now checks every multiplication by them, as it has checked P-256's since `0.6.1`.
+
+**No wire format changes and no API changes.** Every type, trait, signature and output is unchanged and every RFC vector passes as before. The MSRV raise is the one compatibility change. Cargo's SemVer guide treats it as a minor change, which for a `0.x` crate is the patch number, and a toolchain from 1.85 to 1.87 that resolves MSRV-aware stays on `0.6.1`. Under the workspace's lockstep versioning all six crates are republished at `0.6.2`. Outside `pakery-crypto`, the crates change only their README's MSRV line, tests and documentation: `pakery-core` its `ct` module docs and one unit test's imports, `pakery-opaque` its entry-point guard test and an internal function's docs.
+
+### Changed
+
+- **The minimum supported Rust version is now `1.88`** (was `1.85`). sha2 0.11.1 declares `rust-version = "1.88"`, and crypto-bigint 0.7.6 and ctutils 0.4.4 and later declare `1.87`. Under `resolver = "2"`, a 1.85 build that resolved sha2 0.11.1 already failed on `0.6.0` and `0.6.1`. At `1.88` the lockfile and CI test the versions a downstream build actually resolves.
+  - crypto-bigint 0.7.6 and ctutils 0.4.4 are the fixed releases for RUSTSEC-2026-0387 and RUSTSEC-2026-0385. Nothing in pakery's manifests caps either crate, so a build on Rust 1.87 or later takes them with `cargo update -p crypto-bigint -p ctutils`, on `0.6.1` as well.
+
+### Fixed
+
+These are hardening fixes. None changes an output.
+
+- **A hasher's state and buffered input are wiped when it drops.** sha2's `zeroize` feature is on. It wipes the SHA-2 cores and digest's block buffer, which held the last block of every hashed password and OPRF input, and through them the HMAC and HKDF states built on SHA-2. argon2's `zeroize` feature is on as well. It wipes H0 and the final block's hash; argon2's `m`-KiB block array is still freed unwiped. Each feature is pinned by a compile-time check in `pakery-crypto` itself, so dropping it from the manifest is a build error.
+- **More secret temporaries are wiped.**
+  - `expand_message_xmd` now hashes each of its blocks, and the XOR it feeds into the next, into buffers it wipes. It previously kept them in plain locals and XORed byte by byte through by-value arrays.
+  - The base-mode `finalize_hash` wipes the OPRF output's buffer.
+  - P-256's `scalar_from_wide_bytes`, which derives SPAKE2's `w` from the password, wipes both halves. ristretto255's reads the 64 bytes by reference instead of copying them.
+  - The P-256 VOPRF suite's `decode_scalar`, and six sites that built `FieldBytes` from a `Zeroizing` array by value, copy in place into a buffer they wipe.
+  - `derive_key` wipes the accepted scalar and its encoding on both suites.
+  - ristretto255's base-mode `finalize` keeps the unblinded element's encoding in a `Zeroizing`, as P-256's does.
+- **ristretto255's base-mode secret scalars stay secret through their parse.** `Ristretto255Dh::diffie_hellman`, `derive_keypair` and `public_key_from_private`, and `Ristretto255Oprf`'s `finalize` (the blind) and `server_evaluate` (the key), used to parse from a declassified copy. dalek's parse is branch-free, but the `CtOption` check after it branches. So the constant-time harness ran every multiplication by these scalars untainted, and checked none of them. Each now declassifies only the accept/reject decision, as P-256's parses have since `0.6.1`, and its errors, their order and every output are unchanged. The harness reaches all five with marked input. A throwaway run with a branch on the secret scalar after each parse failed both constant-time legs, at all five sites and nowhere else. Each of the five also drops its extra copies of the secret bytes.
+
+### Notes
+
+- Since `0.6.1`, the repository has also gained the following. None of it is shipped code.
+  - A security policy, `SECURITY.md`.
+  - A CI job that runs the unit tests of `pakery-core` and the four protocol crates without `std`. Each feature combination of `pakery-crypto` now runs its unit tests too.
+  - A rule in the constant-time suppression policy. A report in crypto-bigint's `safegcd` inversion is never suppressed, and `ci/check-ct-suppressions.py` refuses any entry that names it.
+  - A fuzz oracle that checks why a deterministic blind was refused.
+  - An OPAQUE guard that finds entry points by their signature, not their name.
+  - `cargo audit` over the `fuzz/` and `dudect/` lockfiles.
+- cargo-deny excludes elliptic-curve 0.13.8 from its graph. That line reaches only `pakery-tests`' differential suite (`publish = false`), and it pulls crypto-bigint 0.5.5, which has no fixed release for RUSTSEC-2026-0387. cargo-audit still scans those crates for every other advisory.
+- All three lockfiles are refreshed. Among the moves is proptest 1.12, which needs Rust 1.88.
+
 ## [0.6.1] - 2026-10-21
 
 Additive release. It adds the two verifiable modes of RFC 9497 — the VOPRF and the POPRF — for both ciphersuites the crate already supports, and it fixes a constant-time defect in the P-256 base-mode OPRF and Diffie-Hellman group that every release since `0.1.0` shipped.
