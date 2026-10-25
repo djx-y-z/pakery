@@ -7,6 +7,15 @@ use pakery_core::crypto::Ksf;
 use pakery_core::PakeError;
 use zeroize::Zeroizing;
 
+// argon2's `zeroize` feature wipes H0 and the final block's hash. `Block`
+// implements `Zeroize` only under it, so this fails to compile if the
+// workspace manifest drops the feature. The block array itself is still
+// freed unwiped: `hash_password_into` owns it.
+const _: () = {
+    fn wipeable<T: zeroize::Zeroize>() {}
+    let _ = wipeable::<argon2::Block>;
+};
+
 /// Salt used by [`Argon2idKsfWithParams`], fixed at `zeroes(16)`.
 ///
 /// This is the value RFC 9807 §7 names in *both* of its recommended Argon2id

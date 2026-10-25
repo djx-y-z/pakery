@@ -34,7 +34,12 @@ getrandom = { version = "0.4", features = ["sys_rng"] }
 zeroize = { version = "1.9", features = ["derive"] }
 subtle = { version = "2.6", default-features = false }
 zeroize_derive = "1.5"
-sha2 = "0.11"
+# `zeroize` makes a hasher wipe its state and its buffered input when it
+# drops: sha2's cores and digest's block buffer, and through them the HMAC and
+# HKDF states built on SHA-2. Without it, every hash of a password or an OPRF
+# input leaves its last block in freed memory. pakery-crypto's `hash` module
+# stops compiling if the feature is dropped from this line.
+sha2 = { version = "0.11", features = ["zeroize"] }
 # The `group` feature (`group`/`ff` trait impls) has been enabled since the
 # first commit but is never used: this crate reaches ristretto255 through
 # dalek's own inherent API (`from_uniform_bytes`, `from_bytes_mod_order_wide`,
@@ -51,5 +56,9 @@ sha2 = "0.11"
 curve25519-dalek = { version = "5.0" }
 hkdf = "0.13"
 hmac = "0.13"
-argon2 = { version = "0.6", default-features = false, features = ["alloc"] }
+# `zeroize` wipes argon2's hash of the password and parameters (H0) and the
+# final block's hash. It does not reach the `m`-KiB block array, which
+# `hash_password_into` allocates and frees itself. pakery-crypto's `ksf`
+# module stops compiling if the feature is dropped from this line.
+argon2 = { version = "0.6", default-features = false, features = ["alloc", "zeroize"] }
 p256 = { version = "0.14", default-features = false, features = ["arithmetic", "group-digest"] }
