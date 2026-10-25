@@ -46,10 +46,8 @@ vectors, property-based tests, and differential testing. Not published.
   secret-dependent branches or memory indexing fail the run. Outside Valgrind
   (or when crabgrind was built without real Valgrind headers, e.g. on macOS)
   the marks are no-ops, so `--all-features` runs stay harmless. The marking
-  and declassification policy — including the accepted dependency-boundary
-  laundering of dalek's scalar canonicity checks (the P-256 parses keep the
-  scalar tainted) — is documented in `pakery_core::ct`'s module docs and at
-  each `ctgrind:` call-site comment.
+  and declassification policy is documented in `pakery_core::ct`'s module
+  docs and at each `ctgrind:` call-site comment.
 
 ```bash
 cargo test -p pakery-tests --features differential --test differential_opaque

@@ -19,12 +19,9 @@
 //!   design in its second half (RFC 9106 accepts this hybrid trade-off), so
 //!   running it tainted would only flag Argon2's documented design choice.
 //! - Everything intentionally declassified (wire messages, MAC tags before
-//!   sending, accept/reject decisions, and the secret-scalar canonicity checks
-//!   of the base-mode ristretto255 OPRF and Diffie-Hellman parses, laundered
-//!   because their `.into_option()` branches; the P-256 parses since 0.6.1,
-//!   like the RFC 9497 modes' parses on both suites, keep the scalar tainted)
-//!   is documented at the `ct` call sites in the library crates and summarized
-//!   in `pakery_core::ct`'s module docs.
+//!   sending, accept/reject decisions; every secret-scalar parse keeps the
+//!   scalar itself tainted) is documented at the `ct` call sites in the
+//!   library crates and summarized in `pakery_core::ct`'s module docs.
 //! - All randomness is a seeded `ChaCha20Rng`, so runs are deterministic.
 
 #![cfg(feature = "__ctgrind")]
@@ -400,8 +397,7 @@ fn ct_opaque_p256() {
 /// `DhGroup::public_key_from_private`, which no OPAQUE flow calls, on a
 /// secret key: the key is marked here as well as through `generate_keypair`'s
 /// seed, and the public key it rebuilds must be the one `generate_keypair`
-/// returned. P-256 keeps the scalar tainted through the parse; ristretto255
-/// launders its canonicity check on a copy, by design.
+/// returned. Both groups keep the scalar tainted through the parse.
 fn dh_public_key_flow<D: DhGroup>(seed: u64) {
     let mut rng = ChaCha20Rng::seed_from_u64(seed);
     let (sk, pk) = D::generate_keypair(&mut rng).unwrap();

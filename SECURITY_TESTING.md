@@ -219,8 +219,7 @@ index is flagged — in debug **and** release (catches LLVM undoing `subtle`).
   The flows cover the RFC 9497 VOPRF / POPRF too — both suites and modes,
   random and deterministic blinds, single and batched, with the server key
   taken three ways — and `DhGroup::public_key_from_private`, which no OPAQUE
-  flow calls (tainted on P-256; ristretto255 launders its canonicity check
-  by design, so there it only runs). A guard test fails a run built without
+  flow calls (tainted on both groups). A guard test fails a run built without
   `p256` or `hazmat`, whose flows would otherwise be compiled out in silence.
   Ephemeral secrets are marked from the start: the rejection sampling of
   P-256's `random_scalar` and base-mode blind decides on an unmarked

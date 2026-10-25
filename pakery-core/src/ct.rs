@@ -32,21 +32,11 @@
 //!   by protocol design;
 //! - MAC tags before wire output — public once sent;
 //! - ciphertext (e.g. OPAQUE `masked_response`) before wire output;
-//! - boolean accept/reject decisions after a `subtle::ct_eq` comparison
-//!   ([`declassify_choice`]) — the abort/continue outcome is public;
-//! - copies of secret-scalar encodings fed to `curve25519-dalek`'s
-//!   deserializer in the base-mode ristretto255 OPRF and Diffie-Hellman
-//!   parses ([`declassify`] on a temporary copy): the `.into_option()` after
-//!   dalek's branch-free `from_canonical_bytes` branches on the
-//!   `subtle::CtOption` discriminant, which memcheck would flag. Canonicity
-//!   of an honestly generated key is public information. Where a
-//!   Diffie-Hellman computation launders its parse this way, its output is
-//!   re-marked so taint stays end-to-end; the base-mode ristretto255
-//!   `finalize`, which launders its blind, gets its output's taint from the
-//!   password instead.
-//!   The P-256 parses, like the RFC 9497 modes' parses on both suites, keep
-//!   the scalar tainted instead and declassify only the accept/reject
-//!   decision.
+//! - boolean accept/reject decisions, after a `subtle::ct_eq` comparison or
+//!   a secret scalar's canonicity check ([`declassify_choice`]) — the
+//!   abort/continue outcome is public. Only the decision is declassified:
+//!   every secret-scalar parse, on both groups and in every OPRF mode, keeps
+//!   the scalar itself tainted.
 
 /// Whether the helpers emit real Valgrind client requests.
 ///

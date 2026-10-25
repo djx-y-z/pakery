@@ -97,6 +97,22 @@ impl CpaceGroup for Ristretto255Group {
     }
 }
 
+/// Parse a canonical ristretto255 scalar from secret bytes, keeping it secret.
+///
+/// dalek's `from_canonical_bytes` is branch-free, and only the accept/reject
+/// decision is declassified, a public outcome for an honestly generated key.
+/// So, as with P-256's `scalar_from_bytes`, the scalar stays secret for the
+/// ctgrind harness instead of being parsed from a laundered copy. The bytes
+/// come in by reference; `from_canonical_bytes` takes its own copy by value,
+/// which cannot be wiped. `None` for a non-canonical encoding.
+pub(crate) fn scalar_from_canonical_secret(bytes: &[u8; 32]) -> Option<Scalar> {
+    let scalar = Scalar::from_canonical_bytes(*bytes);
+    if !pakery_core::ct::declassify_choice(scalar.is_some()) {
+        return None;
+    }
+    Some(scalar.unwrap_or(Scalar::ZERO))
+}
+
 /// Ristretto255 Diffie-Hellman group (byte-level operations).
 ///
 /// **Note:** [`derive_keypair`](DhGroup::derive_keypair) uses the
@@ -113,20 +129,14 @@ impl DhGroup for Ristretto255Dh {
     fn diffie_hellman(sk: &[u8], pk: &[u8]) -> Result<Zeroizing<Vec<u8>>, PakeError> {
         use curve25519_dalek::traits::Identity;
         use subtle::ConstantTimeEq;
-        let sk_bytes: [u8; 32] = sk
+        // A reference, not a copy. ctgrind: the secret key stays secret
+        // through the parse (only the accept/reject decision is
+        // declassified), so the DH result is secret as well.
+        let sk: &[u8; 32] = sk
             .try_into()
             .map_err(|_| PakeError::InvalidInput("invalid secret key length"))?;
-        // ctgrind: launder the canonicity check — `.into_option()` below
-        // branches on the CtOption discriminant (dalek's `from_canonical_bytes`
-        // itself is branch-free), and canonicity of an honestly generated
-        // secret key is public. `sk_bytes` is a local copy; the caller's slice
-        // stays marked. The DH result is re-marked secret below so taint stays
-        // end-to-end.
-        let sk_bytes = Zeroizing::new(sk_bytes);
-        pakery_core::ct::declassify(&*sk_bytes);
-        let scalar = Scalar::from_canonical_bytes(*sk_bytes)
-            .into_option()
-            .ok_or(PakeError::InvalidInput("invalid scalar"))?;
+        let scalar =
+            scalar_from_canonical_secret(sk).ok_or(PakeError::InvalidInput("invalid scalar"))?;
 
         let pk_bytes: [u8; 32] = pk
             .try_into()
@@ -141,8 +151,8 @@ impl DhGroup for Ristretto255Dh {
             return Err(PakeError::IdentityPoint);
         }
         let out = result.compress().to_bytes().to_vec();
-        // ctgrind: the DH output is secret key material (re-mark after the
-        // laundered scalar parse above).
+        // ctgrind: the DH output is secret key material — already tainted
+        // through the scalar; marked again to keep the policy explicit.
         pakery_core::ct::mark_secret(&out);
         Ok(Zeroizing::new(out))
     }
@@ -153,30 +163,23 @@ impl DhGroup for Ristretto255Dh {
 
         // ctgrind: the seed is secret key material whoever drew it, and
         // OPAQUE passes its ephemeral key shares' RNG bytes straight in.
-        // Marked here, the returned key is tainted; the multiplications below
-        // and in `diffie_hellman` launder their scalar parse, by design.
+        // Marked here, the key and every product with it run tainted.
         pakery_core::ct::mark_secret(seed);
         let sk_bytes = Ristretto255Oprf::derive_key(seed, b"OPAQUE-DeriveDiffieHellmanKeyPair")?;
-        let sk_arr: [u8; 32] = sk_bytes
+        let sk: &[u8; 32] = sk_bytes
             .as_slice()
             .try_into()
             .map_err(|_| PakeError::ProtocolError("invalid key size"))?;
-        // ctgrind: launder the canonicity check (public for an honestly
-        // derived key) on a local copy; `sk_bytes` itself stays marked. The
-        // derived public key is public by definition, so no re-mark.
-        let sk_arr = Zeroizing::new(sk_arr);
-        pakery_core::ct::declassify(&*sk_arr);
-        let scalar =
-            Scalar::from_canonical_bytes(*sk_arr)
-                .into_option()
-                .ok_or(PakeError::ProtocolError(
-                    "invalid scalar from DeriveKeyPair",
-                ))?;
+        let scalar = scalar_from_canonical_secret(sk).ok_or(PakeError::ProtocolError(
+            "invalid scalar from DeriveKeyPair",
+        ))?;
 
         let pk = (scalar * RISTRETTO_BASEPOINT_POINT)
             .compress()
             .to_bytes()
             .to_vec();
+        // ctgrind: the public key is public by definition.
+        pakery_core::ct::declassify(&pk);
         Ok((sk_bytes, pk))
     }
 
@@ -193,20 +196,19 @@ impl DhGroup for Ristretto255Dh {
     }
 
     fn public_key_from_private(sk: &[u8]) -> Result<Vec<u8>, PakeError> {
-        let sk_bytes: [u8; 32] = sk
+        // A reference, not a copy. ctgrind: the key stays secret through the
+        // parse; only the accept/reject decision is declassified.
+        let sk: &[u8; 32] = sk
             .try_into()
             .map_err(|_| PakeError::InvalidInput("invalid secret key length"))?;
-        // ctgrind: launder the canonicity check (public for an honestly
-        // generated key) on a local copy; the resulting public key is public.
-        let sk_bytes = Zeroizing::new(sk_bytes);
-        pakery_core::ct::declassify(&*sk_bytes);
-        let scalar = Scalar::from_canonical_bytes(*sk_bytes)
-            .into_option()
-            .ok_or(PakeError::InvalidInput("invalid scalar"))?;
+        let scalar =
+            scalar_from_canonical_secret(sk).ok_or(PakeError::InvalidInput("invalid scalar"))?;
         let pk = (scalar * RISTRETTO_BASEPOINT_POINT)
             .compress()
             .to_bytes()
             .to_vec();
+        // ctgrind: the public key is public by definition.
+        pakery_core::ct::declassify(&pk);
         Ok(pk)
     }
 }

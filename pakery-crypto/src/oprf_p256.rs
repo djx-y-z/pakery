@@ -284,12 +284,18 @@ impl Oprf for P256Oprf {
         let info_len = i2osp_2(info.len())?;
 
         for counter in 0u8..=255 {
-            let sk =
+            let mut sk =
                 hash_to_scalar_with_dst(&[seed, &info_len, info, &[counter]], DERIVE_KEYPAIR_DST)?;
             // ctgrind: whether a candidate reduces to zero is public (it only
             // increments the retry counter).
             if !pakery_core::ct::declassify_choice(sk.is_zero()) {
-                return Ok(Zeroizing::new(sk.to_repr().to_vec()));
+                // The scalar and its encoding are wiped once the returned
+                // buffer holds the key.
+                let mut repr = sk.to_repr();
+                let key = Zeroizing::new(repr.to_vec());
+                repr.zeroize();
+                sk.zeroize();
+                return Ok(key);
             }
         }
 

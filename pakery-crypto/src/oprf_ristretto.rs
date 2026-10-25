@@ -12,6 +12,7 @@ use subtle::ConstantTimeEq;
 use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
 use crate::oprf_common::{expand_message_xmd, finalize_hash, i2osp_2};
+use crate::ristretto255::scalar_from_canonical_secret;
 
 // RFC 9497 Section 4.1 — ristretto255-SHA512, base mode (0x00).
 const HASH_TO_GROUP_DST: &[u8] = b"HashToGroup-OPRFV1-\x00-ristretto255-SHA512";
@@ -49,17 +50,12 @@ impl OprfClientState for Ristretto255OprfClientState {
             }
         }
 
-        // ctgrind: launder the canonicity check on a local copy — the blind
-        // is our own canonical encoding, so its validity is public, and
-        // `.into_option()` below would otherwise branch on the CtOption
-        // discriminant (dalek's `from_canonical_bytes` itself is branch-free).
-        // The OPRF output stays tainted via the password.
-        let blind_copy = Zeroizing::new(self.blind);
-        pakery_core::ct::declassify(&*blind_copy);
-        let blind_scalar = Scalar::from_canonical_bytes(*blind_copy)
-            .into_option()
+        // ctgrind: the blind stays secret through the parse (only the
+        // accept/reject decisions are declassified), so its inverse and the
+        // unblinded `N` are secret too.
+        let blind_scalar = scalar_from_canonical_secret(&self.blind)
             .ok_or(PakeError::ProtocolError("invalid blind scalar"))?;
-        if bool::from(blind_scalar.ct_eq(&Scalar::ZERO)) {
+        if pakery_core::ct::declassify_choice(blind_scalar.ct_eq(&Scalar::ZERO)) {
             return Err(PakeError::ProtocolError("blind scalar is zero"));
         }
         let r_inv = blind_scalar.invert();
@@ -146,18 +142,14 @@ impl Oprf for Ristretto255Oprf {
     }
 
     fn server_evaluate(oprf_key: &[u8], blinded_bytes: &[u8]) -> Result<Vec<u8>, PakeError> {
-        let sk_bytes: [u8; 32] = oprf_key
+        // A reference, not a copy. ctgrind: the key stays secret through the
+        // parse; only the refusal decisions are declassified.
+        let sk: &[u8; 32] = oprf_key
             .try_into()
             .map_err(|_| PakeError::InvalidInput("invalid OPRF key length"))?;
-        // ctgrind: launder the canonicity check (public for an honestly
-        // derived OPRF key) on a local copy; the caller's slice stays marked.
-        // The evaluated element goes on the wire, so no re-mark is needed.
-        let sk_bytes = Zeroizing::new(sk_bytes);
-        pakery_core::ct::declassify(&*sk_bytes);
-        let sk = Scalar::from_canonical_bytes(*sk_bytes)
-            .into_option()
-            .ok_or(PakeError::InvalidInput("invalid OPRF key"))?;
-        if bool::from(sk.ct_eq(&Scalar::ZERO)) {
+        let sk =
+            scalar_from_canonical_secret(sk).ok_or(PakeError::InvalidInput("invalid OPRF key"))?;
+        if pakery_core::ct::declassify_choice(sk.ct_eq(&Scalar::ZERO)) {
             return Err(PakeError::InvalidInput("OPRF key is zero"));
         }
 
@@ -178,19 +170,28 @@ impl Oprf for Ristretto255Oprf {
         }
 
         let evaluated = sk * blinded;
-        Ok(evaluated.compress().to_bytes().to_vec())
+        let evaluated_bytes = evaluated.compress().to_bytes().to_vec();
+        // ctgrind: the evaluated element is a wire message.
+        pakery_core::ct::declassify(&evaluated_bytes);
+        Ok(evaluated_bytes)
     }
 
     fn derive_key(seed: &[u8], info: &[u8]) -> Result<Zeroizing<Vec<u8>>, PakeError> {
         let info_len = i2osp_2(info.len())?;
 
         for counter in 0u8..=255 {
-            let sk =
+            let mut sk =
                 hash_to_scalar_with_dst(&[seed, &info_len, info, &[counter]], DERIVE_KEYPAIR_DST)?;
             // ctgrind: whether a candidate reduces to zero is public (it only
             // increments the retry counter).
             if !pakery_core::ct::declassify_choice(sk.ct_eq(&Scalar::ZERO)) {
-                return Ok(Zeroizing::new(sk.to_bytes().to_vec()));
+                // The scalar and its encoding are wiped once the returned
+                // buffer holds the key.
+                let mut bytes = sk.to_bytes();
+                let key = Zeroizing::new(bytes.to_vec());
+                bytes.zeroize();
+                sk.zeroize();
+                return Ok(key);
             }
         }
 
