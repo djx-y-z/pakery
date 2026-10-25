@@ -7,13 +7,21 @@ use pakery_core::crypto::Ksf;
 use pakery_core::PakeError;
 use zeroize::Zeroizing;
 
-// argon2's `zeroize` feature wipes H0 and the final block's hash. `Block`
-// implements `Zeroize` only under it, so this fails to compile if the
-// workspace manifest drops the feature. The block array itself is still
-// freed unwiped: `hash_password_into` owns it.
+// argon2's `zeroize` feature wipes argon2's own copies of H0 and of the final
+// block, and only under it does `Block` implement `Zeroize`, which `stretch`
+// needs to wipe its block array. blake2's, which argon2 does not pass on and
+// this crate's own dependency on blake2 turns on, gives `Blake2bVarCore` the
+// `Drop` that wipes its state, and `ZeroizeOnDrop` with it: the core of both
+// BLAKE2b types argon2 hashes with, `Blake2bVarCore` itself and
+// `Blake2b512`. So this fails to compile if the workspace manifest drops
+// either feature, even if `stretch` stops naming `Block`. Local buffers
+// inside argon2 and blake2 (the padded last block, the long hash's output)
+// are still left unwiped.
 const _: () = {
     fn wipeable<T: zeroize::Zeroize>() {}
+    fn wiped_on_drop<T: zeroize::ZeroizeOnDrop>() {}
     let _ = wipeable::<argon2::Block>;
+    let _ = wiped_on_drop::<blake2::Blake2bVarCore>;
 };
 
 /// Salt used by [`Argon2idKsfWithParams`], fixed at `zeroes(16)`.
@@ -96,24 +104,42 @@ pub struct Argon2idKsfWithParams<P: Argon2Params>(PhantomData<P>);
 impl<P: Argon2Params> Ksf for Argon2idKsfWithParams<P> {
     /// Stretch to exactly `output_len` bytes.
     ///
+    /// The `m`-KiB block array is allocated here, not inside `argon2`, and
+    /// wiped before it is freed: its blocks are derived from `input`.
+    ///
     /// # Errors
     ///
     /// Returns [`PakeError::ProtocolError`] if `argon2` rejects the cost
-    /// parameters or `output_len` (it enforces `MIN_OUTPUT_LEN = 4`), or if
-    /// the hash itself fails — which since `argon2` `0.6` includes running
-    /// out of memory for the `m`-KiB block array, where `0.5` aborted the
-    /// process instead.
+    /// parameters or `output_len` (it enforces `MIN_OUTPUT_LEN = 4`), if the
+    /// block array cannot be allocated — running out of memory is an error,
+    /// as in `argon2`'s own `hash_password_into` — or if the hash itself
+    /// fails.
     fn stretch(input: &[u8], output_len: usize) -> Result<Zeroizing<Vec<u8>>, PakeError> {
-        use argon2::{Algorithm, Argon2, Params, Version};
+        use argon2::{Algorithm, Argon2, Block, Params, Version};
 
         let params = Params::new(P::M_COST, P::T_COST, P::P_COST, Some(output_len))
             .map_err(|_| PakeError::ProtocolError("argon2 params"))?;
+        let block_count = params.block_count();
         let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
+        // `hash_password_into` would allocate this array itself and free it
+        // unwiped. `Zeroizing` wipes it on every path out of this function,
+        // and the reservation fails with an error, as argon2's own does,
+        // rather than aborting.
+        let mut blocks: Zeroizing<Vec<Block>> = Zeroizing::new(Vec::new());
+        blocks
+            .try_reserve_exact(block_count)
+            .map_err(|_| PakeError::ProtocolError("argon2 hash"))?;
+        blocks.resize(block_count, Block::new());
         // Zeroizing before the fallible call: on the `?` below the buffer is
         // dropped, and a plain `Vec` would drop unwiped.
         let mut output = Zeroizing::new(vec![0u8; output_len]);
         argon2
-            .hash_password_into(input, ARGON2_KSF_SALT, output.as_mut_slice())
+            .hash_password_into_with_memory(
+                input,
+                ARGON2_KSF_SALT,
+                output.as_mut_slice(),
+                blocks.as_mut_slice(),
+            )
             .map_err(|_| PakeError::ProtocolError("argon2 hash"))?;
         Ok(output)
     }
@@ -192,6 +218,27 @@ mod tests {
             legacy.as_slice(),
             "the 15-byte pre-0.5.0 salt must not round-trip as zeroes(16)"
         );
+    }
+
+    /// `stretch` allocates the block array itself, sized by `block_count`,
+    /// which rounds `m` down to a multiple of `4p` blocks. With one lane and
+    /// `m = 8` the KAT above never rounds, so this compares the two paths
+    /// with four lanes and an `m` that does: 37 KiB gives 32 blocks.
+    #[test]
+    fn stretch_matches_hash_password_into_with_four_lanes() {
+        struct FourLanes;
+        impl Argon2Params for FourLanes {
+            const M_COST: u32 = 37;
+            const T_COST: u32 = 1;
+            const P_COST: u32 = 4;
+        }
+        let params = argon2::Params::new(37, 1, 4, Some(64)).unwrap();
+        assert_eq!(params.block_count(), 32, "m = 37 must round down");
+
+        const INPUT: &[u8] = b"pakery KSF four-lane equality";
+        let ours = Argon2idKsfWithParams::<FourLanes>::stretch(INPUT, 64).unwrap();
+        let theirs = hand_rolled_argon2::<FourLanes>(INPUT, ARGON2_KSF_SALT, 64);
+        assert_eq!(ours.as_slice(), theirs.as_slice());
     }
 
     /// `DefaultArgon2Params` must stay on RFC 9106 §4's SECOND RECOMMENDED

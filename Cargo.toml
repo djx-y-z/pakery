@@ -56,9 +56,16 @@ sha2 = { version = "0.11", features = ["zeroize"] }
 curve25519-dalek = { version = "5.0" }
 hkdf = "0.13"
 hmac = "0.13"
-# `zeroize` wipes argon2's hash of the password and parameters (H0) and the
-# final block's hash. It does not reach the `m`-KiB block array, which
-# `hash_password_into` allocates and frees itself. pakery-crypto's `ksf`
-# module stops compiling if the feature is dropped from this line.
+# `zeroize` wipes argon2's own copies of H0, its hash of the password and
+# parameters, and of the final block, and makes `Block` wipeable:
+# pakery-crypto's `ksf` allocates the `m`-KiB block array itself and wipes
+# it. That module stops compiling if the feature is dropped from this line.
 argon2 = { version = "0.6", default-features = false, features = ["alloc", "zeroize"] }
+# argon2 hashes with blake2 but does not pass `zeroize` on to it, so the
+# BLAKE2b states it hashes with, H0's among them, would drop unwiped.
+# pakery-crypto depends on blake2 only to turn the feature on, behind its own
+# `argon2` feature, and its `ksf` module stops compiling if the feature is
+# dropped from this line. A second blake2 version, which would not carry the
+# feature to argon2's, fails audit.yml's duplicate-versions check.
+blake2 = { version = "0.11", default-features = false, features = ["zeroize"] }
 p256 = { version = "0.14", default-features = false, features = ["arithmetic", "group-digest"] }

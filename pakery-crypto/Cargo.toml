@@ -24,7 +24,9 @@ default = ["std", "ristretto255"]
 std = ["pakery-core/std"]
 ristretto255 = ["dep:curve25519-dalek", "dep:sha2", "dep:hkdf", "dep:hmac", "dep:digest"]
 p256 = ["dep:p256", "dep:sha2", "dep:hkdf", "dep:hmac", "dep:digest"]
-argon2 = ["dep:argon2"]
+# `blake2` only turns on its `zeroize` feature for argon2's BLAKE2b states
+# (see the workspace manifest); nothing here names it but `ksf`'s check.
+argon2 = ["dep:argon2", "dep:blake2"]
 cpace = ["dep:pakery-cpace"]
 spake2 = ["dep:pakery-spake2"]
 spake2plus = ["dep:pakery-spake2plus"]
@@ -48,6 +50,7 @@ hmac = { workspace = true, optional = true }
 p256 = { workspace = true, optional = true }
 digest = { workspace = true, optional = true }
 argon2 = { workspace = true, optional = true }
+blake2 = { workspace = true, optional = true }
 pakery-cpace = { workspace = true, optional = true }
 pakery-spake2 = { workspace = true, optional = true }
 pakery-spake2plus = { workspace = true, optional = true }
