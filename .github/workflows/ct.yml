@@ -84,3 +84,10 @@ jobs:
         # exactly pakery-tests/valgrind-ct.expected's for this build.
         if: ${{ !cancelled() }}
         run: python3 ci/check-ct-suppressions.py ${{ matrix.profile }} "$RUNNER_TEMP/ct.log"
+      - name: Check the safegcd list against the locked crypto-bigint
+        # The step above refuses a stanza that names one of safegcd's
+        # functions. This holds that list to the functions defined in the
+        # crypto-bigint that p256 resolves to, so a version that adds one
+        # fails here instead of leaving a stanza naming it unrefused.
+        if: ${{ !cancelled() }}
+        run: python3 ci/check-ct-suppressions.py --safegcd-names

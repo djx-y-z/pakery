@@ -213,8 +213,18 @@ index is flagged — in debug **and** release (catches LLVM undoing `subtle`).
   secret data inside it; whether that diverges in time is for the assembly
   and upstream to settle, and nothing at pakery's boundary can fix or justify
   it. So no release is tagged, no entry is added, and it is reported
-  upstream with the log. `valgrind-ct.supp`'s header states the rule, and
-  `ci/check-ct-suppressions.py` refuses an entry that names `safegcd`. OPAQUE uses identity-KSF suites (Argon2id is
+  upstream with the log. `valgrind-ct.supp`'s header states the rule.
+  `ci/check-ct-suppressions.py` refuses an entry that names `safegcd`: its
+  module or types, or any function it defines, methods included, by a name
+  its frames carry in pakery's builds (bare as inlined, mangled in the v0 or
+  legacy scheme), or a Valgrind glob of one. It also refuses a frame that
+  names an inversion or matches `UnknownInlinedFun`, and any `...`,
+  wildcards-only, nameless, `obj:` or `src:` frame, and a ct.yml step holds
+  its list of the functions to the locked crypto-bigint. It cannot refuse an
+  entry anchored only on helpers the inversion calls or inlines, or a glob
+  written to avoid every name it knows: the expected counts and review are
+  the backstop there.
+  OPAQUE uses identity-KSF suites (Argon2id is
   data-dependent by design).
   The flows cover the RFC 9497 VOPRF / POPRF too — both suites and modes,
   random and deterministic blinds, single and batched, with the server key
