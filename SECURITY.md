@@ -96,7 +96,9 @@ Not treated as vulnerabilities:
 - The methods behind the `test-utils` feature, which take fixed scalars and
   seeds for test-vector replay only, and `hazmat` APIs used against their
   documented contract.
-- The private `__ctgrind` feature, which only pakery's CI enables.
+- The private `__ctgrind` feature, a hook for pakery's constant-time harness
+  that no shipped build enables. An `--all-features` build turns it on, as
+  pakery's own CI and test commands do.
 - Argon2id's data-dependent memory access, which is part of its design
   (RFC 9106).
 - Repository-only tooling: `pakery-tests`, `fuzz/`, `dudect/` and CI. Report a

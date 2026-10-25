@@ -32,9 +32,11 @@ point back to.
   included). They run as unit tests in pakery-crypto, through the public
   types, except the "Proof" bytes: the proof nonce is hedged, so those are
   checked through a test-only entry that takes the vectors' nonce.
-- CI: test, clippy `-D warnings`, fmt, doc, MSRV (1.88), no_std (thumbv7em),
-  wasm, feature-combinations, minimal-versions, coverage, and the
-  documentation gate (`ci/check-docs.py`); `cargo audit` (over all three
+- CI: test, tests without `std` (the unit tests of `pakery-core` and the four
+  protocol crates), clippy `-D warnings`, fmt, doc, MSRV (1.88), no_std
+  (thumbv7em), wasm, feature-combinations (each also running `pakery-crypto`'s
+  unit tests), minimal-versions, coverage, and the documentation gate
+  (`ci/check-docs.py`); `cargo audit` (over all three
   lockfiles: the workspace's, `fuzz/`'s and `dudect/`'s) and cargo-deny on
   every push and PR plus a weekly cron. cargo-deny runs twice, over two
   different graphs: advisories, licences and sources over every crate cargo
