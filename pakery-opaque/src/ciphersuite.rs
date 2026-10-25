@@ -68,19 +68,20 @@ pub trait OpaqueCiphersuite: Sized + 'static {
 /// Compile-time check that a ciphersuite's declared lengths agree with the
 /// primitives it names and with the two values RFC 9807 fixes outright.
 ///
-/// Called first by every protocol entry point that takes a
-/// `C: OpaqueCiphersuite` (`ServerSetup::new` and `new_with_key`, and the
-/// registration and login `start` functions), so the check runs when the
-/// suite is monomorphized through one. The building blocks the crate also
-/// exports (the `oprf`, `envelope` and `key_derivation` functions, and the
-/// message parsers) do not call it; `every_entry_point_asserts_lengths`
-/// keeps both lists explicit. A mismatch is a build error naming the
-/// offending constant, not a silent change to the wire format.
+/// Called first by every exported function that takes no `self` and is
+/// generic over a `C: OpaqueCiphersuite`: the protocol entry points
+/// (`ServerSetup::new` and `new_with_key`, and the registration and login
+/// `start` functions), and the building blocks the crate also exports (the
+/// `oprf`, `envelope` and `key_derivation` functions, the message parsers
+/// and the two `size` functions). So the check runs whenever a suite is
+/// monomorphized through any of them, and `every_entry_point_asserts_lengths`
+/// keeps it that way. A mismatch is a build error naming the offending
+/// constant, not a silent change to the wire format.
 ///
 /// These are post-monomorphization const evaluations, so they fire on
 /// `cargo build` and `cargo test` — which is where CI catches them — but not
 /// on `cargo check`, which stops before codegen. A downstream crate sees the
-/// error when it builds its own call to any entry point below.
+/// error when it builds its own call to any of these functions.
 ///
 /// Returns the number of invariants checked. That return value is the only
 /// thing about this function a runtime test can observe: for a *correct*
@@ -227,14 +228,16 @@ mod tests {
 
     /// Every public function with no `self` receiver must call
     /// [`assert_lengths`] as its first statement, unless it is listed below as
-    /// not an entry point.
+    /// not generic over a ciphersuite.
     ///
-    /// The compile-time length checks only fire for a ciphersuite that is
-    /// actually monomorphized through one of these functions, so an entry
-    /// point added later without the call would silently reopen the hole this
-    /// module closes. Checking the source is crude, but it is the only thing
-    /// that fails when someone forgets — a ciphersuite test cannot notice a
-    /// call site that does not exist.
+    /// Each such function is an entry point in the sense that matters here: a
+    /// downstream crate can call it with a suite of its own. The compile-time
+    /// length checks only fire for a ciphersuite that is actually
+    /// monomorphized through a function that calls them, so a function added
+    /// later without the call would silently reopen the hole this module
+    /// closes. Checking the source is crude, but it is the only thing that
+    /// fails when someone forgets — a ciphersuite test cannot notice a call
+    /// site that does not exist.
     ///
     /// It walks `src/` rather than naming three files. A hardcoded list is
     /// fail-open exactly where it matters: an entry point in a file added
@@ -244,45 +247,34 @@ mod tests {
     /// It finds entry points by shape, not by name. It used to look only for
     /// `pub fn new` and `pub fn start`, so an entry point under any other verb
     /// was invisible to it, and the `checked` total did not notice that
-    /// either. Now every receiver-less `pub fn` is either an entry point,
-    /// which must assert, or a row of `NOT_ENTRY_POINTS`, with the number of
-    /// functions of that name in that file and the reason. A new one fails
-    /// here until someone decides which it is; so does a table row that no
-    /// longer matches. Methods are not scanned: they need a value, and the
-    /// protocol states come only from entry points.
+    /// either. Now every receiver-less `pub fn` either asserts or is a row of
+    /// `NOT_GENERIC`, with the number of functions of that name in that file.
+    /// A row is accepted only for a function that cannot be generic over a
+    /// suite: a top-level `pub fn` (not in an `impl` block or a nested
+    /// module) with no generic parameters, no `impl Trait` argument and no
+    /// `OpaqueCiphersuite` in its signature. Anything else might take a
+    /// suite, so it must call the checks. Until `0.6.2` the building blocks and the message parsers
+    /// were rows too, and calling one directly skipped the checks. A new
+    /// function fails here until it asserts or is listed; so does a table row
+    /// that no longer matches. Methods are not scanned: they need a value,
+    /// and the protocol states come only from entry points.
     #[cfg(feature = "std")]
     #[test]
     fn every_entry_point_asserts_lengths() {
         use crate::source_scan::rust_sources;
         use std::collections::BTreeMap;
 
-        // Why a function is not an entry point. Calling one of these directly
-        // with a ciphersuite skips the compile-time checks.
-        const NOT_GENERIC: &str = "not generic over a ciphersuite";
-        const BLOCK: &str = "a building block, which the protocol calls after an entry point";
-        const PARSER: &str = "a message parser, length-checked against the suite's constants";
-        const LENGTH: &str = "a length computed from the suite's constants";
-        // (file, function, how many of that name the file has, why).
-        const NOT_ENTRY_POINTS: &[(&str, &str, usize, &str)] = &[
-            ("envelope.rs", "build_cleartext_credentials", 1, NOT_GENERIC),
-            ("envelope.rs", "store", 1, BLOCK),
-            ("envelope.rs", "recover", 1, BLOCK),
-            ("key_derivation.rs", "expand_label", 1, BLOCK),
-            ("key_derivation.rs", "derive_secret", 1, BLOCK),
-            ("key_derivation.rs", "derive_randomized_password", 1, BLOCK),
-            ("key_derivation.rs", "build_preamble", 1, NOT_GENERIC),
-            ("key_derivation.rs", "derive_keys", 1, BLOCK),
-            ("key_derivation.rs", "triple_dh_ikm", 1, BLOCK),
-            ("messages.rs", "deserialize", 8, PARSER),
-            ("messages.rs", "size", 2, LENGTH),
-            ("oprf.rs", "oprf_client_blind", 1, BLOCK),
-            ("oprf.rs", "oprf_client_finalize", 1, BLOCK),
-            ("oprf.rs", "oprf_server_evaluate", 1, BLOCK),
-            ("oprf.rs", "derive_oprf_key", 1, BLOCK),
+        // Functions that take no ciphersuite, so have nothing to check:
+        // (file, function, how many of that name the file has).
+        const NOT_GENERIC: &[(&str, &str, usize)] = &[
+            ("envelope.rs", "build_cleartext_credentials", 1),
+            ("key_derivation.rs", "build_preamble", 1),
         ];
 
         let mut checked = 0;
-        let mut not_asserting: BTreeMap<(String, String), usize> = BTreeMap::new();
+        // (file, function) -> (how many do not assert, whether any of those
+        // could be generic over a suite).
+        let mut not_asserting: BTreeMap<(String, String), (usize, bool)> = BTreeMap::new();
         for (name, src) in rust_sources() {
             let lines: Vec<&str> = src.lines().collect();
             for (i, line) in lines.iter().enumerate() {
@@ -321,36 +313,52 @@ mod tests {
                 if first_stmt.contains("assert_lengths::<C>()") {
                     checked += 1;
                 } else {
-                    *not_asserting.entry((name.clone(), func)).or_insert(0) += 1;
+                    // Only a top-level function whose name is followed
+                    // directly by its parameter list, and whose signature
+                    // takes no `impl Trait` and names no suite, cannot be
+                    // generic over one.
+                    let exemptable = line.starts_with("pub ")
+                        && rest[func.len()..].starts_with('(')
+                        && !signature.contains("impl ")
+                        && !signature.contains("OpaqueCiphersuite");
+                    let entry = not_asserting
+                        .entry((name.clone(), func))
+                        .or_insert((0, false));
+                    entry.0 += 1;
+                    entry.1 |= !exemptable;
                 }
             }
         }
 
-        for ((file, func), found) in &not_asserting {
-            let row = NOT_ENTRY_POINTS
-                .iter()
-                .find(|(f, n, _, _)| f == file && n == func);
-            let Some((_, _, listed, _)) = row else {
+        for ((file, func), (found, generic)) in &not_asserting {
+            let row = NOT_GENERIC.iter().find(|(f, n, _)| f == file && n == func);
+            let Some((_, _, listed)) = row else {
                 panic!(
                     "{file}: `pub fn {func}` takes no `self` and does not call \
                      assert_lengths::<C>() as its first statement: make that its \
-                     first statement, or list it in NOT_ENTRY_POINTS with the \
-                     reason it is not an entry point"
+                     first statement, or list it in NOT_GENERIC if it takes no \
+                     ciphersuite"
                 );
             };
+            assert!(
+                !generic,
+                "{file}: NOT_GENERIC lists `pub fn {func}`, but it is not a top-level \
+                 function free of generics, so it could take a suite: it must call \
+                 assert_lengths::<C>() first"
+            );
             assert_eq!(
                 found, listed,
-                "{file}: NOT_ENTRY_POINTS lists {listed} `pub fn {func}`, the file \
-                 has {found} that do not assert: classify the difference"
+                "{file}: NOT_GENERIC lists {listed} `pub fn {func}`, the file has \
+                 {found} that do not assert: classify the difference"
             );
         }
-        for (file, func, _, _) in NOT_ENTRY_POINTS {
+        for (file, func, _) in NOT_GENERIC {
             assert!(
                 not_asserting.contains_key(&(file.to_string(), func.to_string())),
-                "NOT_ENTRY_POINTS lists {file} `{func}`, which the file no longer \
-                 has without the assert: drop the row"
+                "NOT_GENERIC lists {file} `{func}`, which the file no longer has \
+                 without the assert: drop the row"
             );
         }
-        assert_eq!(checked, 9, "expected 9 entry points, found {checked}");
+        assert_eq!(checked, 30, "expected 30 entry points, found {checked}");
     }
 }

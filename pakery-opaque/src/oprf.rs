@@ -23,6 +23,7 @@ pub fn oprf_client_blind<C: OpaqueCiphersuite>(
     password: &[u8],
     rng: &mut impl CryptoRng,
 ) -> Result<(OprfClientState<C>, Vec<u8>), OpaqueError> {
+    crate::ciphersuite::assert_lengths::<C>();
     let (state, blinded_bytes) = C::Oprf::client_blind(password, rng)?;
     Ok((OprfClientState { state }, blinded_bytes))
 }
@@ -33,6 +34,7 @@ pub fn oprf_client_finalize<C: OpaqueCiphersuite>(
     password: &[u8],
     evaluated_bytes: &[u8],
 ) -> Result<Zeroizing<Vec<u8>>, OpaqueError> {
+    crate::ciphersuite::assert_lengths::<C>();
     let output = state.state.finalize(password, evaluated_bytes)?;
     // ctgrind: the OPRF output is secret — it seeds the randomized password
     // and everything derived from it.
@@ -45,6 +47,7 @@ pub fn oprf_server_evaluate<C: OpaqueCiphersuite>(
     oprf_key: &[u8],
     blinded_bytes: &[u8],
 ) -> Result<Vec<u8>, OpaqueError> {
+    crate::ciphersuite::assert_lengths::<C>();
     Ok(C::Oprf::server_evaluate(oprf_key, blinded_bytes)?)
 }
 
@@ -59,6 +62,7 @@ pub fn derive_oprf_key<C: OpaqueCiphersuite>(
     oprf_seed: &[u8],
     credential_id: &[u8],
 ) -> Result<Zeroizing<Vec<u8>>, OpaqueError> {
+    crate::ciphersuite::assert_lengths::<C>();
     let mut info = Vec::with_capacity(credential_id.len() + 7);
     info.extend_from_slice(credential_id);
     info.extend_from_slice(b"OprfKey");

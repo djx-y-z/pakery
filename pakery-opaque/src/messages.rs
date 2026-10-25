@@ -22,6 +22,7 @@ impl RegistrationRequest {
 
     /// Deserialize from bytes.
     pub fn deserialize<C: OpaqueCiphersuite>(bytes: &[u8]) -> Result<Self, OpaqueError> {
+        crate::ciphersuite::assert_lengths::<C>();
         if bytes.len() != C::NOE {
             return Err(OpaqueError::DeserializationError);
         }
@@ -52,6 +53,7 @@ impl RegistrationResponse {
 
     /// Deserialize from bytes.
     pub fn deserialize<C: OpaqueCiphersuite>(bytes: &[u8]) -> Result<Self, OpaqueError> {
+        crate::ciphersuite::assert_lengths::<C>();
         let expected = C::NOE + C::NPK;
         if bytes.len() != expected {
             return Err(OpaqueError::DeserializationError);
@@ -75,6 +77,7 @@ pub struct Envelope {
 impl Envelope {
     /// Returns the serialized size in bytes.
     pub fn size<C: OpaqueCiphersuite>() -> usize {
+        crate::ciphersuite::assert_lengths::<C>();
         C::NN + C::NM
     }
 
@@ -88,6 +91,7 @@ impl Envelope {
 
     /// Deserialize from bytes.
     pub fn deserialize<C: OpaqueCiphersuite>(bytes: &[u8]) -> Result<Self, OpaqueError> {
+        crate::ciphersuite::assert_lengths::<C>();
         let expected = C::NN + C::NM;
         if bytes.len() != expected {
             return Err(OpaqueError::DeserializationError);
@@ -127,6 +131,7 @@ impl RegistrationRecord {
 
     /// Deserialize from bytes.
     pub fn deserialize<C: OpaqueCiphersuite>(bytes: &[u8]) -> Result<Self, OpaqueError> {
+        crate::ciphersuite::assert_lengths::<C>();
         let env_size = Envelope::size::<C>();
         let expected = C::NPK + C::NH + env_size;
         if bytes.len() != expected {
@@ -171,6 +176,7 @@ impl KE1 {
 
     /// Deserialize from bytes.
     pub fn deserialize<C: OpaqueCiphersuite>(bytes: &[u8]) -> Result<Self, OpaqueError> {
+        crate::ciphersuite::assert_lengths::<C>();
         let expected = C::NOE + C::NN + C::NPK;
         if bytes.len() != expected {
             return Err(OpaqueError::DeserializationError);
@@ -201,6 +207,7 @@ pub struct CredentialResponse {
 impl CredentialResponse {
     /// Returns the serialized size in bytes.
     pub fn size<C: OpaqueCiphersuite>() -> usize {
+        crate::ciphersuite::assert_lengths::<C>();
         C::NPK + Envelope::size::<C>()
     }
 
@@ -215,6 +222,7 @@ impl CredentialResponse {
 
     /// Deserialize from bytes.
     pub fn deserialize<C: OpaqueCiphersuite>(bytes: &[u8]) -> Result<Self, OpaqueError> {
+        crate::ciphersuite::assert_lengths::<C>();
         let expected = CredentialResponse::size::<C>();
         if bytes.len() != expected {
             return Err(OpaqueError::DeserializationError);
@@ -267,6 +275,7 @@ impl KE2 {
 
     /// Deserialize from bytes.
     pub fn deserialize<C: OpaqueCiphersuite>(bytes: &[u8]) -> Result<Self, OpaqueError> {
+        crate::ciphersuite::assert_lengths::<C>();
         let cred_resp_size = CredentialResponse::size::<C>();
         let expected = C::NOE + C::NN + cred_resp_size + C::NN + C::NPK + C::NM;
         if bytes.len() != expected {
@@ -334,6 +343,7 @@ impl KE3 {
 
     /// Deserialize from bytes.
     pub fn deserialize<C: OpaqueCiphersuite>(bytes: &[u8]) -> Result<Self, OpaqueError> {
+        crate::ciphersuite::assert_lengths::<C>();
         if bytes.len() != C::NM {
             return Err(OpaqueError::DeserializationError);
         }

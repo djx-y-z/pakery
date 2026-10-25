@@ -67,6 +67,7 @@ pub fn store<C: OpaqueCiphersuite>(
     client_identity: &[u8],
     nonce: &[u8],
 ) -> Result<(Envelope, Vec<u8>, Zeroizing<Vec<u8>>, Zeroizing<Vec<u8>>), OpaqueError> {
+    crate::ciphersuite::assert_lengths::<C>();
     // masking_key = Expand(randomized_pwd, "MaskingKey", Nh)
     let masking_key = C::Kdf::expand(randomized_pwd, b"MaskingKey", C::NH)?;
 
@@ -128,6 +129,7 @@ pub fn recover<C: OpaqueCiphersuite>(
     client_identity: &[u8],
     envelope: &Envelope,
 ) -> Result<(Zeroizing<Vec<u8>>, Vec<u8>, Zeroizing<Vec<u8>>), OpaqueError> {
+    crate::ciphersuite::assert_lengths::<C>();
     let nonce = &envelope.nonce;
 
     // auth_key = Expand(randomized_pwd, concat(nonce, "AuthKey"), Nh)

@@ -46,6 +46,7 @@ pub fn expand_label<C: OpaqueCiphersuite>(
     context: &[u8],
     length: usize,
 ) -> Result<Zeroizing<Vec<u8>>, OpaqueError> {
+    crate::ciphersuite::assert_lengths::<C>();
     let opaque_label = [b"OPAQUE-" as &[u8], label].concat();
 
     let mut custom_label = Vec::new();
@@ -69,6 +70,7 @@ pub fn derive_secret<C: OpaqueCiphersuite>(
     label: &[u8],
     transcript_hash: &[u8],
 ) -> Result<Zeroizing<Vec<u8>>, OpaqueError> {
+    crate::ciphersuite::assert_lengths::<C>();
     expand_label::<C>(secret, label, transcript_hash, C::NX)
 }
 
@@ -80,11 +82,12 @@ pub fn derive_secret<C: OpaqueCiphersuite>(
 pub fn derive_randomized_password<C: OpaqueCiphersuite>(
     oprf_output: &[u8],
 ) -> Result<Zeroizing<Vec<u8>>, OpaqueError> {
+    crate::ciphersuite::assert_lengths::<C>();
     // Both halves of the `Extract` input below are `Nh` bytes. The stretched
     // half is checked after the call; this is the other half. `assert_lengths`
-    // pins `Oprf::OUTPUT_LEN == C::NH` at compile time from every entry point,
-    // but that constrains what an `Oprf` *declares*, not what `finalize`
-    // returns — it returns a `Vec<u8>`. This is the check tied to the bytes.
+    // above pins `Oprf::OUTPUT_LEN == C::NH` at compile time, but that
+    // constrains what an `Oprf` *declares*, not what `finalize` returns — it
+    // returns a `Vec<u8>`. This is the check tied to the bytes.
     if oprf_output.len() != C::NH {
         return Err(OpaqueError::InternalError("OPRF output length != Nh"));
     }
@@ -181,6 +184,7 @@ pub fn derive_keys<C: OpaqueCiphersuite>(
     ikm: &[u8],
     preamble: &[u8],
 ) -> Result<(Zeroizing<Vec<u8>>, Zeroizing<Vec<u8>>, Zeroizing<Vec<u8>>), OpaqueError> {
+    crate::ciphersuite::assert_lengths::<C>();
     let prk = C::Kdf::extract(&[], ikm);
     let preamble_hash = C::Hash::digest(preamble);
 
@@ -208,6 +212,7 @@ pub fn triple_dh_ikm<C: OpaqueCiphersuite>(
     dh3_sk: &[u8],
     dh3_pk: &[u8],
 ) -> Result<Zeroizing<Vec<u8>>, OpaqueError> {
+    crate::ciphersuite::assert_lengths::<C>();
     let dh1 = C::Dh::diffie_hellman(dh1_sk, dh1_pk)?;
     let dh2 = C::Dh::diffie_hellman(dh2_sk, dh2_pk)?;
     let dh3 = C::Dh::diffie_hellman(dh3_sk, dh3_pk)?;
