@@ -104,7 +104,8 @@ impl CpaceGroup for Ristretto255Group {
 /// So, as with P-256's `scalar_from_bytes`, the scalar stays secret for the
 /// ctgrind harness instead of being parsed from a laundered copy. The bytes
 /// come in by reference; `from_canonical_bytes` takes its own copy by value,
-/// which cannot be wiped. `None` for a non-canonical encoding.
+/// which cannot be wiped, and neither can the `CtOption` it returns. `None`
+/// for a non-canonical encoding.
 pub(crate) fn scalar_from_canonical_secret(bytes: &[u8; 32]) -> Option<Scalar> {
     let scalar = Scalar::from_canonical_bytes(*bytes);
     if !pakery_core::ct::declassify_choice(scalar.is_some()) {

@@ -121,13 +121,17 @@ impl CpaceGroup for P256Group {
         loop {
             let mut bytes = Zeroizing::new([0u8; 32]);
             rng.fill_bytes(&mut *bytes);
-            // Copied in place rather than through a by-value array, so the only
-            // copy left unwiped is `from_repr`'s own argument.
+            // Copied in place rather than through a by-value array, and the
+            // candidate wiped once it is decided on, so the only copies left
+            // unwiped are `from_repr`'s own argument and the `CtOption` it
+            // returns.
             let mut fb = FieldBytes::default();
             fb.copy_from_slice(&*bytes);
-            let result = Option::<Scalar>::from(Scalar::from_repr(fb));
+            let mut result = Option::<Scalar>::from(Scalar::from_repr(fb));
             fb.zeroize();
-            if result.is_some() {
+            let accepted = result.is_some();
+            result.zeroize();
+            if accepted {
                 pakery_core::ct::mark_secret(&*bytes);
                 let mut fb = FieldBytes::default();
                 fb.copy_from_slice(&*bytes);
@@ -167,18 +171,24 @@ impl CpaceGroup for P256Group {
         //
         // The bytes are secret (SPAKE2's `w` is derived from the password), so
         // each half is copied straight into a buffer that is wiped after its
-        // reduction, as in `reduce_48_to_scalar`.
+        // reduction, and the reduced halves are wiped once combined, as in
+        // `reduce_48_to_scalar`.
         let mut high_fb = FieldBytes::default();
         high_fb.copy_from_slice(&bytes[..32]);
-        let high = <Scalar as Reduce<FieldBytes>>::reduce(&high_fb);
+        let mut high = <Scalar as Reduce<FieldBytes>>::reduce(&high_fb);
         high_fb.zeroize();
 
         let mut low_fb = FieldBytes::default();
         low_fb.copy_from_slice(&bytes[32..]);
-        let low = <Scalar as Reduce<FieldBytes>>::reduce(&low_fb);
+        let mut low = <Scalar as Reduce<FieldBytes>>::reduce(&low_fb);
         low_fb.zeroize();
 
-        Ok(high * r_constant() + low)
+        let mut shifted = high * r_constant();
+        let scalar = shifted + low;
+        high.zeroize();
+        low.zeroize();
+        shifted.zeroize();
+        Ok(scalar)
     }
 
     fn scalar_to_bytes(scalar: &Scalar) -> Vec<u8> {

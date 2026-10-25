@@ -96,14 +96,17 @@ impl VoprfGroup for P256 {
             rng.fill_bytes(&mut *bytes);
             // ctgrind: candidates are not marked — accepting or rejecting one
             // is a public retry decision taken before the value means anything.
-            // Copied in place rather than through a by-value array, so the
-            // only copy left unwiped is `from_repr`'s own argument.
+            // Copied in place rather than through a by-value array, and the
+            // candidate's value wiped once it is decided on, so the only
+            // copies left unwiped are `from_repr`'s own argument and the
+            // `CtOption` it returns.
             let mut repr = FieldBytes::default();
             repr.copy_from_slice(&*bytes);
             let candidate = Scalar::from_repr(repr);
             repr.zeroize();
-            let accept =
-                candidate.is_some() & !candidate.unwrap_or(Scalar::ZERO).ct_eq(&Scalar::ZERO);
+            let mut value = candidate.unwrap_or(Scalar::ZERO);
+            let accept = candidate.is_some() & !value.ct_eq(&Scalar::ZERO);
+            value.zeroize();
             if bool::from(accept) {
                 // ctgrind: the accepted value is the secret; mark it and
                 // re-derive the scalar from the marked bytes so the taint
@@ -129,10 +132,15 @@ impl VoprfGroup for P256 {
         let mut lo = FieldBytes::default();
         hi.copy_from_slice(&bytes[..32]);
         lo.copy_from_slice(&bytes[32..]);
-        let scalar = <Scalar as Reduce<FieldBytes>>::reduce(&hi) * r_constant()
-            + <Scalar as Reduce<FieldBytes>>::reduce(&lo);
+        let mut high = <Scalar as Reduce<FieldBytes>>::reduce(&hi);
+        let mut low = <Scalar as Reduce<FieldBytes>>::reduce(&lo);
         hi.zeroize();
         lo.zeroize();
+        let mut shifted = high * r_constant();
+        let scalar = shifted + low;
+        high.zeroize();
+        low.zeroize();
+        shifted.zeroize();
         scalar
     }
 
@@ -165,14 +173,22 @@ impl VoprfGroup for P256 {
         Some(point)
     }
 
+    /// The secret key (`secret_key`) and the proof nonce's key bytes pass
+    /// through here, so the encoding is copied out of a `FieldBytes` that is
+    /// then wiped, rather than converted by value.
     fn encode_scalar(s: &Scalar) -> [u8; 32] {
-        s.to_repr().into()
+        let mut repr = s.to_repr();
+        let mut out = [0u8; 32];
+        out.copy_from_slice(&repr);
+        repr.zeroize();
+        out
     }
 
     /// Canonical big-endian scalars below `n`, decided without a branch.
     fn decode_scalar(bytes: &[u8; 32]) -> (Scalar, Choice) {
         // A secret key passes through here (`from_secret_key`): `repr` is
-        // wiped, and `from_repr`'s by-value argument is the only copy left.
+        // wiped, and the only copies left unwiped are `from_repr`'s by-value
+        // argument and the `CtOption` it returns.
         let mut repr = FieldBytes::default();
         repr.copy_from_slice(bytes);
         let scalar = Scalar::from_repr(repr);

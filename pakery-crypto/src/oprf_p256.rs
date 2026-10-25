@@ -138,20 +138,25 @@ fn hash_to_scalar_with_dst(input: &[&[u8]], dst: &[u8]) -> Result<Scalar, PakeEr
 ///
 /// Interprets as `high * 2^256 + low` where high is 16 bytes and low is 32 bytes,
 /// then reduces modulo the group order n. The bytes can be secret (a derived
-/// key, a proof nonce), so this function wipes its own copies of both halves;
-/// the input buffer is the caller's to wipe.
+/// key, a proof nonce), so this function wipes its own copies of both halves,
+/// before and after their reduction; the input buffer is the caller's to wipe.
 pub(crate) fn reduce_48_to_scalar(bytes: &[u8; 48]) -> Scalar {
     let mut high_fb = FieldBytes::default();
     high_fb[16..].copy_from_slice(&bytes[..16]);
-    let high = <Scalar as Reduce<FieldBytes>>::reduce(&high_fb);
+    let mut high = <Scalar as Reduce<FieldBytes>>::reduce(&high_fb);
     high_fb.zeroize();
 
     let mut low_fb = FieldBytes::default();
     low_fb.copy_from_slice(&bytes[16..]);
-    let low = <Scalar as Reduce<FieldBytes>>::reduce(&low_fb);
+    let mut low = <Scalar as Reduce<FieldBytes>>::reduce(&low_fb);
     low_fb.zeroize();
 
-    high * r_constant() + low
+    let mut shifted = high * r_constant();
+    let scalar = shifted + low;
+    high.zeroize();
+    low.zeroize();
+    shifted.zeroize();
+    scalar
 }
 
 impl OprfClientState for P256OprfClientState {
@@ -223,27 +228,34 @@ impl Oprf for P256Oprf {
         let mut r = loop {
             let mut bytes = Zeroizing::new([0u8; 32]);
             rng.fill_bytes(&mut *bytes);
-            // Copied in place rather than through a by-value array, so the only
-            // copy left unwiped is `from_repr`'s own argument.
+            // Copied in place rather than through a by-value array, and the
+            // candidate wiped once it is decided on, so the only copies left
+            // unwiped are `from_repr`'s own argument and the `CtOption` it
+            // returns.
             let mut fb = p256::FieldBytes::default();
             fb.copy_from_slice(&*bytes);
-            let result = Option::<Scalar>::from(Scalar::from_repr(fb));
+            let mut result = Option::<Scalar>::from(Scalar::from_repr(fb));
             fb.zeroize();
-            if let Some(s) = result {
-                if !bool::from(s.is_zero()) {
-                    pakery_core::ct::mark_secret(&*bytes);
-                    let mut fb = p256::FieldBytes::default();
-                    fb.copy_from_slice(&*bytes);
-                    let r = Scalar::from_repr(fb).unwrap_or(Scalar::ZERO);
-                    fb.zeroize();
-                    break r;
-                }
+            let accepted = result.as_ref().is_some_and(|s| !bool::from(s.is_zero()));
+            result.zeroize();
+            if accepted {
+                pakery_core::ct::mark_secret(&*bytes);
+                let mut fb = p256::FieldBytes::default();
+                fb.copy_from_slice(&*bytes);
+                let r = Scalar::from_repr(fb).unwrap_or(Scalar::ZERO);
+                fb.zeroize();
+                break r;
             }
         };
 
         let t = hash_to_group(password)?;
         let blinded = t * r;
-        let blind: [u8; 32] = r.to_repr().into();
+        // Copied in place rather than through a by-value array, and the
+        // encoding wiped.
+        let mut repr = r.to_repr();
+        let mut blind = [0u8; 32];
+        blind.copy_from_slice(&repr);
+        repr.zeroize();
         r.zeroize();
 
         // ctgrind: the blind is secret key material — already tainted through
