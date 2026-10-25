@@ -128,7 +128,7 @@ fn hash_to_scalar_with_dst(input: &[&[u8]], dst: &[u8]) -> Result<Scalar, PakeEr
     // L = ceil((ceil(log2(r)) + k) / 8) = ceil((256 + 128) / 8) = 48
     // Both buffers hold the uniform bytes, which `derive_key` turns into a
     // secret key, so both are wiped on drop.
-    let uniform = Zeroizing::new(expand_message_xmd::<Sha256>(input, dst, 48)?);
+    let uniform = expand_message_xmd::<Sha256>(input, dst, 48)?;
     let mut wide = Zeroizing::new([0u8; 48]);
     wide.copy_from_slice(&uniform);
     Ok(reduce_48_to_scalar(&wide))
@@ -185,9 +185,7 @@ impl OprfClientState for P256OprfClientState {
         // above if it was, and `r_inv` inverts a nonzero scalar.
         let n = z * r_inv;
         let n_bytes = Zeroizing::new(encode_point_ct(&n));
-        Ok(Zeroizing::new(finalize_hash::<Sha256>(
-            password, &*n_bytes,
-        )?))
+        finalize_hash::<Sha256>(password, &*n_bytes)
     }
 }
 
@@ -225,13 +223,17 @@ impl Oprf for P256Oprf {
         let mut r = loop {
             let mut bytes = Zeroizing::new([0u8; 32]);
             rng.fill_bytes(&mut *bytes);
-            let mut fb = p256::FieldBytes::from(*bytes);
+            // Copied in place rather than through a by-value array, so the only
+            // copy left unwiped is `from_repr`'s own argument.
+            let mut fb = p256::FieldBytes::default();
+            fb.copy_from_slice(&*bytes);
             let result = Option::<Scalar>::from(Scalar::from_repr(fb));
             fb.zeroize();
             if let Some(s) = result {
                 if !bool::from(s.is_zero()) {
                     pakery_core::ct::mark_secret(&*bytes);
-                    let mut fb = p256::FieldBytes::from(*bytes);
+                    let mut fb = p256::FieldBytes::default();
+                    fb.copy_from_slice(&*bytes);
                     let r = Scalar::from_repr(fb).unwrap_or(Scalar::ZERO);
                     fb.zeroize();
                     break r;

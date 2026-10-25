@@ -65,10 +65,10 @@ impl OprfClientState for Ristretto255OprfClientState {
         let r_inv = blind_scalar.invert();
 
         let n = r_inv * z;
-        Ok(Zeroizing::new(finalize_hash::<Sha512>(
-            password,
-            &n.compress().to_bytes(),
-        )?))
+        // `N` is the unblinded evaluation, which determines the output: its
+        // encoding is wiped on drop, as on P-256.
+        let n_bytes = Zeroizing::new(n.compress().to_bytes());
+        finalize_hash::<Sha512>(password, &*n_bytes)
     }
 }
 
@@ -79,11 +79,7 @@ pub struct Ristretto255Oprf;
 fn hash_to_group(input: &[u8]) -> Result<RistrettoPoint, PakeError> {
     // The uniform bytes are a hash of the password: both buffers are wiped on
     // drop rather than freed as they are.
-    let uniform = Zeroizing::new(expand_message_xmd::<Sha512>(
-        &[input],
-        HASH_TO_GROUP_DST,
-        64,
-    )?);
+    let uniform = expand_message_xmd::<Sha512>(&[input], HASH_TO_GROUP_DST, 64)?;
     let mut wide = Zeroizing::new([0u8; 64]);
     wide.copy_from_slice(&uniform);
     Ok(RistrettoPoint::from_uniform_bytes(&wide))
@@ -99,7 +95,7 @@ fn hash_to_scalar(input: &[&[u8]]) -> Result<Scalar, PakeError> {
 fn hash_to_scalar_with_dst(input: &[&[u8]], dst: &[u8]) -> Result<Scalar, PakeError> {
     // Both buffers hold the uniform bytes, which `derive_key` turns into a
     // secret key, so both are wiped on drop.
-    let uniform = Zeroizing::new(expand_message_xmd::<Sha512>(input, dst, 64)?);
+    let uniform = expand_message_xmd::<Sha512>(input, dst, 64)?;
     let mut wide = Zeroizing::new([0u8; 64]);
     wide.copy_from_slice(&uniform);
     Ok(Scalar::from_bytes_mod_order_wide(&wide))

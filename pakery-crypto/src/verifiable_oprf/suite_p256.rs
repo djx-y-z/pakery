@@ -96,7 +96,10 @@ impl VoprfGroup for P256 {
             rng.fill_bytes(&mut *bytes);
             // ctgrind: candidates are not marked — accepting or rejecting one
             // is a public retry decision taken before the value means anything.
-            let mut repr = FieldBytes::from(*bytes);
+            // Copied in place rather than through a by-value array, so the
+            // only copy left unwiped is `from_repr`'s own argument.
+            let mut repr = FieldBytes::default();
+            repr.copy_from_slice(&*bytes);
             let candidate = Scalar::from_repr(repr);
             repr.zeroize();
             let accept =
@@ -106,7 +109,8 @@ impl VoprfGroup for P256 {
                 // re-derive the scalar from the marked bytes so the taint
                 // carries into every later operation.
                 ct::mark_secret(&*bytes);
-                let mut repr = FieldBytes::from(*bytes);
+                let mut repr = FieldBytes::default();
+                repr.copy_from_slice(&*bytes);
                 let scalar = Scalar::from_repr(repr).unwrap_or(Scalar::ZERO);
                 repr.zeroize();
                 return scalar;
@@ -139,10 +143,8 @@ impl VoprfGroup for P256 {
 
     /// RFC 9497 §4.3: `hash_to_field` with `L = 48`, big-endian, mod `n`.
     fn hash_to_scalar(msg: &[&[u8]], dst: &[u8]) -> Scalar {
-        let uniform = Zeroizing::new(
-            expand_message_xmd::<Sha256>(msg, dst, 48)
-                .expect("every DST here is at most 255 bytes and 48 is a valid length"),
-        );
+        let uniform = expand_message_xmd::<Sha256>(msg, dst, 48)
+            .expect("every DST here is at most 255 bytes and 48 is a valid length");
         let mut wide = Zeroizing::new([0u8; 48]);
         wide.copy_from_slice(&uniform);
         reduce_48_to_scalar(&wide)
@@ -169,7 +171,12 @@ impl VoprfGroup for P256 {
 
     /// Canonical big-endian scalars below `n`, decided without a branch.
     fn decode_scalar(bytes: &[u8; 32]) -> (Scalar, Choice) {
-        let scalar = Scalar::from_repr(FieldBytes::from(*bytes));
+        // A secret key passes through here (`from_secret_key`): `repr` is
+        // wiped, and `from_repr`'s by-value argument is the only copy left.
+        let mut repr = FieldBytes::default();
+        repr.copy_from_slice(bytes);
+        let scalar = Scalar::from_repr(repr);
+        repr.zeroize();
         (scalar.unwrap_or(Scalar::ZERO), scalar.is_some())
     }
 }

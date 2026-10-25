@@ -19,10 +19,8 @@ pub(crate) struct Ristretto255;
 
 /// `expand_message_xmd(SHA-512, msg, dst, 64)` into a buffer wiped on drop.
 fn xmd64(msg: &[&[u8]], dst: &[u8]) -> Zeroizing<[u8; 64]> {
-    let uniform = Zeroizing::new(
-        expand_message_xmd::<Sha512>(msg, dst, 64)
-            .expect("every DST here is at most 255 bytes and 64 is a valid length"),
-    );
+    let uniform = expand_message_xmd::<Sha512>(msg, dst, 64)
+        .expect("every DST here is at most 255 bytes and 64 is a valid length");
     let mut out = Zeroizing::new([0u8; 64]);
     out.copy_from_slice(&uniform);
     out

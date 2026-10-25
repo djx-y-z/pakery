@@ -121,12 +121,16 @@ impl CpaceGroup for P256Group {
         loop {
             let mut bytes = Zeroizing::new([0u8; 32]);
             rng.fill_bytes(&mut *bytes);
-            let mut fb = FieldBytes::from(*bytes);
+            // Copied in place rather than through a by-value array, so the only
+            // copy left unwiped is `from_repr`'s own argument.
+            let mut fb = FieldBytes::default();
+            fb.copy_from_slice(&*bytes);
             let result = Option::<Scalar>::from(Scalar::from_repr(fb));
             fb.zeroize();
             if result.is_some() {
                 pakery_core::ct::mark_secret(&*bytes);
-                let mut fb = FieldBytes::from(*bytes);
+                let mut fb = FieldBytes::default();
+                fb.copy_from_slice(&*bytes);
                 let scalar = Scalar::from_repr(fb).unwrap_or(Scalar::ZERO);
                 fb.zeroize();
                 return scalar;
@@ -160,13 +164,19 @@ impl CpaceGroup for P256Group {
         // Interpret 64 bytes as big-endian 512-bit integer, reduce mod group order n.
         // Split into high (first 32 bytes) and low (last 32 bytes).
         // result = reduce(high) * R + reduce(low), where R = 2^256 mod n.
-        let high_arr: [u8; 32] = bytes[..32].try_into().expect("first 32 bytes");
-        let high_fb = FieldBytes::from(high_arr);
-        let low_arr: [u8; 32] = bytes[32..].try_into().expect("last 32 bytes");
-        let low_fb = FieldBytes::from(low_arr);
-
+        //
+        // The bytes are secret (SPAKE2's `w` is derived from the password), so
+        // each half is copied straight into a buffer that is wiped after its
+        // reduction, as in `reduce_48_to_scalar`.
+        let mut high_fb = FieldBytes::default();
+        high_fb.copy_from_slice(&bytes[..32]);
         let high = <Scalar as Reduce<FieldBytes>>::reduce(&high_fb);
+        high_fb.zeroize();
+
+        let mut low_fb = FieldBytes::default();
+        low_fb.copy_from_slice(&bytes[32..]);
         let low = <Scalar as Reduce<FieldBytes>>::reduce(&low_fb);
+        low_fb.zeroize();
 
         Ok(high * r_constant() + low)
     }
