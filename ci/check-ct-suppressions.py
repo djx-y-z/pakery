@@ -20,11 +20,12 @@ account for:
   - a summary total that is not the sum of the entries' counts;
   - an expectation naming no stanza of valgrind-ct.supp, or a stanza that no
     build expects;
-  - a stanza that names crypto-bigint's `safegcd` inversion (its module, its
-    types or any function it defines, by a name its frames carry or a glob
-    of one), an inversion or `UnknownInlinedFun`, or that has a `...`,
-    wildcards-only, nameless, `obj:` or `src:` frame: `safegcd` is never
-    suppressed (valgrind-ct.supp's header says why).
+  - a stanza that names crypto-bigint's `safegcd` inversion (its module or
+    types on any line, or, on a `fun:` frame, a glob matching a reference
+    name of one of its functions), an inversion or `UnknownInlinedFun`, or
+    that has a `...`, `obj:` or `src:` frame or one with no letter or
+    underscore: `safegcd` is never suppressed (valgrind-ct.supp's header
+    says why).
 
 With `--safegcd-names` it checks instead that its list of safegcd's
 functions is exactly the locked crypto-bigint's, so a version that adds one
@@ -100,35 +101,38 @@ def load_expected(text: str, source: str) -> dict[str, dict[str, int]]:
 
 # crypto-bigint's `safegcd` inversion is written to be constant time, so a
 # report in it is a defect to be taken upstream, never a pattern to accept.
-# No stanza may name it:
+# A stanza is refused if:
 #
-#   - its module or its types, on any line of a stanza, its name included,
+#   - any of its lines, its name included, names its module or its types,
 #     without regard to case (`safegcd`, which `SafeGcdInverter` contains,
 #     and `SignedInt`);
-#   - on a `fun:` frame, any function `src/modular/safegcd.rs` defines,
-#     methods included (SAFEGCD_FUNCTIONS, which `--safegcd-names` holds to
-#     the locked source), by a name its frames carry in pakery's builds:
-#     bare, as an inlined frame prints it, with or without its generic
-#     arguments, or mangled in the v0 or the legacy scheme. FORBIDDEN_FRAMES
-#     holds those names in the shapes of real symbols. A frame is read as a
-#     Valgrind glob (`*`, `?`, `\` escapes), its own crate hashes widened,
-#     and matched against them, so a glob of such a name is refused too;
-#   - an inversion, spelled or matched (`invert`, `inv?rt`): p256's field
-#     and scalar inversions are how it is entered;
-#   - `UnknownInlinedFun`, which Valgrind prints for an inlined frame it
-#     cannot name, and which can be any of the above.
+#   - a `fun:` frame, read as a Valgrind glob (`*`, `?`, `\` escapes) after
+#     widening each crate hash or back-reference it keeps whole, matches a
+#     reference name of a function `src/modular/safegcd.rs` defines, methods
+#     included (SAFEGCD_FUNCTIONS: all but GENERIC_NAMES, which every type
+#     has; `--safegcd-names` holds the list to the locked source).
+#     FORBIDDEN_FRAMES holds those names: bare, as an inlined frame prints
+#     it, with or without generic arguments, and mangled, v0 in the shapes
+#     of real symbols and legacy. A pattern with generic arguments is also
+#     matched without them, and a glob broad enough to cover one of the
+#     names (`from_*`) is refused with it;
+#   - a frame spells "invert" or matches one of INVERSION_FRAMES: p256's
+#     field and scalar inversions are how it is entered;
+#   - a frame matches `UnknownInlinedFun`, which Valgrind prints for an
+#     inlined frame it cannot name, and which can be any of the above.
 #
-# A `...` frame, a frame of wildcards only, a frame that names no function
-# (`*>`), and any `obj:` or `src:` frame are refused outright: pakery's
+# A `...` frame, a frame with no letter or underscore in it (wildcards only,
+# or `*>`), and any `obj:` or `src:` frame are refused outright: pakery's
 # entries anchor on functions, and each of those matches whatever is inlined
-# at that depth, `safegcd` included. A glob broad enough to cover one of
-# safegcd's names (`from_*`) is refused with it.
+# at that depth, `safegcd` included.
 #
-# What this cannot refuse: an entry anchored only on helpers the inversion
-# calls or inlines (crypto-bigint's `select`, ctutils' `select_i64`, core's
-# `wrapping_*`), and a glob written by hand to avoid every name above. Such
-# an entry would also absorb the helper's reports from every other caller,
-# which its justification would have to defend; the expected counts in
+# What this does not refuse: a frame that matches no reference name,
+# whatever it would match in a real build (a glob that keeps only part of a
+# crate hash, or one written by hand around every name above), and an entry
+# anchored only on helpers the inversion calls or inlines (crypto-bigint's
+# `select`, ctutils' `select_i64`, core's `wrapping_*`). Such an entry would
+# also absorb the helper's reports from every other caller, which its
+# justification would have to defend; the expected counts in
 # valgrind-ct.expected and review are the backstop.
 FORBIDDEN = re.compile(r"safegcd|signedint", re.IGNORECASE)
 INVERSION = re.compile(r"invert", re.IGNORECASE)
@@ -224,7 +228,8 @@ FORBIDDEN_FRAMES = [
 # Names an inversion's frame carries, bare and mangled: crypto-bigint's,
 # primefield's and p256's for the field and the scalar, dalek's for
 # ristretto255. `INVERSION` refuses a pattern that spells "invert"; these
-# refuse one that matches an inversion without spelling it (`inv?rt`).
+# refuse one that matches one of them without spelling it (`inv?rt`). An
+# inversion symbol this list does not hold is refused only if spelled.
 INVERSION_FRAMES = [
     "invert",
     "invert<4>",
@@ -241,10 +246,11 @@ INVERSION_FRAMES = [
 
 
 def frame_pattern(pattern: str) -> re.Pattern[str]:
-    """A `fun:` pattern as the regex `refused_by` matches names with: the
-    pattern's own crate hashes and back-references (v0 `Cs…_` and `B…_`,
-    legacy `17h…E`) are widened to wildcards first, so a pattern copied from another build's symbol matches
-    the placeholder names above as it would that build's."""
+    """A `fun:` pattern as the regex `refused_by` matches names with: each
+    crate hash or back-reference the pattern keeps whole (v0 `Cs…_` and
+    `B…_`, legacy `17h…E`) is widened to a wildcard first, so a pattern
+    copied from another build's symbol matches the placeholder names above
+    as it would that build's. A hash the pattern cuts into is not widened."""
     pattern = re.sub(r"Cs[0-9A-Za-z]*_", "Cs*_", pattern)
     pattern = re.sub(r"B[0-9A-Za-z]*_", "B*_", pattern)
     pattern = re.sub(r"17h[0-9a-f]*E", "17h*E", pattern)

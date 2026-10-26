@@ -21,15 +21,17 @@
 # `safegcd` frames: first check that the debug leg still disables debug
 # assertions; then do not tag a release, do not add an entry here, and report
 # it upstream with the log.
-# ci/check-ct-suppressions.py refuses an entry that names it: its module or
-# types, or any function it defines, by a name its frames carry in pakery's
-# builds (bare as inlined, or mangled), or a glob of one. It also refuses a
-# frame that names an inversion or matches `UnknownInlinedFun`, and any
-# `...`, wildcards-only, nameless, `obj:` or `src:` frame, and ct.yml holds
-# its list of the functions to the locked crypto-bigint. It cannot refuse an
-# entry anchored only on helpers the inversion calls or inlines (crypto-bigint's
-# `select`, ctutils' `select_i64`), or a glob written to avoid every name it
-# knows; the expected counts and review are the backstop there.
+# ci/check-ct-suppressions.py refuses an entry with a line that names its
+# module or types, or with a `fun:` frame whose glob matches a reference
+# name of one of its functions (bare as inlined, or mangled; all but `new`,
+# `eq` and `fmt`, which every type has). It also refuses a frame that spells
+# `invert`, matches a listed inversion name or `UnknownInlinedFun`, or has
+# no letter or underscore in it, and any `...`, `obj:` or `src:` frame; and
+# ct.yml holds its list of the functions to the locked crypto-bigint. It
+# does not refuse a frame that matches no reference name (a glob that keeps
+# only part of a crate hash, for one), or an entry anchored only on helpers
+# the inversion calls or inlines (crypto-bigint's `select`, ctutils'
+# `select_i64`); the expected counts and review are the backstop there.
 #
 # Written against p256 0.14.0 / primeorder 0.14.0 / hash2curve 0.14.0 /
 # subtle 2.6.1 (rustc 1.99.1, Valgrind 3.22, x86_64 Linux, debug and
