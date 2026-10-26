@@ -1,4 +1,4 @@
-## [0.6.2] - 2026-10-25
+## [0.6.2] - 2026-10-26
 
 Maintenance release. It raises the minimum supported Rust version to `1.88`; wipes more secret material in `pakery-crypto` — the SHA-2 and BLAKE2b hasher states, Argon2id's block array and argon2's own copies of H0 and the final block, the secret scalars and points its base-mode OPRF and Diffie-Hellman code computes with, and a set of stack temporaries; keeps ristretto255's base-mode secret scalars secret through their parse, so that the constant-time harness now checks every multiplication by them, as it has checked P-256's since `0.6.1`; and has `pakery-opaque`'s exported building blocks run the compile-time length checks that its protocol entry points run.
 
