@@ -7,7 +7,7 @@ Maintenance release. It raises the minimum supported Rust version to `1.88`; wip
 ### Changed
 
 - **The minimum supported Rust version is now `1.88`** (was `1.85`). sha2 0.11.1 declares `rust-version = "1.88"`, and crypto-bigint 0.7.6 and ctutils 0.4.4 and later declare `1.87`. Under `resolver = "2"`, a 1.85 build that resolved sha2 0.11.1 already failed on `0.6.0` and `0.6.1`. At `1.88` the lockfile and CI test the versions a downstream build actually resolves.
-  - crypto-bigint 0.7.6 and ctutils 0.4.4 are the first releases fixed for RUSTSEC-2026-0387 and RUSTSEC-2026-0385. crypto-bigint has since yanked 0.7.6 to 0.7.8 for an unrelated breaking change, and the lockfile holds 0.7.9. Nothing in pakery's manifests caps either crate, so a build on Rust 1.87 or later takes the fixed releases with `cargo update -p crypto-bigint -p ctutils`, on `0.6.1` as well. Where a lockfile holds more than one version of a crate, name the one to move, as in `-p crypto-bigint@0.7.5`.
+  - crypto-bigint 0.7.6 and ctutils 0.4.4 are the first releases fixed for RUSTSEC-2026-0387 and RUSTSEC-2026-0385. crypto-bigint has since yanked 0.7.6 to 0.7.8 for an unrelated breaking change, and the lockfile holds 0.7.10. Nothing in pakery's manifests caps either crate, so a build on Rust 1.87 or later takes the fixed releases with `cargo update -p crypto-bigint -p ctutils`, on `0.6.1` as well. Where a lockfile holds more than one version of a crate, name the one to move, as in `-p crypto-bigint@0.7.5`.
 - **`pakery-opaque`'s building blocks and message parsers run the compile-time length checks.** Every protocol entry point has called `assert_lengths` first since `0.5.0`. The 21 other exported functions without `self` that are generic over the suite — the `oprf`, `envelope` and `key_derivation` functions, the eight message parsers and the two `size` functions — now call it first too. So calling one directly with a suite whose lengths disagree is the same build error, naming the constant, instead of an unchecked run. The source guard now requires the call of every exported function without `self` except the two that take no suite, and exempts only a top-level function that cannot be generic over a suite.
 - **`pakery-crypto`'s `argon2` feature also turns on blake2's `zeroize` feature**, through a direct optional dependency on `blake2` 0.11 (see Fixed). A second blake2 version, which would not carry the feature to argon2's, fails the duplicate-versions check of the published graph.
 
@@ -47,7 +47,7 @@ These are hardening fixes. None changes an output.
   - `cargo audit` over the `fuzz/` and `dudect/` lockfiles.
   - cargo-deny fails on an unsound advisory or a yanked version anywhere in the graph. By default it checked unsoundness only for direct dependencies, and only warned about yanked versions.
 - cargo-deny excludes elliptic-curve 0.13.8 from its graph. That line reaches only `pakery-tests`' differential suite (`publish = false`), and it pulls crypto-bigint 0.5.5, which has no fixed release for RUSTSEC-2026-0387. cargo-audit still scans those crates for every other advisory.
-- All three lockfiles are refreshed. Among the moves are proptest 1.12, which needs Rust 1.88, and crypto-bigint 0.7.9.
+- All three lockfiles are refreshed. Among the moves are proptest 1.12, which needs Rust 1.88, and crypto-bigint 0.7.10.
 
 ## [0.6.1] - 2026-10-21
 
