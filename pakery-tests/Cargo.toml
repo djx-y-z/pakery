@@ -61,7 +61,7 @@ p256 = { workspace = true, optional = true }
 # `ct_harness_is_armed` can ask crabgrind whether the binary runs under
 # Valgrind at all (`valgrind::running_mode`) and whether memcheck answers its
 # marking requests (`memcheck::mark_memory`).
-crabgrind = { version = "0.4.0", optional = true }
+crabgrind = { version = "0.6.0", optional = true }
 # Differential-testing deps (see SECURITY_TESTING.md, "Differential testing"). Cargo does
 # not support optional dev-dependencies, so these live in [dependencies] behind
 # the `differential` feature (this crate is publish = false and test-only, so
